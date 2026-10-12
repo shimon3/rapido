@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rapido</title>
+<link rel="icon" href="/favicon.ico">
+<style>
+:root{
+  --bg:#f3f4f1; --panel:#ffffff; --ink:#16181a; --muted:#686f75; --line:#dcdfda;
+  --accent:#1f6f5c; --accent-ink:#fff; --seg:#2f8f76; --seg-bg:#e3e9e6; --err:#b42323; --warn:#b4541a;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#141618; --panel:#1c1f22; --ink:#e8eae7; --muted:#8f969c; --line:#2d3135;
+    --accent:#4cc3a0; --accent-ink:#0d1a16; --seg:#4cc3a0; --seg-bg:#26302c; --err:#ef6b6b; --warn:#e8964f;}
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 "Segoe UI",system-ui,sans-serif;
+  display:flex;flex-direction:column}
+.head{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.head img{width:22px;height:22px;border-radius:5px}
+.head h1{font-size:14px;margin:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.body{flex:1;padding:14px 16px;overflow:auto}
+.foot{display:flex;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);background:var(--panel)}
+.foot .sp{flex:1}
+label.f{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+label.f:first-child{margin-top:0}
+input[type=text],select,textarea{width:100%;padding:6px 9px;border:1px solid var(--line);border-radius:6px;
+  background:var(--panel);color:var(--ink);font:inherit}
+input[readonly]{background:var(--bg);color:var(--muted);font-family:var(--mono);font-size:12px}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.two{display:grid;grid-template-columns:1fr 150px;gap:10px}
+button{white-space:nowrap;font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:7px 13px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+.chk{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.sizebox{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.sizebox b{font-family:var(--mono)}
+.spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s .8s linear infinite;flex:none}
+@keyframes s{to{transform:rotate(360deg)}}
+.err{color:var(--err)}
+.vid{display:flex;gap:12px;align-items:flex-start;margin-bottom:6px}
+.vid img{width:132px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;background:var(--seg-bg);flex:none}
+.vid .t{font-weight:600;font-size:14px;line-height:1.3}
+.vid .d{color:var(--muted);font-size:12px;margin-top:3px}
+.fmts{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.fmts label{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer}
+.fmts label:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.fmts .sz{margin-left:auto;font-family:var(--mono);color:var(--muted);font-size:12px}
+table.kv{width:100%;border-collapse:collapse}
+table.kv td{padding:3px 0;vertical-align:top}
+table.kv td:first-child{color:var(--muted);width:130px;white-space:nowrap}
+table.kv td:last-child{font-family:var(--mono);font-size:12px;word-break:break-all}
+.pbar{height:16px;background:var(--seg-bg);border-radius:4px;overflow:hidden;margin:12px 0 6px;position:relative}
+.pbar>i{position:absolute;top:0;bottom:0;left:0;background:var(--seg);transition:width .4s}
+.segs{height:10px;background:var(--seg-bg);border-radius:3px;position:relative;overflow:hidden}
+.segs i{position:absolute;top:0;bottom:0;background:var(--seg);border-right:1px solid var(--panel)}
+details{margin-top:10px}
+summary{cursor:pointer;color:var(--muted);font-size:12px}
+table.conn{width:100%;border-collapse:collapse;margin-top:6px;font-family:var(--mono);font-size:12px}
+table.conn th{text-align:left;font-weight:500;color:var(--muted);border-bottom:1px solid var(--line);padding:3px 4px}
+table.conn td{padding:2px 4px;border-bottom:1px solid var(--line)}
+.done-ico{width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:22px;flex:none}
+.done-row{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.done-row b{font-size:15px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="head"><img src="/favicon.ico" alt=""><h1 id="title">Rapido</h1></div>
+<div class="body" id="body"></div>
+<div class="foot" id="foot"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const ID = params.get("id");
+let view = params.get("view") || "progress";
+let dl = null, settings = null, confirmed = false, timer = null, pausedBusy = false;
+const CATS = ["Vidéos","Musique","Archives","Programmes","Documents","Images","Autres"];
+
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtBytes(n){ if(n == null || n < 0) return "Inconnue"; const u=["octets","Ko","Mo","Go","To"]; let i=0;
+  while(n >= 1024 && i < u.length-1){ n/=1024; i++; } return (i ? n.toFixed(n<10?2:1) : n) + " " + u[i]; }
+function fmtTime(s){ if(s == null || s < 0) return "—"; if(s < 60) return s+" s"; if(s < 3600) return Math.floor(s/60)+" min "+(s%60)+" s";
+  return Math.floor(s/3600)+" h "+Math.floor((s%3600)/60)+" min"; }
+function fmtDur(s){ if(!s) return ""; const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
+  return (h? h+":"+String(m).padStart(2,"0") : m) + ":" + String(x).padStart(2,"0"); }
+async function api(path, method="GET", body){
+  const opt = {method, headers:{}};
+  if(method !== "GET"){ opt.headers["Content-Type"]="application/json"; opt.body = JSON.stringify(body||{}); }
+  const r = await fetch(path, opt);
+  if(!r.ok){ let m=r.statusText; try{ m=(await r.json()).detail||m }catch{} throw new Error(m); }
+  return r.json();
+}
+function resize(w, h){ try{ window.resizeTo(w, h); }catch{} }
+function setView(v){
+  view = v; const p = new URLSearchParams(location.search); p.set("view", v);
+  history.replaceState(null, "", "?" + p.toString());
+}
+function closeWin(){ window.close(); setTimeout(() => { document.body.innerHTML =
+  '<div class="body" style="display:grid;place-items:center;color:var(--muted)">Tu peux fermer cette fenêtre.</div>'; }, 300); }
+
+/* ============ capture : fichier ============ */
+function renderCaptureHttp(){
+  $("#title").textContent = "Informations sur le fichier de téléchargement";
+  $("#body").innerHTML = `
+    <label class="f">Adresse (URL)</label>
+    <input type="text" readonly value="${esc(dl.url)}">
+    <div class="sizebox" id="sizebox"></div>
+    <label class="f">Catégorie</label>
+    <select id="cat">${CATS.map(c => `<option ${c===dl.category?"selected":""}>${c}</option>`).join("")}</select>
+    <label class="f">Enregistrer dans</label>
+    <input type="text" id="folder" placeholder="${esc(defaultFolder(dl.category))}">
+    <label class="f">Nom du fichier</label>
+    <input type="text" id="fname" value="${esc(dl.filename)}">
+    <label class="f">Description</label>
+    <input type="text" id="desc" placeholder="Optionnel">
+    <label class="chk" style="margin-top:10px"><input type="checkbox" id="nomore"> Ne plus afficher cette fenêtre (les téléchargements démarreront directement)</label>
+  `;
+  $("#cat").onchange = () => { $("#folder").placeholder = defaultFolder($("#cat").value); };
+  captureFooter();
+  updateProbe();
+}
+function defaultFolder(cat){
+  if(!settings) return "Dossier par défaut";
+  return settings.download_dir + (settings.sort_by_category ? sepOf(settings.download_dir) + cat : "");
+}
+function sepOf(p){ return p.includes("\\") ? "\\" : "/"; }
+function updateProbe(){
+  const box = $("#sizebox"); if(!box) return;
+  if(dl.probe === "probing" || dl.probe === "")
+    box.innerHTML = `<div class="spin"></div><span>Analyse du lien…</span>`;
+  else if(dl.probe === "failed")
+    box.innerHTML = `<span class="err">Impossible d'analyser le lien : ${esc(dl.probe_error)}</span>`;
+  else{
+    box.innerHTML = `Taille : <b>${fmtBytes(dl.size)}</b> <span style="margin-left:auto;color:var(--muted)">${dl.resumable ? "Reprise possible" : "Reprise impossible"}</span>`;
+    const f = $("#fname"); if(f && !f.dataset.touched && f.value !== dl.filename) f.value = dl.filename;
+    const c = $("#cat"); if(c && !c.dataset.touched){ c.value = dl.category; $("#folder").placeholder = defaultFolder(dl.category); }
+  }
+}
+
+function captureFooter(){
+  $("#foot").innerHTML = `
+    <div class="sp"></div>
+    <button id="later">Télécharger plus tard</button>
+    <button id="cancel">Annuler</button>
+    <button class="primary" id="start">Démarrer le téléchargement</button>`;
+  $("#cancel").onclick = async () => { await api(`/api/downloads/${ID}/cancel-capture`, "POST").catch(()=>{}); confirmed = true; closeWin(); };
+  $("#start").onclick = () => doConfirm(false);
+  $("#later").onclick = () => doConfirm(true);
+  document.querySelectorAll("#fname,#cat").forEach(el => el.addEventListener("input", () => el.dataset.touched = 1));
+  if(dl.kind === "video") syncVideoButtons();
+}
+
+async function doConfirm(later){
+  const body = { later,
+    filename: $("#fname")?.value.trim() || null,
+    folder: $("#folder")?.value.trim() || null,
+    description: $("#desc")?.value.trim() || "" };
+  if(dl.kind === "video"){ const c = document.querySelector("input[name=fmt]:checked"); body.format_id = c ? c.value : null; }
+  else if($("#cat") && $("#cat").value !== dl.category && !body.folder){
+    body.folder = defaultFolder($("#cat").value);
+  }
+  try{
+    if($("#nomore")?.checked) await api("/api/settings", "PUT", {show_capture_dialog:false});
+    dl = await api(`/api/downloads/${ID}/confirm`, "POST", body);
+    confirmed = true;
+    if(!later && settings.show_progress_window){ setView("progress"); resize(520, 430); renderProgress(); }
+    else closeWin();
+  }catch(e){ alert(e.message); }
+}
+
+/* ============ capture : vidéo ============ */
+function renderCaptureVideo(){
+  $("#title").textContent = "Télécharger la vidéo";
+  if(dl.probe !== "ready"){
+    $("#body").innerHTML = dl.probe === "failed"
+      ? `<p class="err">Impossible de récupérer cette vidéo.</p><p style="color:var(--muted);font-size:12px">${esc(dl.probe_error)}</p>
+         <p style="color:var(--muted);font-size:12px">Astuce : lance la lecture de la vidéo quelques secondes puis réessaie, pour que l'extension détecte le flux.</p>`
+      : `<div class="sizebox"><div class="spin"></div><span>Analyse de la vidéo…</span></div>
+         <p style="color:var(--muted);font-size:12px;margin-top:10px">${esc(dl.page_url)}</p>`;
+    captureFooter();
+    return;
+  }
+  const cur = document.querySelector("input[name=fmt]:checked")?.value || dl.formats[0]?.id;
+  $("#body").innerHTML = `
+    <div class="vid">
+      ${dl.thumbnail ? `<img src="${esc(dl.thumbnail)}" alt="" referrerpolicy="no-referrer">` : ""}
+      <div><div class="t">${esc(dl.title)}</div><div class="d">${fmtDur(dl.duration)}</div></div>
+    </div>
+    <label class="f">Qualité</label>
+    <div class="fmts">${dl.formats.map(f => `
+      <label><input type="radio" name="fmt" value="${f.id}" ${f.id===cur?"checked":""}>
+        <span>${esc(f.label)} <span style="color:var(--muted)">.${esc(f.ext)}</span></span>
+        <span class="sz">${f.size ? "≈ " + fmtBytes(f.size) : ""}</span></label>`).join("")}
+    </div>
+    <label class="f">Nom du fichier</label>
+    <input type="text" id="fname" value="${esc(dl.filename.replace(/\.[^.]+$/, ""))}">
+    <label class="f">Enregistrer dans</label>
+    <input type="text" id="folder" placeholder="${esc(defaultFolder("Vidéos"))}">
+    ${settings && !settings.ffmpeg_found ? `<p style="color:var(--warn);font-size:12px;margin:10px 0 0">ffmpeg n'est pas installé : seules les qualités déjà fusionnées (souvent 360p/720p) sont proposées. Voir le README.</p>` : ""}
+  `;
+  captureFooter();
+}
+function syncVideoButtons(){
+  const ok = dl.probe === "ready";
+  ["#start","#later"].forEach(s => { const b = $(s); if(b) b.disabled = !ok; });
+}
+
+/* ============ progression / terminé ============ */
+function renderProgress(){
+  if(dl.status === "completed") return renderDone();
+  const pct = dl.size > 0 ? Math.min(100, dl.downloaded / dl.size * 100) : 0;
+  document.title = `${pct.toFixed(0)}% ${dl.filename || ""}`;
+  $("#title").textContent = `${pct.toFixed(0)} % — ${dl.filename || "…"}`;
+  const st = {queued:"En attente", downloading:"Téléchargement…", paused:"En pause", error:"Erreur", pending:"En attente de confirmation"}[dl.status] || dl.status;
+  const segHTML = dl.kind === "http" && dl.size > 0
+    ? dl.segments.map(s => `<i style="left:${s.start/dl.size*100}%;width:${s.done/dl.size*100}%"></i>`).join("") : "";
+  const openDetails = $("#det")?.open;
+  $("#body").innerHTML = `
+    <table class="kv">
+      <tr><td>Adresse</td><td>${esc(dl.url)}</td></tr>
+      <tr><td>Statut</td><td>${esc(st)}</td></tr>
+      <tr><td>Taille du fichier</td><td>${fmtBytes(dl.size)}</td></tr>
+      <tr><td>Téléchargé</td><td>${fmtBytes(dl.downloaded)}${dl.size>0?` (${pct.toFixed(2)} %)`:""}</td></tr>
+      <tr><td>Vitesse</td><td>${dl.status==="downloading" ? fmtBytes(dl.speed)+"/s" : "—"}</td></tr>
+      <tr><td>Temps restant</td><td>${dl.status==="downloading" ? fmtTime(dl.eta) : "—"}</td></tr>
+      <tr><td>Reprise possible</td><td>${dl.kind==="video" ? "Oui" : (dl.resumable ? "Oui" : "Non")}</td></tr>
+    </table>
+    <div class="pbar"><i style="width:${pct}%"></i></div>
+    ${segHTML ? `<div class="segs">${segHTML}</div>` : ""}
+    ${dl.error ? `<p class="err">${esc(dl.error)}</p>` : ""}
+    ${dl.kind === "http" && dl.segments.length ? `
+    <details id="det" ${openDetails?"open":""}><summary>Détails des connexions (${dl.active_connections} active${dl.active_connections>1?"s":""})</summary>
+      <table class="conn"><tr><th>N°</th><th>Début</th><th>Téléchargé</th><th>Info</th></tr>
+      ${dl.segments.map((s,i) => {
+        const len = s.end >= 0 ? s.end - s.start + 1 : -1;
+        const info = len >= 0 && s.done >= len ? "Terminé" : (dl.status === "downloading" ? "Réception des données…" : "—");
+        return `<tr><td>${i+1}</td><td>${fmtBytes(s.start)}</td><td>${fmtBytes(s.done)}</td><td>${info}</td></tr>`; }).join("")}
+      </table></details>` : ""}
+  `;
+  const running = dl.status === "downloading" || dl.status === "queued";
+  if(!$("#foot").dataset.v || $("#foot").dataset.v !== "p"+running){
+    $("#foot").dataset.v = "p"+running;
+    $("#foot").innerHTML = `
+      <div class="sp"></div>
+      <button id="pr">${running ? "Pause" : "Reprendre"}</button>
+      <button id="hide">Masquer</button>
+      <button id="cancel">Annuler</button>`;
+    $("#pr").onclick = async () => {
+      if(pausedBusy) return; pausedBusy = true;
+      try{ await api(`/api/downloads/${ID}/${running ? "pause" : "resume"}`, "POST"); await tick(); } finally{ pausedBusy = false; }
+    };
+    $("#hide").onclick = closeWin;
+    $("#cancel").onclick = async () => {
+      if(!confirm("Arrêter ce téléchargement ? Il restera dans la liste, en pause.")) return;
+      await api(`/api/downloads/${ID}/pause`, "POST"); closeWin();
+    };
+  }
+}
+
+function renderDone(){
+  document.title = "Téléchargement terminé";
+  $("#title").textContent = "Téléchargement terminé";
+  if($("#foot").dataset.v === "done") return;
+  $("#foot").dataset.v = "done";
+  resize(520, 330);
+  $("#body").innerHTML = `
+    <div class="done-row"><div class="done-ico">✓</div><div><b>${esc(dl.filename)}</b><div style="color:var(--muted)">${fmtBytes(dl.size)}</div></div></div>
+    <table class="kv">
+      <tr><td>Adresse</td><td>${esc(dl.url)}</td></tr>
+      <tr><td>Enregistré dans</td><td>${esc(dl.path)}</td></tr>
+    </table>`;
+  $("#foot").innerHTML = `
+    <label class="chk"><input type="checkbox" id="nomore"> Ne plus afficher</label>
+    <div class="sp"></div>
+    <button class="primary" id="open">Ouvrir</button>
+    <button id="openf">Ouvrir le dossier</button>
+    <button id="close">Fermer</button>`;
+  const after = async () => { if($("#nomore").checked) await api("/api/settings","PUT",{show_complete_dialog:false}).catch(()=>{}); closeWin(); };
+  $("#open").onclick = async () => { await api(`/api/downloads/${ID}/open`, "POST").catch(e => alert(e.message)); after(); };
+  $("#openf").onclick = async () => { await api(`/api/downloads/${ID}/open?folder=true`, "POST").catch(()=>{}); after(); };
+  $("#close").onclick = after;
+}
+
+/* ============ boucle ============ */
+async function tick(){
+  try{
+    const prevProbe = dl?.probe;
+    dl = await api(`/api/downloads/${ID}?watch=${view === "progress"}`);
+  }catch(e){
+    $("#body").innerHTML = `<p class="err">Téléchargement introuvable (retiré de la liste ?).</p>`;
+    $("#foot").innerHTML = `<div class="sp"></div><button onclick="window.close()">Fermer</button>`;
+    clearInterval(timer); return;
+  }
+  if(view === "capture"){
+    if(dl.status !== "pending"){ setView("progress"); renderProgress(); return; }
+    if(dl.kind === "video"){
+      const ready = dl.probe === "ready" || dl.probe === "failed";
+      if(!$("#body").dataset.r || ($("#body").dataset.r === "wait" && ready)){
+        $("#body").dataset.r = ready ? "ok" : "wait"; renderCaptureVideo();
+      }
+      syncVideoButtons();
+    } else {
+      if(!$("#fname")) renderCaptureHttp(); else updateProbe();
+    }
+  } else renderProgress();
+}
+
+window.addEventListener("beforeunload", () => {
+  if(view === "capture" && !confirmed)
+    fetch(`/api/downloads/${ID}/cancel-capture`, {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}", keepalive:true});
+});
+
+(async () => {
+  if(!ID){ $("#body").textContent = "Paramètre id manquant"; return; }
+  settings = await api("/api/settings").catch(() => ({}));
+  await tick();
+  timer = setInterval(tick, 700);
+})();
+</script>
+</body>
+</html>

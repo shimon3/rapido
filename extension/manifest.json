@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Rapido - Capture",
+  "version": "2.0",
+  "description": "Envoie les téléchargements et les vidéos vers Rapido (serveur local).",
+  "permissions": ["downloads", "contextMenus", "cookies", "storage", "webRequest"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*"],
+    "js": ["content.js"],
+    "all_frames": true,
+    "run_at": "document_idle"
+  }],
+  "action": { "default_title": "Rapido : capture activée (clic pour désactiver)" },
+  "icons": { "128": "icon128.png" }
+}

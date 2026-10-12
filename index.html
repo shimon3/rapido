@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rapido</title>
+<link rel="icon" href="/favicon.ico">
+<style>
+:root{
+  --bg:#eef0ec; --panel:#ffffff; --side:#f6f7f4; --ink:#16181a; --muted:#6a7177; --line:#dcdfd9;
+  --accent:#1f6f5c; --accent-ink:#fff; --sel:#d9ebe4; --sel-ink:#0f3d31; --hover:#f1f4f1;
+  --seg:#2f8f76; --seg-bg:#e2e8e5; --err:#b42323; --warn:#b4541a; --tool:#33393e;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#111315; --panel:#1a1d20; --side:#16191b; --ink:#e7e9e6; --muted:#8d949a; --line:#2a2e32;
+    --accent:#4cc3a0; --accent-ink:#0d1a16; --sel:#1f3a32; --sel-ink:#d4f3e8; --hover:#202427;
+    --seg:#4cc3a0; --seg-bg:#25302c; --err:#ef6b6b; --warn:#e8964f; --tool:#cfd4d0;}
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.4 "Segoe UI",system-ui,-apple-system,sans-serif;
+  display:flex;flex-direction:column;overflow:hidden}
+/* ---- barre d'outils ---- */
+.toolbar{display:flex;align-items:stretch;gap:2px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;flex:none}
+.tb{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:70px;padding:6px 8px;border:1px solid transparent;
+  background:none;border-radius:6px;color:var(--tool);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.tb:hover{background:var(--hover);border-color:var(--line)}
+.tb:disabled{opacity:.35;cursor:default;background:none;border-color:transparent}
+.tb svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tb.add svg{stroke:var(--accent)}
+.tb.on{background:var(--sel);color:var(--sel-ink)}
+.sep{width:1px;background:var(--line);margin:4px 6px;flex:none}
+.brand{margin-left:auto;align-self:center;font-weight:700;font-size:17px;letter-spacing:-.02em;padding:0 8px;white-space:nowrap}
+.brand span{color:var(--accent)}
+/* ---- corps ---- */
+.main{flex:1;display:flex;min-height:0}
+.side{width:200px;flex:none;background:var(--side);border-right:1px solid var(--line);overflow:auto;padding:8px 0}
+.side h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 14px 4px;font-weight:600}
+.cat{display:flex;align-items:center;gap:7px;width:100%;border:none;background:none;color:var(--ink);font:inherit;
+  padding:5px 14px;cursor:pointer;text-align:left}
+.cat.sub{padding-left:30px}
+.cat:hover{background:var(--hover)}
+.cat.on{background:var(--sel);color:var(--sel-ink);font-weight:600}
+.cat small{margin-left:auto;color:var(--muted);font-family:var(--mono);font-size:11px}
+.cat svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none;opacity:.8}
+.listwrap{flex:1;overflow:auto;background:var(--panel);position:relative}
+table.list{width:100%;border-collapse:collapse;table-layout:fixed}
+table.list th{position:sticky;top:0;z-index:1;background:var(--side);text-align:left;font-weight:500;color:var(--muted);
+  font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden}
+table.list th .ar{font-size:10px;margin-left:3px}
+table.list td{padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+table.list tr:hover td{background:var(--hover)}
+table.list tr.sel td{background:var(--sel);color:var(--sel-ink)}
+td.num{font-family:var(--mono);font-size:12px}
+.fn{display:flex;align-items:center;gap:7px;overflow:hidden}
+.fn span{overflow:hidden;text-overflow:ellipsis}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
+.dot.downloading{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+.dot.completed{background:var(--seg);opacity:.5}
+.dot.error{background:var(--err)} .dot.paused{background:var(--warn)} .dot.queued{background:var(--muted)}
+.st{display:flex;align-items:center;gap:6px}
+.st .mini{flex:1;height:7px;background:var(--seg-bg);border-radius:2px;overflow:hidden;min-width:30px}
+.st .mini i{display:block;height:100%;background:var(--seg)}
+.st b{font-weight:500;font-family:var(--mono);font-size:12px;min-width:46px}
+.st.err b{color:var(--err)}
+.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);text-align:center;padding:20px}
+.empty div{max-width:380px}
+/* ---- barre d'etat ---- */
+.status{display:flex;gap:18px;align-items:center;padding:5px 12px;background:var(--side);border-top:1px solid var(--line);font-size:12px;color:var(--muted);flex:none}
+.status b{color:var(--ink);font-weight:500;font-family:var(--mono)}
+.status .sp{flex:1}
+.power{background:var(--warn);color:#fff;padding:6px 12px;display:none;align-items:center;gap:12px;font-size:13px}
+.power button{background:#fff;color:#000;border:none;border-radius:4px;padding:3px 10px;cursor:pointer;font:inherit}
+/* ---- menu contextuel ---- */
+.ctx{position:fixed;z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);
+  padding:4px;min-width:220px;display:none}
+.ctx button{display:flex;width:100%;border:none;background:none;color:var(--ink);font:inherit;padding:6px 12px;border-radius:5px;cursor:pointer;text-align:left}
+.ctx button:hover{background:var(--sel);color:var(--sel-ink)}
+.ctx button:disabled{opacity:.4;background:none;cursor:default}
+.ctx hr{border:none;border-top:1px solid var(--line);margin:4px 0}
+/* ---- dialogues ---- */
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:0;width:min(560px,94vw)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.dh{padding:12px 16px;border-bottom:1px solid var(--line);font-weight:600;font-size:14px}
+.db{padding:14px 16px;max-height:65vh;overflow:auto}
+.df{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);padding:0 12px}
+.tabs button{border:none;background:none;color:var(--muted);font:inherit;padding:9px 11px;border-bottom:2px solid transparent;cursor:pointer}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+.pane{display:none}.pane.on{display:block}
+label.f{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px}
+label.f:first-child{margin-top:0}
+input[type=text],input[type=number],input[type=time],select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;
+  background:var(--bg);color:var(--ink);font:inherit}
+textarea{font-family:var(--mono);font-size:12px;resize:vertical}
+.chk{display:flex;align-items:center;gap:8px;margin-top:10px}
+.hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+.days{display:flex;gap:4px;flex-wrap:wrap}
+.days label{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:7px 14px;cursor:pointer}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.toast{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:7px;
+  font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60}
+.toast.show{opacity:1}
+.offline{background:var(--err);color:#fff;text-align:center;padding:5px;font-size:13px;display:none}
+.drop{position:fixed;inset:0;background:color-mix(in srgb,var(--accent) 18%,transparent);border:3px dashed var(--accent);display:none;
+  place-items:center;font-size:18px;font-weight:600;color:var(--accent);z-index:70;pointer-events:none}
+@media (max-width:760px){
+  .side{display:none}
+  .brand{display:none}
+  .tb{min-width:58px;font-size:11px}
+  .c-last,.c-desc,.c-eta{display:none}
+}
+</style>
+</head>
+<body>
+<div class="offline" id="offline">Serveur Rapido injoignable — relance demarrer.bat</div>
+<div class="power" id="power"><span id="powerTxt"></span><button id="powerCancel">Annuler</button></div>
+
+<div class="toolbar">
+  <button class="tb add" id="tAdd" title="Ajouter une adresse (Ctrl+N)">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Ajouter URL</button>
+  <button class="tb" id="tResume" title="Reprendre">
+    <svg viewBox="0 0 24 24"><path d="M7 5v14l11-7z"/></svg>Reprendre</button>
+  <button class="tb" id="tPause" title="Arrêter">
+    <svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>Arrêter</button>
+  <button class="tb" id="tPauseAll" title="Tout arrêter">
+    <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M10 9v6M14 9v6"/></svg>Tout arrêter</button>
+  <button class="tb" id="tDelete" title="Supprimer (Suppr)">
+    <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Supprimer</button>
+  <button class="tb" id="tClear" title="Supprimer les terminés">
+    <svg viewBox="0 0 24 24"><path d="M4 7h16M6 7l1 13h10l1-13"/><path d="M9.5 13.5l2 2 3.5-4"/></svg>Suppr. terminés</button>
+  <div class="sep"></div>
+  <button class="tb" id="tOptions" title="Options">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Options</button>
+  <button class="tb" id="tSched" title="Planificateur">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M5 3 2 6M19 3l3 3"/></svg>Planificateur</button>
+  <button class="tb" id="tQStart" title="Démarrer la file d'attente">
+    <svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h7M4 18h7"/><path d="M15 11v8l6-4z"/></svg>Démarrer la file</button>
+  <button class="tb" id="tQStop" title="Arrêter la file d'attente">
+    <svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h7M4 18h7"/><rect x="15" y="12" width="6" height="6" rx="1"/></svg>Arrêter la file</button>
+  <div class="sep"></div>
+  <button class="tb" id="tFolder" title="Ouvrir le dossier de téléchargement">
+    <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Dossier</button>
+  <div class="brand">Rapi<span>do</span></div>
+</div>
+
+<div class="main">
+  <nav class="side" id="side"></nav>
+  <div class="listwrap" id="listwrap">
+    <table class="list">
+      <colgroup><col style="width:auto"><col style="width:92px"><col style="width:150px" class="c-st"><col style="width:100px" class="c-eta">
+        <col style="width:100px"><col style="width:120px" class="c-last"><col style="width:160px" class="c-desc"></colgroup>
+      <thead><tr id="thead"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty"><div>Aucun téléchargement.<br><br>Clique sur <b>Ajouter URL</b>, colle un lien (Ctrl+V) ou glisse-le ici.
+      Avec l'extension Chrome, tes téléchargements arrivent automatiquement.</div></div>
+  </div>
+</div>
+
+<div class="status">
+  <span id="sCount"></span><span id="sSpeed"></span><span id="sQueue"></span>
+  <div class="sp"></div><span id="sFf"></span>
+</div>
+
+<div class="ctx" id="ctx">
+  <button data-c="open">Ouvrir</button>
+  <button data-c="folder">Ouvrir le dossier</button>
+  <button data-c="progress">Afficher la progression</button>
+  <hr>
+  <button data-c="resume">Reprendre</button>
+  <button data-c="pause">Arrêter</button>
+  <button data-c="redownload">Retélécharger</button>
+  <button data-c="refresh">Actualiser l'adresse de téléchargement…</button>
+  <button data-c="queue">Déplacer dans la file d'attente</button>
+  <hr>
+  <button data-c="copy">Copier l'adresse</button>
+  <button data-c="desc">Modifier la description…</button>
+  <hr>
+  <button data-c="delete">Supprimer de la liste</button>
+  <button data-c="deletefile">Supprimer avec le fichier</button>
+</div>
+
+<!-- Ajouter URL -->
+<dialog id="dAdd">
+  <form method="dialog" id="fAdd">
+    <div class="dh">Entrez l'adresse à télécharger</div>
+    <div class="db">
+      <label class="f" for="aUrl">Adresse (une par ligne pour en ajouter plusieurs)</label>
+      <textarea id="aUrl" rows="3" spellcheck="false" placeholder="https://…"></textarea>
+    </div>
+    <div class="df"><button class="btn" type="button" data-close>Annuler</button><button class="btn primary">OK</button></div>
+  </form>
+</dialog>
+
+<!-- Options -->
+<dialog id="dOpt">
+  <form method="dialog" id="fOpt">
+    <div class="dh">Options</div>
+    <div class="tabs" id="optTabs">
+      <button type="button" class="on" data-p="g">Général</button><button type="button" data-p="c">Connexion</button>
+      <button type="button" data-p="t">Types de fichiers</button><button type="button" data-p="o">Outils</button>
+    </div>
+    <div class="db">
+      <div class="pane on" data-p="g">
+        <label class="f" for="oDir">Dossier de téléchargement</label>
+        <input type="text" id="oDir">
+        <label class="chk"><input type="checkbox" id="oCat"> Ranger dans un sous-dossier par catégorie</label>
+        <label class="chk"><input type="checkbox" id="oCap"> Afficher la fenêtre d'informations avant chaque téléchargement</label>
+        <label class="chk"><input type="checkbox" id="oProg"> Afficher la fenêtre de progression</label>
+        <label class="chk"><input type="checkbox" id="oDone"> Afficher la fenêtre « Téléchargement terminé »</label>
+        <label class="chk"><input type="checkbox" id="oClip"> Surveiller le presse-papiers (copier un lien de fichier lance la capture)</label>
+      </div>
+      <div class="pane" data-p="c">
+        <div class="row2">
+          <div><label class="f" for="oConn">Connexions par fichier</label><input type="number" id="oConn" min="1" max="32"></div>
+          <div><label class="f" for="oMax">Téléchargements simultanés</label><input type="number" id="oMax" min="1" max="10"></div>
+        </div>
+        <label class="f" for="oLimit">Limite de vitesse globale (Ko/s, 0 = illimitée)</label>
+        <input type="number" id="oLimit" min="0">
+        <p class="hint">8 connexions est un bon réglage par défaut. Au-delà de 16, certains serveurs te bloquent.</p>
+      </div>
+      <div class="pane" data-p="t">
+        <label class="f" for="oExts">Extensions capturées automatiquement (Chrome et presse-papiers)</label>
+        <textarea id="oExts" rows="6"></textarea>
+        <label class="f" for="oMin">Ne pas capturer les fichiers plus petits que (Ko)</label>
+        <input type="number" id="oMin" min="0">
+      </div>
+      <div class="pane" data-p="o">
+        <label class="f" for="oFf">Chemin de ffmpeg (fusion vidéo + audio en HD)</label>
+        <input type="text" id="oFf" placeholder="Détection automatique">
+        <p class="hint" id="oFfInfo"></p>
+        <label class="f" for="oBr">Navigateur pour les petites fenêtres (Chrome / Edge)</label>
+        <input type="text" id="oBr" placeholder="Détection automatique">
+      </div>
+    </div>
+    <div class="df"><button class="btn" type="button" data-close>Annuler</button><button class="btn primary">Enregistrer</button></div>
+  </form>
+</dialog>
+
+<!-- Planificateur -->
+<dialog id="dSched">
+  <form method="dialog" id="fSched">
+    <div class="dh">Planificateur — file d'attente</div>
+    <div class="db">
+      <p class="hint" style="margin-top:0">Les téléchargements ajoutés avec « Télécharger plus tard » ou déplacés dans la file démarrent à l'heure choisie, ou avec le bouton « Démarrer la file ».</p>
+      <label class="chk"><input type="checkbox" id="sEn"> Démarrer la file automatiquement</label>
+      <div class="row2">
+        <div><label class="f" for="sStart">Heure de début</label><input type="time" id="sStart"></div>
+        <div><label class="f" for="sStop">Heure d'arrêt (optionnel)</label><input type="time" id="sStop"></div>
+      </div>
+      <label class="f">Jours</label>
+      <div class="days" id="sDays"></div>
+      <label class="f" for="sAct">Quand la file est terminée</label>
+      <select id="sAct">
+        <option value="none">Ne rien faire</option>
+        <option value="shutdown">Éteindre l'ordinateur</option>
+        <option value="sleep">Mettre en veille</option>
+        <option value="exit">Quitter Rapido</option>
+      </select>
+      <p class="hint">Une alerte de 60 secondes s'affiche avant l'arrêt ou la veille, avec un bouton pour annuler.</p>
+    </div>
+    <div class="df"><button class="btn" type="button" data-close>Annuler</button><button class="btn primary">Enregistrer</button></div>
+  </form>
+</dialog>
+
+<div class="drop" id="drop">Dépose le lien pour le télécharger</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const CATS = ["Vidéos","Musique","Archives","Programmes","Documents","Images","Autres"];
+const ICON = {
+  all:'<path d="M4 6h16M4 12h16M4 18h16"/>', unfinished:'<path d="M12 4v10m-4-4 4 4 4-4M5 20h14"/>',
+  finished:'<path d="m5 12 5 5 9-10"/>', queue:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  "Vidéos":'<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/>', "Musique":'<circle cx="7" cy="17" r="3"/><path d="M10 17V5l10-2v12"/><circle cx="17" cy="15" r="3"/>',
+  "Archives":'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v8m-2-6h2m0 2h2m-2 2h-2"/>', "Programmes":'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>',
+  "Documents":'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/>', "Images":'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/>',
+  "Autres":'<circle cx="12" cy="12" r="8"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>'
+};
+const COLS = [
+  {k:"filename", t:"Nom du fichier"}, {k:"size", t:"Taille"}, {k:"status", t:"Statut"}, {k:"eta", t:"Temps restant", cls:"c-eta"},
+  {k:"speed", t:"Vitesse"}, {k:"last_try", t:"Dernier essai", cls:"c-last"}, {k:"description", t:"Description", cls:"c-desc"}
+];
+let data = [], state = {}, filter = "all", sel = new Set(), lastClick = null, sortKey = "created", sortDir = -1, settings = null;
+
+/* ---------- utilitaires ---------- */
+function fmtBytes(n){ if(n == null || n < 0) return ""; const u=["o","Ko","Mo","Go","To"]; let i=0;
+  while(n >= 1024 && i < u.length-1){ n/=1024; i++; } return (i ? n.toFixed(n<10?2:1) : n) + " " + u[i]; }
+function fmtTime(s){ if(s == null || s < 0) return ""; if(s < 60) return s+" s"; if(s < 3600) return Math.floor(s/60)+" min "+(s%60)+" s";
+  return Math.floor(s/3600)+" h "+Math.floor((s%3600)/60)+" min"; }
+function fmtDate(t){ if(!t) return ""; const d = new Date(t*1000), now = new Date();
+  const same = d.toDateString() === now.toDateString();
+  return same ? d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) : d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"}) + " " + d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}); }
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2400); }
+async function api(path, method="GET", body){
+  const opt = {method, headers:{}};
+  if(method !== "GET"){ opt.headers["Content-Type"]="application/json"; opt.body = JSON.stringify(body||{}); }
+  const r = await fetch(path, opt);
+  if(!r.ok){ let m=r.statusText; try{ m=(await r.json()).detail||m }catch{} throw new Error(m); }
+  return r.json();
+}
+function popup(url, w, h){
+  const x = Math.round(screen.availWidth/2 - w/2), y = Math.round(screen.availHeight/2 - h/2);
+  return window.open(url, "_blank", `popup,width=${w},height=${h},left=${x},top=${y}`);
+}
+
+/* ---------- filtres ---------- */
+const FILTERS = {
+  all: d => true,
+  unfinished: d => d.status !== "completed",
+  finished: d => d.status === "completed",
+  queue: d => d.later && d.status !== "completed",
+};
+function match(d, f = filter){ return FILTERS[f] ? FILTERS[f](d) : d.category === f; }
+
+function renderSide(){
+  const n = f => data.filter(d => match(d, f)).length;
+  const item = (f, label, sub) => `<button class="cat ${sub?"sub":""} ${filter===f?"on":""}" data-f="${esc(f)}">
+    <svg viewBox="0 0 24 24">${ICON[f]||ICON.Autres}</svg>${esc(label)}<small>${n(f)||""}</small></button>`;
+  $("#side").innerHTML = `<h3>Catégories</h3>${item("all","Tous les téléchargements")}
+    ${CATS.map(c => item(c, c, true)).join("")}
+    ${item("unfinished","Non terminés")}${item("finished","Terminés")}
+    <h3>Files d'attente</h3>${item("queue","File principale")}`;
+}
+
+function statusCell(d){
+  const pct = d.size > 0 ? d.downloaded / d.size * 100 : 0;
+  if(d.status === "completed") return `<div class="st"><b>Terminé</b></div>`;
+  if(d.status === "error") return `<div class="st err" title="${esc(d.error)}"><b>Erreur</b></div>`;
+  const label = d.status === "paused" ? (d.size > 0 ? pct.toFixed(1)+" %" : "En pause")
+    : d.status === "queued" ? (d.later ? "En file" : "En attente")
+    : (d.size > 0 ? pct.toFixed(1)+" %" : fmtBytes(d.downloaded));
+  return `<div class="st"><b>${label}</b><div class="mini"><i style="width:${pct}%"></i></div></div>`;
+}
+
+function sortVal(d, k){
+  if(k === "size") return d.size; if(k === "status") return d.size > 0 ? d.downloaded/d.size : 0;
+  if(k === "filename" || k === "description") return (d[k]||"").toLowerCase();
+  return d[k] ?? 0;
+}
+
+function renderTable(){
+  $("#thead").innerHTML = COLS.map(c => `<th data-k="${c.k}" class="${c.cls||""}">${c.t}${sortKey===c.k?`<span class="ar">${sortDir>0?"▲":"▼"}</span>`:""}</th>`).join("");
+  const rows = data.filter(d => match(d)).sort((a,b) => { const x=sortVal(a,sortKey), y=sortVal(b,sortKey); return (x>y?1:x<y?-1:0)*sortDir; });
+  for(const id of [...sel]) if(!rows.find(r => r.id === id)) sel.delete(id);
+  $("#tbody").innerHTML = rows.map(d => `<tr data-id="${d.id}" class="${sel.has(d.id)?"sel":""}">
+    <td title="${esc(d.path || d.url)}"><div class="fn"><i class="dot ${d.status}"></i><span>${esc(d.filename || d.title || d.url.split("/").pop() || d.url)}</span></div></td>
+    <td class="num">${fmtBytes(d.size)}</td>
+    <td class="c-st">${statusCell(d)}</td>
+    <td class="num c-eta">${d.status==="downloading" ? fmtTime(d.eta) : ""}</td>
+    <td class="num">${d.status==="downloading" ? fmtBytes(d.speed)+"/s" : ""}</td>
+    <td class="num c-last">${fmtDate(d.finished_at || d.last_try || d.created)}</td>
+    <td class="c-desc" title="${esc(d.description || d.error)}">${esc(d.description || (d.status==="error" ? d.error : ""))}</td></tr>`).join("");
+  $("#empty").style.display = rows.length ? "none" : "grid";
+}
+
+function renderStatus(){
+  const active = data.filter(d => d.status === "downloading");
+  const speed = active.reduce((a,d) => a + d.speed, 0);
+  $("#sCount").innerHTML = `<b>${data.length}</b> téléchargement${data.length>1?"s":""}`;
+  $("#sSpeed").innerHTML = active.length ? `<b>${active.length}</b> actif${active.length>1?"s":""} · <b>${fmtBytes(speed)}/s</b>` : "";
+  const qn = data.filter(d => d.later && d.status !== "completed").length;
+  $("#sQueue").innerHTML = state.queue_running ? `File : <b>en cours</b>` : (qn ? `File : <b>${qn}</b> en attente` : "");
+  $("#sFf").textContent = state.ffmpeg ? "" : "ffmpeg absent (vidéos HD limitées)";
+  document.title = active.length ? `${fmtBytes(speed)}/s — Rapido` : "Rapido";
+  const pw = state.power;
+  if(pw){ const left = Math.max(0, Math.round(pw.at - Date.now()/1000));
+    $("#power").style.display = "flex";
+    $("#powerTxt").textContent = {shutdown:"Arrêt de l'ordinateur", sleep:"Mise en veille", exit:"Fermeture de Rapido"}[pw.action] + ` dans ${left} s (file d'attente terminée)`;
+  } else $("#power").style.display = "none";
+  updateButtons();
+}
+
+function updateButtons(){
+  const s = [...sel].map(id => data.find(d => d.id === id)).filter(Boolean);
+  $("#tResume").disabled = !s.some(d => ["paused","error"].includes(d.status));
+  $("#tPause").disabled = !s.some(d => ["downloading","queued"].includes(d.status));
+  $("#tDelete").disabled = !s.length;
+  $("#tQStart").disabled = state.queue_running;
+  $("#tQStop").disabled = !state.queue_running;
+  $("#tQStart").classList.toggle("on", !!state.queue_running);
+}
+
+function render(){ renderSide(); renderTable(); renderStatus(); }
+
+async function refresh(){
+  try{
+    state = await api("/api/state"); data = state.downloads;
+    $("#offline").style.display = "none"; render();
+  }catch{ $("#offline").style.display = "block"; }
+}
+
+/* ---------- sélection ---------- */
+$("#tbody").addEventListener("click", e => {
+  const tr = e.target.closest("tr"); if(!tr) return;
+  const id = tr.dataset.id, ids = $$("#tbody tr").map(r => r.dataset.id);
+  if(e.shiftKey && lastClick){ const a = ids.indexOf(lastClick), b = ids.indexOf(id);
+    if(!e.ctrlKey) sel.clear(); ids.slice(Math.min(a,b), Math.max(a,b)+1).forEach(i => sel.add(i)); }
+  else if(e.ctrlKey || e.metaKey){ sel.has(id) ? sel.delete(id) : sel.add(id); lastClick = id; }
+  else { sel = new Set([id]); lastClick = id; }
+  renderTable(); updateButtons();
+});
+$("#tbody").addEventListener("dblclick", e => {
+  const tr = e.target.closest("tr"); if(!tr) return;
+  const d = data.find(x => x.id === tr.dataset.id);
+  if(d.status === "completed") act("open", [d]); else act("progress", [d]);
+});
+$("#listwrap").addEventListener("click", e => { if(!e.target.closest("tr")){ sel.clear(); renderTable(); updateButtons(); } });
+$("#thead").addEventListener("click", e => { const th = e.target.closest("th"); if(!th) return;
+  if(sortKey === th.dataset.k) sortDir *= -1; else { sortKey = th.dataset.k; sortDir = 1; } renderTable(); });
+$("#side").addEventListener("click", e => { const b = e.target.closest("[data-f]"); if(!b) return; filter = b.dataset.f; sel.clear(); render(); });
+
+/* ---------- menu clic droit ---------- */
+$("#tbody").addEventListener("contextmenu", e => {
+  const tr = e.target.closest("tr"); if(!tr) return;
+  e.preventDefault();
+  if(!sel.has(tr.dataset.id)){ sel = new Set([tr.dataset.id]); renderTable(); updateButtons(); }
+  const s = selected(), one = s.length === 1 ? s[0] : null, m = $("#ctx");
+  const en = {open: one?.status==="completed", folder: !!one?.path, progress: one && one.status!=="completed",
+    resume: s.some(d=>["paused","error"].includes(d.status)), pause: s.some(d=>["downloading","queued"].includes(d.status)),
+    redownload: !!one, refresh: !!one && one.status!=="completed", queue: s.some(d=>d.status!=="completed" && !d.later),
+    copy: !!s.length, desc: !!one, delete: !!s.length, deletefile: s.some(d=>d.status==="completed")};
+  m.querySelectorAll("[data-c]").forEach(b => b.disabled = !en[b.dataset.c]);
+  m.style.display = "block";
+  const w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.min(e.clientX, innerWidth - w - 6) + "px";
+  m.style.top = Math.min(e.clientY, innerHeight - h - 6) + "px";
+});
+document.addEventListener("click", e => { if(!e.target.closest("#ctx")) $("#ctx").style.display = "none"; });
+$("#ctx").addEventListener("click", e => { const b = e.target.closest("[data-c]"); if(!b || b.disabled) return;
+  $("#ctx").style.display = "none"; act(b.dataset.c, selected()); });
+
+function selected(){ return [...sel].map(id => data.find(d => d.id === id)).filter(Boolean); }
+
+async function act(c, list){
+  try{
+    const one = list[0];
+    if(c === "open") await api(`/api/downloads/${one.id}/open`, "POST");
+    if(c === "folder") await api(`/api/downloads/${one.id}/open?folder=true`, "POST");
+    if(c === "progress"){ if(!popup(`/w?view=progress&id=${one.id}`, 520, 430)) await api(`/api/downloads/${one.id}/open-window`, "POST"); }
+    if(c === "resume") await api("/api/bulk/resume", "POST", {ids: list.map(d=>d.id)});
+    if(c === "pause") await api("/api/bulk/pause", "POST", {ids: list.map(d=>d.id)});
+    if(c === "redownload"){ if(confirm(`Retélécharger « ${one.filename} » depuis le début ?`)) await api(`/api/downloads/${one.id}/redownload`, "POST"); }
+    if(c === "refresh"){
+      const u = prompt("Le lien a expiré ? Colle le nouveau lien du même fichier.\n(Sur le site, relance le téléchargement puis copie le nouveau lien.)", one.url);
+      if(u && u !== one.url){ await api(`/api/downloads/${one.id}/refresh`, "POST", {url:u}); toast("Adresse mise à jour"); }
+    }
+    if(c === "queue"){ for(const d of list) await api(`/api/downloads/${d.id}/move-to-queue`, "POST"); toast("Déplacé dans la file d'attente"); }
+    if(c === "copy"){ await navigator.clipboard.writeText(list.map(d=>d.url).join("\n")); toast("Adresse copiée"); }
+    if(c === "desc"){ const t = prompt("Description :", one.description || ""); if(t !== null) await api(`/api/downloads/${one.id}/description`, "POST", {url:t}); }
+    if(c === "delete" || c === "deletefile"){
+      const file = c === "deletefile";
+      const msg = file ? `Supprimer ${list.length} élément(s) ET les fichiers du disque ?` : `Retirer ${list.length} élément(s) de la liste ?\n(Les fichiers terminés restent sur le disque.)`;
+      if(!confirm(msg)) return;
+      await api("/api/bulk/delete", "POST", {ids: list.map(d=>d.id), delete_file: file}); sel.clear();
+    }
+    refresh();
+  }catch(err){ toast(err.message); }
+}
+
+/* ---------- barre d'outils ---------- */
+$("#tAdd").onclick = () => openAdd("");
+$("#tResume").onclick = () => act("resume", selected());
+$("#tPause").onclick = () => act("pause", selected());
+$("#tPauseAll").onclick = async () => { await api("/api/bulk/pause","POST",{}); refresh(); };
+$("#tDelete").onclick = () => act("delete", selected());
+$("#tClear").onclick = async () => { await api("/api/bulk/clear-completed","POST",{}); refresh(); };
+$("#tQStart").onclick = async () => { await api("/api/queue/start","POST"); toast("File d'attente démarrée"); refresh(); };
+$("#tQStop").onclick = async () => { await api("/api/queue/stop","POST"); refresh(); };
+$("#tFolder").onclick = () => api("/api/open-folder","POST",{url:""}).catch(e => toast(e.message));
+$("#powerCancel").onclick = async () => { await api("/api/power/cancel","POST"); toast("Annulé"); refresh(); };
+$$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
+
+/* ---------- ajouter une URL ---------- */
+function openAdd(url){ $("#aUrl").value = url; $("#dAdd").showModal(); $("#aUrl").focus(); }
+$("#fAdd").addEventListener("submit", async e => {
+  e.preventDefault();
+  const urls = $("#aUrl").value.split(/\s+/).filter(u => /^https?:\/\//i.test(u));
+  if(!urls.length){ toast("Adresse invalide"); return; }
+  $("#dAdd").close();
+  await addUrls(urls);
+});
+async function addUrls(urls){
+  try{
+    if(urls.length === 1){
+      // fenêtre d'informations avant de démarrer
+      const w = popup("about:blank", 560, 540);
+      const r = await api("/api/capture", "POST", {url: urls[0]});
+      if(r.dialog && w) w.location = `/w?view=capture&id=${r.id}`;
+      else { if(w) w.close(); toast("Téléchargement ajouté"); }
+    } else {
+      await api("/api/downloads", "POST", {url: urls.join("\n")});
+      toast(`${urls.length} téléchargements ajoutés`);
+    }
+    refresh();
+  }catch(err){ toast(err.message); }
+}
+document.addEventListener("keydown", e => {
+  if(document.querySelector("dialog[open]")) return;
+  if(e.key === "Delete" && sel.size) act("delete", selected());
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase() === "n"){ e.preventDefault(); openAdd(""); }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase() === "a"){ e.preventDefault(); data.filter(d=>match(d)).forEach(d=>sel.add(d.id)); renderTable(); updateButtons(); }
+});
+document.addEventListener("paste", e => {
+  if(document.querySelector("dialog[open]")) return;
+  const t = (e.clipboardData.getData("text") || "").trim();
+  if(/^https?:\/\//i.test(t)) openAdd(t);
+});
+let dragN = 0;
+document.addEventListener("dragenter", e => { dragN++; $("#drop").style.display = "grid"; });
+document.addEventListener("dragleave", e => { if(--dragN <= 0){ dragN = 0; $("#drop").style.display = "none"; } });
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => {
+  e.preventDefault(); dragN = 0; $("#drop").style.display = "none";
+  const t = (e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text") || "").trim();
+  const urls = t.split(/\s+/).filter(u => /^https?:\/\//i.test(u));
+  if(urls.length) addUrls(urls);
+});
+
+/* ---------- options ---------- */
+$("#optTabs").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if(!b) return;
+  $$("#optTabs button").forEach(x => x.classList.toggle("on", x === b));
+  $$("#dOpt .pane").forEach(p => p.classList.toggle("on", p.dataset.p === b.dataset.p)); });
+$("#tOptions").onclick = async () => {
+  settings = await api("/api/settings");
+  $("#oDir").value = settings.download_dir; $("#oCat").checked = settings.sort_by_category;
+  $("#oCap").checked = settings.show_capture_dialog; $("#oProg").checked = settings.show_progress_window;
+  $("#oDone").checked = settings.show_complete_dialog; $("#oClip").checked = settings.monitor_clipboard;
+  $("#oClip").disabled = !settings.windows;
+  $("#oConn").value = settings.connections; $("#oMax").value = settings.max_concurrent; $("#oLimit").value = settings.speed_limit_kbps;
+  $("#oExts").value = settings.capture_exts.join(" "); $("#oMin").value = settings.min_capture_kb;
+  $("#oFf").value = settings.ffmpeg_path; $("#oBr").value = settings.browser_path;
+  $("#oFfInfo").textContent = settings.ffmpeg_found ? "Trouvé : " + settings.ffmpeg_found : "Non trouvé. Installe-le avec : winget install ffmpeg";
+  $("#dOpt").showModal();
+};
+$("#fOpt").addEventListener("submit", async e => {
+  e.preventDefault();
+  try{
+    await api("/api/settings", "PUT", {
+      download_dir: $("#oDir").value.trim(), sort_by_category: $("#oCat").checked,
+      show_capture_dialog: $("#oCap").checked, show_progress_window: $("#oProg").checked,
+      show_complete_dialog: $("#oDone").checked, monitor_clipboard: $("#oClip").checked,
+      connections: +$("#oConn").value, max_concurrent: +$("#oMax").value, speed_limit_kbps: +$("#oLimit").value,
+      capture_exts: $("#oExts").value.split(/[\s,;]+/).filter(Boolean), min_capture_kb: +$("#oMin").value,
+      ffmpeg_path: $("#oFf").value.trim(), browser_path: $("#oBr").value.trim(),
+    });
+    $("#dOpt").close(); toast("Options enregistrées"); refresh();
+  }catch(err){ toast(err.message); }
+});
+
+/* ---------- planificateur ---------- */
+const DAYS = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+$("#tSched").onclick = async () => {
+  settings = await api("/api/settings"); const s = settings.schedule;
+  $("#sEn").checked = s.enabled; $("#sStart").value = s.start; $("#sStop").value = s.stop || "";
+  $("#sDays").innerHTML = DAYS.map((d,i) => `<label><input type="checkbox" value="${i}" ${s.days.includes(i)?"checked":""}> ${d}</label>`).join("");
+  $("#sAct").value = s.on_complete;
+  if(!settings.windows){ [...$("#sAct").options].forEach(o => { if(o.value==="shutdown"||o.value==="sleep") o.disabled = true; }); }
+  $("#dSched").showModal();
+};
+$("#fSched").addEventListener("submit", async e => {
+  e.preventDefault();
+  try{
+    await api("/api/settings", "PUT", {schedule: {
+      enabled: $("#sEn").checked, start: $("#sStart").value || "02:00", stop: $("#sStop").value || "",
+      days: $$("#sDays input:checked").map(i => +i.value), on_complete: $("#sAct").value }});
+    $("#dSched").close(); toast("Planificateur enregistré");
+  }catch(err){ toast(err.message); }
+});
+
+refresh();
+setInterval(refresh, 1000);
+</script>
+</body>
+</html>
