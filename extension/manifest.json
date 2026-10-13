@@ -9,7 +9,8 @@
     "contextMenus",
     "cookies",
     "storage",
-    "webRequest"
+    "webRequest",
+    "nativeMessaging"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -35,7 +36,8 @@
     "default_icon": {
       "16": "icon16.png",
       "48": "icon48.png"
-    }
+    },
+    "default_popup": "popup.html"
   },
   "icons": {
     "16": "icon16.png",

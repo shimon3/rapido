@@ -249,6 +249,11 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
         <button class="btn" type="button" id="oDenoInstall">Installer Deno automatiquement</button>
         <label class="f">Extension Chrome (capture des téléchargements et bouton sur les vidéos)</label>
         <button class="btn" type="button" id="oExt">Installer l'extension Chrome…</button>
+        <div style="margin-top:10px;padding:10px;border:1px solid var(--line,#ddd);border-radius:8px">
+          <strong>Connexion Chrome ↔ Rapido</strong>
+          <p class="hint">Pour tester le pont sécurisé : clique sur l'icône Rapido dans Chrome, puis sur « Tester la connexion ».
+          Le panneau Chrome affichera « Connecté » ou « Non connecté ». Ce diagnostic ne transmet ni cookies ni fichiers.</p>
+        </div>
         <div class="hint" id="oExtInfo" style="display:none">
           <ol class="steps">
             <li>Dans Chrome, colle cette adresse dans la barre d'adresse puis Entrée :

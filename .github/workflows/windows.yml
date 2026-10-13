@@ -5,7 +5,7 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
-    branches: [main]
+    branches: [main, security/s2-auth-core]
   workflow_dispatch:
 
 # Droits minimum par defaut ; seul le job de compilation peut publier une release.
@@ -71,6 +71,11 @@ jobs:
           --hidden-import ytworker
           desktop.py
 
+      - name: Build native messaging host (console)
+        run: >
+          pyinstaller --noconfirm --clean --onefile --console
+          --name RapidoNativeHost native_host.py
+
       - name: Self-test (real window, engine, yt-dlp)
         timeout-minutes: 4
         shell: pwsh
@@ -87,6 +92,33 @@ jobs:
           } else { Write-Host "Pas de resultat" }
           if (Test-Path "$env:RAPIDO_DATA\rapido.log") { Write-Host "--- rapido.log ---"; Get-Content "$env:RAPIDO_DATA\rapido.log" -Tail 80 }
           if ($p.ExitCode -ne 0) { exit 1 }
+
+      - name: Native Messaging protocol smoke test
+        shell: pwsh
+        run: |
+          $bytes = [System.Text.Encoding]::UTF8.GetBytes('{"type":"ping"}')
+          $req = [BitConverter]::GetBytes([uint32]$bytes.Length) + $bytes
+          $proc = New-Object System.Diagnostics.Process
+          $proc.StartInfo.FileName = (Resolve-Path "dist/RapidoNativeHost.exe").Path
+          $proc.StartInfo.UseShellExecute = $false
+          $proc.StartInfo.RedirectStandardInput = $true
+          $proc.StartInfo.RedirectStandardOutput = $true
+          $proc.StartInfo.CreateNoWindow = $true
+          if (-not $proc.Start()) { throw "Native host failed to start" }
+          $proc.StandardInput.BaseStream.Write($req, 0, $req.Length)
+          $proc.StandardInput.BaseStream.Flush()
+          $proc.StandardInput.Close()
+          $header = New-Object byte[] 4
+          $read = $proc.StandardOutput.BaseStream.Read($header, 0, 4)
+          if ($read -ne 4) { throw "Invalid native host response header" }
+          $length = [BitConverter]::ToUInt32($header, 0)
+          if ($length -gt 1024) { throw "Unexpected response size" }
+          $body = New-Object byte[] $length
+          $read = $proc.StandardOutput.BaseStream.Read($body, 0, $length)
+          if ($read -ne $length) { throw "Truncated response" }
+          $reply = [System.Text.Encoding]::UTF8.GetString($body) | ConvertFrom-Json
+          if ($reply.type -ne "pong" -or $reply.protocol -ne 1) { throw "Native host ping/pong failed" }
+          if (-not $proc.WaitForExit(10000) -or $proc.ExitCode -ne 0) { throw "Native host exited abnormally" }
 
       - name: Build installer (Inno Setup)
         shell: pwsh

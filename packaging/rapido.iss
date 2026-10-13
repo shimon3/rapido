@@ -62,6 +62,7 @@ Name: "autostart"; Description: "{cm:AutoStart}"; GroupDescription: "{cm:Options
 [Files]
 Source: "..\dist\Rapido\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\RapidoNativeHost.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Rapido"; Filename: "{app}\Rapido.exe"
@@ -70,6 +71,7 @@ Name: "{group}\{cm:Uninstall}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Rapido"; Filename: "{app}\Rapido.exe"; Tasks: desktopicon
 
 [Registry]
+Root: HKCU; Subkey: "Software\Google\Chrome\NativeMessagingHosts\com.rapido.bridge"; ValueType: string; ValueName: ""; ValueData: "{app}\rapido-native-host.json"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Rapido"; \
   ValueData: """{app}\Rapido.exe"" --tray"; Flags: uninsdeletevalue; Tasks: autostart
 
@@ -81,6 +83,24 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/f /im Rapido.exe"; Flags: runhidde
 
 [Code]
 // Ferme Rapido s'il tourne (mise a jour par-dessus une version deja installee)
+// Diagnostic host : seule l'extension Chrome Rapido est autorisee.
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  HostPath, ManifestPath, Json: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    HostPath := ExpandConstant('{app}\RapidoNativeHost.exe');
+    ManifestPath := ExpandConstant('{app}\rapido-native-host.json');
+    StringChangeEx(HostPath, '\', '\\', True);
+    Json := '{"name":"com.rapido.bridge","description":"Rapido native messaging diagnostics",' +
+      '"path":"' + HostPath + '","type":"stdio",' +
+      '"allowed_origins":["chrome-extension://hlpkfnodjoglfdiekijebbppfgkjkbmp/"]}';
+    if not SaveStringToFile(ManifestPath, Json, False) then
+      RaiseException('Cannot register Rapido Native Messaging host');
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;

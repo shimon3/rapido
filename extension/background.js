@@ -11,6 +11,40 @@ let cfg = {                      // copie locale des réglages Rapido (mise à j
   min_capture_kb: 512,
 };
 
+/* Native Messaging is optional until S2/S3 is fully migrated.
+   No cookies, downloads or secrets traverse this diagnostic channel. */
+const NATIVE_HOST = "com.rapido.bridge";
+async function probeNativeBridge(){
+  try {
+    const reply = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {type:"ping"});
+    return reply && reply.type === "pong" && reply.protocol === 1;
+  } catch (_error) {
+    return false; // Older Rapido installations have no registered native host.
+  }
+}
+// Never treat a successful ping as authorization to transfer downloads or cookies.
+async function nativeCapabilities(){
+  try {
+    const reply = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {type:"capabilities"});
+    if(reply?.type !== "capabilities" || reply.protocol !== 1 ||
+       !Array.isArray(reply.features) || reply.features.some(f => typeof f !== "string")) return [];
+    return reply.features.filter(f => f === "ping" || f === "capture_public");
+  } catch { return []; }
+}
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Only our own extension popup, not content scripts or web pages, may request diagnostics.
+  if(message?.type === "rapido_capture_state_changed" &&
+     sender.id === chrome.runtime.id &&
+     sender.url?.startsWith(chrome.runtime.getURL("popup.html"))) {
+    updateBadge().then(() => loadCfg()).then(() => sendResponse({ok:true}));
+    return true;
+  }
+  if(message?.type !== "rapido_native_ping" || sender.id !== chrome.runtime.id ||
+     !sender.url?.startsWith(chrome.runtime.getURL("popup.html"))) return false;
+  probeNativeBridge().then(connected => sendResponse({connected}), () => sendResponse({connected:false}));
+  return true;
+});
+
 /* ---------- réglages ---------- */
 async function loadCfg() {
   try {
@@ -45,19 +79,17 @@ function flash(text, color) {
 }
 
 /* ---------- échanges avec le serveur ---------- */
-async function cookieHeader(url) {
-  try {
-    const cookies = await chrome.cookies.getAll({ url });
-    return cookies.map(c => `${c.name}=${c.value}`).join("; ");
-  } catch { return ""; }
-}
+// S3 interim: never send Chrome cookies to the unauthenticated HTTP API.
 async function buildHeaders(url, referrer) {
   const h = {};
-  const c = await cookieHeader(url);
-  if (c) h.Cookie = c;
   if (referrer) h.Referer = referrer;
   h["User-Agent"] = navigator.userAgent;
   return h;
+}
+async function needsBrowserSession(url) {
+  // A login cookie or inaccessible cookie jar means Chrome retains this download.
+  try { return (await chrome.cookies.getAll({ url })).length > 0; }
+  catch { return true; }
 }
 async function post(path, body) {
   const r = await fetch(SERVER + path, {
@@ -68,8 +100,17 @@ async function post(path, body) {
 }
 // Les fenêtres (capture, progression) sont ouvertes par Rapido lui-même :
 // ce sont de vraies fenêtres Windows, même quand on clique depuis Chrome.
+async function captureViaNative(url, referrer, filename){
+  const features = await nativeCapabilities();
+  if(!features.includes("capture_public")) throw new Error("Pont natif indisponible");
+  const reply = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {
+    type:"capture_public", url, referrer:referrer || null, filename:filename || null
+  });
+  if(!reply || reply.type !== "capture_result" || reply.ok !== true)
+    throw new Error("Capture native refusée");
+}
 async function captureFile(url, referrer, filename) {
-  await post("/api/capture", { url, filename, headers: await buildHeaders(url, referrer), open_window: true });
+  await captureViaNative(url, referrer, filename);
   flash("✓", "#1f6f5c");
 }
 
@@ -118,6 +159,7 @@ async function handleDownload(item, ext) {
   if (!(await isEnabled())) return;
   const size = item.totalBytes || item.fileSize || 0;
   if (size > 0 && size < cfg.min_capture_kb * 1024) return;
+  if (await needsBrowserSession(url)) return;
   if (handled.has(item.id)) return;
   handled.add(item.id);
 
