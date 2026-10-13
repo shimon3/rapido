@@ -115,10 +115,10 @@ async function captureFile(url, referrer, filename) {
 }
 
 async function captureVideo(pageUrl, candidates, referrer) {
-  await post("/api/capture-video", {
-    page_url: pageUrl, candidates, headers: await buildHeaders(pageUrl, referrer), open_window: true,
-  });
-  flash("✓", "#1f6f5c");
+  // S3: video capture still targets an unauthenticated loopback API.
+  // Never send page URLs, candidates or session-derived metadata over that path.
+  // Re-enable only after the native authenticated transport is implemented.
+  throw new Error("Capture vidéo temporairement désactivée : canal sécurisé requis (S3)");
 }
 
 /* ---------- interception des téléchargements ---------- */
