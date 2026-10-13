@@ -42,3 +42,22 @@ def test_pipe_dacl_rejects_untrusted_sid_text():
     for bad in ("", "WD", "S-1-5-21-1) (A;;GA;;;WD)", None):
         with pytest.raises(ValueError):
             pipe_security_sddl(bad)
+
+
+def test_restricted_listener_rejects_invalid_namespace_and_sid():
+    from windows_ipc import create_restricted_pipe
+    import os
+    if os.name != "nt":
+        with pytest.raises(OSError):
+            create_restricted_pipe("Rapido-1234567890abcdef", "S-1-5-21-111-222-333-1001")
+        return
+    with pytest.raises(ValueError):
+        create_restricted_pipe("evil", "S-1-5-21-111-222-333-1001")
+    with pytest.raises(ValueError):
+        create_restricted_pipe("Rapido-1234567890abcdef", "WD")
+
+
+def test_pipe_listener_is_not_mistaken_for_authenticated_session():
+    from windows_ipc import open_authenticated_pipe
+    with pytest.raises(NotImplementedError):
+        open_authenticated_pipe()
