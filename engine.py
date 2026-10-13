@@ -41,7 +41,7 @@ RETRY_DELAY = 1.0             # multiplicateur des pauses entre essais (2, 4, 8,
 SAVE_EVERY = 2.0              # secondes entre deux sauvegardes de l'etat
 PENDING_TTL = 30 * 60         # une capture non confirmee disparait apres 30 min
 IS_WINDOWS = platform.system() == "Windows"
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 FROZEN = getattr(sys, "frozen", False)                       # True dans Rapido.exe (PyInstaller)
 RES_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))   # fichiers embarques (html, icone)
 EXE_DIR = Path(sys.executable).parent if FROZEN else Path(__file__).parent
