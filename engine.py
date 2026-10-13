@@ -783,7 +783,7 @@ class Manager:
     # ---------- fichiers classiques ----------
     async def _probe(self, dl: Download):
         """Recupere taille, nom de fichier et support des Range avec une requete bytes=0-0."""
-        headers = {**dl.headers, "Range": "bytes=0-0"}
+        headers = {**dl.headers, "Range": "bytes=0-0", "Accept-Encoding": "identity"}
         async with self.client.stream("GET", dl.url, headers=headers) as r:
             r.raise_for_status()
             final_url = str(r.url)
@@ -918,6 +918,8 @@ class Manager:
         attempt = 0
         while not seg.finished:
             headers = dict(dl.headers)
+            if dl.resumable:
+                headers["Accept-Encoding"] = "identity"
             pos = seg.start + seg.done
             before = seg.done
             if dl.resumable:
