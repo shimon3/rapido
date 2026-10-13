@@ -1,6 +1,9 @@
 """
-Rapido - serveur local.
-Lance avec : python app.py   puis ouvre http://localhost:9614
+Rapido - serveur local (API + interface).
+
+  * Application Windows : lance desktop.py (ou Rapido.exe), qui demarre ce serveur
+    en arriere-plan et l'affiche dans une vraie fenetre.
+  * Mode developpement : python app.py   puis ouvre http://localhost:9614
 """
 
 from __future__ import annotations
@@ -9,7 +12,6 @@ import os
 import platform
 import subprocess
 import sys
-import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,14 +21,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from engine import Manager, IS_WINDOWS
+from engine import (Manager, IS_WINDOWS, VERSION, FROZEN, RES_DIR, EXE_DIR,
+                    CREATE_NEW_CONSOLE)
 
 HOST = "127.0.0.1"      # uniquement accessible depuis ton PC
 PORT = 9614
-BASE = Path(__file__).parent
+BASE = RES_DIR
 DATA_DIR = Path(os.environ.get("RAPIDO_DATA", Path.home() / ".rapido"))
 
 manager = Manager(DATA_DIR, PORT)
+
+# Rempli par desktop.py quand Rapido tourne comme application Windows
+UI = {"desktop": False, "show_main": None}
 
 
 @asynccontextmanager
@@ -88,6 +94,13 @@ class ConfirmRequest(BaseModel):
     format_id: str | None = None
 
 
+class WindowRequest(BaseModel):
+    view: str = Field(pattern=r"^(capture|progress)$")
+    id: str = Field(pattern=r"^[0-9a-f]{6,32}$")
+    width: int = Field(default=540, ge=300, le=1200)
+    height: int = Field(default=460, ge=200, le=1000)
+
+
 class UrlRequest(BaseModel):
     url: str
 
@@ -120,6 +133,7 @@ class SettingsRequest(BaseModel):
     ffmpeg_path: str | None = None
     browser_path: str | None = None
     schedule: Schedule | None = None
+    autostart: bool | None = None
 
 
 def get_dl(dl_id: str):
@@ -205,11 +219,11 @@ async def capture(req: CaptureRequest):
     if not manager.settings.get("show_capture_dialog", True):
         dl = manager.add(req.url, req.filename, None, req.headers)
         if manager.settings.get("show_progress_window") and req.open_window:
-            manager.open_window(f"/w?view=progress&id={dl.id}", 520, 430)
+            manager.open_window(f"/w?view=progress&id={dl.id}", 520, 480)
         return {"id": dl.id, "dialog": False}
     dl = manager.capture(req.url, req.headers, req.filename)
     if req.open_window:
-        manager.open_window(f"/w?view=capture&id={dl.id}", 560, 540)
+        manager.open_window(f"/w?view=capture&id={dl.id}", 560, 580)
     return {"id": dl.id, "dialog": True}
 
 
@@ -218,7 +232,7 @@ async def capture_video(req: VideoCaptureRequest):
     check_url(req.page_url)
     dl = manager.capture_video(req.page_url, req.candidates, req.headers)
     if req.open_window:
-        manager.open_window(f"/w?view=capture&id={dl.id}", 560, 520)
+        manager.open_window(f"/w?view=capture&id={dl.id}", 560, 620)
     return {"id": dl.id, "dialog": True}
 
 
@@ -305,7 +319,7 @@ async def move_to_queue(dl_id: str):
 @app.post("/api/downloads/{dl_id}/open-window")
 async def open_progress_window(dl_id: str):
     get_dl(dl_id)
-    manager.open_window(f"/w?view=progress&id={dl_id}", 520, 430)
+    manager.open_window(f"/w?view=progress&id={dl_id}", 520, 480)
     return {"ok": True}
 
 
@@ -398,38 +412,124 @@ async def power_cancel():
 
 
 # ---------- reglages ----------
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+
+def autostart_command() -> str:
+    if FROZEN:
+        return f'"{sys.executable}" --tray'
+    pyw = Path(sys.executable).with_name("pythonw.exe")
+    return f'"{pyw if pyw.exists() else sys.executable}" "{Path(__file__).with_name("desktop.py")}" --tray'
+
+
+def get_autostart() -> bool:
+    if not IS_WINDOWS:
+        return False
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+            winreg.QueryValueEx(k, "Rapido")
+            return True
+    except OSError:
+        return False
+
+
+def set_autostart(on: bool):
+    if not IS_WINDOWS:
+        return
+    import winreg
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+        if on:
+            winreg.SetValueEx(k, "Rapido", 0, winreg.REG_SZ, autostart_command())
+        else:
+            try:
+                winreg.DeleteValue(k, "Rapido")
+            except OSError:
+                pass
+
+
+def extension_dir() -> Path:
+    p = EXE_DIR / "extension"
+    return p if p.exists() else RES_DIR / "extension"
+
+
 @app.get("/api/settings")
 async def get_settings():
-    return {**manager.settings, "ffmpeg_found": manager.ffmpeg() or "", "windows": IS_WINDOWS}
+    return {**manager.settings, "ffmpeg_found": manager.ffmpeg() or "", "windows": IS_WINDOWS,
+            "desktop": UI["desktop"], "autostart": get_autostart(), "version": VERSION,
+            "extension_dir": str(extension_dir())}
 
 
 @app.put("/api/settings")
 async def put_settings(req: SettingsRequest):
     data = req.model_dump(exclude_none=True)
     sched = data.pop("schedule", None)
+    autostart = data.pop("autostart", None)
     if "capture_exts" in data:
         data["capture_exts"] = sorted({e.strip().lower().lstrip(".") for e in data["capture_exts"] if e.strip()})
     manager.settings.update(data)
     if sched:
         manager.settings["schedule"].update(sched)
+    if autostart is not None:
+        try:
+            set_autostart(autostart)
+        except OSError as e:
+            raise HTTPException(500, f"Impossible de modifier le demarrage automatique : {e}")
     Path(manager.settings["download_dir"]).mkdir(parents=True, exist_ok=True)
     manager.save_settings()
     manager.wake()
     return await get_settings()
 
 
+# ---------- fenetres et outils ----------
+@app.post("/api/window")
+async def open_window(req: WindowRequest):
+    """Ouvre une petite fenetre (capture / progression) : native dans l'application Windows."""
+    manager.open_window(f"/w?view={req.view}&id={req.id}", req.width, req.height)
+    return {"ok": True}
+
+
+@app.post("/api/show")
+async def show_main():
+    """Ramene la fenetre principale au premier plan (2e lancement de Rapido.exe)."""
+    if UI["show_main"]:
+        UI["show_main"]()
+    return {"ok": UI["desktop"]}
+
+
+@app.post("/api/tools/ffmpeg")
+async def install_ffmpeg():
+    if not IS_WINDOWS:
+        raise HTTPException(400, "Uniquement sous Windows")
+    cmd = ("echo Installation de ffmpeg pour Rapido... & echo. & "
+           "winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements & "
+           "echo. & echo Termine : tu peux fermer cette fenetre. & pause")
+    subprocess.Popen(["cmd", "/c", cmd], creationflags=CREATE_NEW_CONSOLE)
+    return {"ok": True}
+
+
+@app.post("/api/tools/extension")
+async def extension_help():
+    """Ouvre le dossier de l'extension et la page des extensions du navigateur."""
+    _reveal(extension_dir(), select=False)
+    exe = manager._find_browser()
+    if exe:
+        page = "edge://extensions" if "msedge" in exe.lower() else "chrome://extensions"
+        try:
+            subprocess.Popen([exe, page])
+        except OSError:
+            pass
+    return {"ok": True, "path": str(extension_dir())}
+
+
 # ---------- lancement ----------
-def run_tray(server):
-    """Icone dans la barre des taches (zone de notification)."""
+def run_tray(on_open, on_quit):
+    """Icone dans la zone de notification (a cote de l'horloge)."""
     try:
         import pystray
         from PIL import Image
     except ImportError:
         return None
-    import webbrowser
-
-    def open_ui(*_):
-        webbrowser.open(f"http://localhost:{PORT}")
 
     def pause_all(*_):
         import asyncio
@@ -445,21 +545,21 @@ def run_tray(server):
 
     def quit_app(icon, *_):
         icon.stop()
-        server.should_exit = True
+        on_quit()
 
     icon = pystray.Icon(
         "Rapido", Image.open(BASE / "extension" / "icon128.png"), "Rapido",
         menu=pystray.Menu(
-            pystray.MenuItem("Ouvrir Rapido", open_ui, default=True),
+            pystray.MenuItem("Ouvrir Rapido", lambda *_: on_open(), default=True),
             pystray.MenuItem("Tout reprendre", resume_all),
             pystray.MenuItem("Tout mettre en pause", pause_all),
             pystray.MenuItem("Surveiller le presse-papiers", toggle_clip,
                              checked=lambda i: bool(manager.settings.get("monitor_clipboard"))),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Quitter", quit_app),
+            pystray.MenuItem("Quitter Rapido", quit_app),
         ),
     )
-    threading.Thread(target=icon.run, daemon=True).start()
+    icon.run_detached()
     return icon
 
 
@@ -472,9 +572,12 @@ if __name__ == "__main__":
         sys.stdout = sys.stdout or log
         sys.stderr = sys.stderr or log
 
+    import webbrowser
     server = uvicorn.Server(uvicorn.Config(app, host=HOST, port=PORT, log_level="warning"))
     manager.on_exit = lambda: setattr(server, "should_exit", True)
-    tray = run_tray(server) if IS_WINDOWS or os.environ.get("RAPIDO_TRAY") else None
+    tray = (run_tray(lambda: webbrowser.open(f"http://localhost:{PORT}"),
+                     lambda: setattr(server, "should_exit", True))
+            if IS_WINDOWS or os.environ.get("RAPIDO_TRAY") else None)
     print(f"\n  Rapido tourne sur http://localhost:{PORT}\n")
     try:
         server.run()

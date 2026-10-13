@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 ffmpeg.exe
 ffprobe.exe
+build/
+dist/
+*.spec
+packaging/version_info.txt

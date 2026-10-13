@@ -96,6 +96,7 @@ input[type=text],input[type=number],input[type=time],select,textarea{width:100%;
 textarea{font-family:var(--mono);font-size:12px;resize:vertical}
 .chk{display:flex;align-items:center;gap:8px;margin-top:10px}
 .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+.hint code{font-family:var(--mono);font-size:11px;word-break:break-all;color:var(--ink)}
 .days{display:flex;gap:4px;flex-wrap:wrap}
 .days label{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:6px;padding:4px 8px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -116,7 +117,7 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
 </style>
 </head>
 <body>
-<div class="offline" id="offline">Serveur Rapido injoignable — relance demarrer.bat</div>
+<div class="offline" id="offline">Rapido ne répond plus — relance l'application</div>
 <div class="power" id="power"><span id="powerTxt"></span><button id="powerCancel">Annuler</button></div>
 
 <div class="toolbar">
@@ -213,6 +214,11 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
         <label class="chk"><input type="checkbox" id="oProg"> Afficher la fenêtre de progression</label>
         <label class="chk"><input type="checkbox" id="oDone"> Afficher la fenêtre « Téléchargement terminé »</label>
         <label class="chk"><input type="checkbox" id="oClip"> Surveiller le presse-papiers (copier un lien de fichier lance la capture)</label>
+        <div id="oAppBox">
+          <label class="chk"><input type="checkbox" id="oAuto"> Lancer Rapido au démarrage de Windows (réduit près de l'horloge)</label>
+          <p class="hint">Fermer la fenêtre ne quitte pas Rapido : les téléchargements continuent. Pour quitter, clic droit sur l'icône Rapido près de l'horloge.</p>
+        </div>
+        <p class="hint" id="oVer"></p>
       </div>
       <div class="pane" data-p="c">
         <div class="row2">
@@ -233,8 +239,15 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
         <label class="f" for="oFf">Chemin de ffmpeg (fusion vidéo + audio en HD)</label>
         <input type="text" id="oFf" placeholder="Détection automatique">
         <p class="hint" id="oFfInfo"></p>
-        <label class="f" for="oBr">Navigateur pour les petites fenêtres (Chrome / Edge)</label>
-        <input type="text" id="oBr" placeholder="Détection automatique">
+        <button class="btn" type="button" id="oFfInstall">Installer ffmpeg automatiquement</button>
+        <label class="f">Extension Chrome (capture des téléchargements et bouton sur les vidéos)</label>
+        <button class="btn" type="button" id="oExt">Installer l'extension Chrome…</button>
+        <p class="hint" id="oExtInfo" style="display:none">Dans la page qui s'ouvre : active le <b>Mode développeur</b> (en haut à droite),
+          clique sur <b>Charger l'extension non empaquetée</b> et choisis le dossier qui vient de s'ouvrir :<br><code id="oExtPath"></code></p>
+        <div id="oBrBox">
+          <label class="f" for="oBr">Navigateur pour les petites fenêtres (Chrome / Edge)</label>
+          <input type="text" id="oBr" placeholder="Détection automatique">
+        </div>
       </div>
     </div>
     <div class="df"><button class="btn" type="button" data-close>Annuler</button><button class="btn primary">Enregistrer</button></div>
@@ -304,10 +317,8 @@ async function api(path, method="GET", body){
   if(!r.ok){ let m=r.statusText; try{ m=(await r.json()).detail||m }catch{} throw new Error(m); }
   return r.json();
 }
-function popup(url, w, h){
-  const x = Math.round(screen.availWidth/2 - w/2), y = Math.round(screen.availHeight/2 - h/2);
-  return window.open(url, "_blank", `popup,width=${w},height=${h},left=${x},top=${y}`);
-}
+// les petites fenêtres sont ouvertes par Rapido : vraies fenêtres Windows dans l'application
+function openWin(view, id, width, height){ return api("/api/window", "POST", {view, id, width, height}); }
 
 /* ---------- filtres ---------- */
 const FILTERS = {
@@ -442,7 +453,7 @@ async function act(c, list){
     const one = list[0];
     if(c === "open") await api(`/api/downloads/${one.id}/open`, "POST");
     if(c === "folder") await api(`/api/downloads/${one.id}/open?folder=true`, "POST");
-    if(c === "progress"){ if(!popup(`/w?view=progress&id=${one.id}`, 520, 430)) await api(`/api/downloads/${one.id}/open-window`, "POST"); }
+    if(c === "progress") await openWin("progress", one.id, 520, 480);
     if(c === "resume") await api("/api/bulk/resume", "POST", {ids: list.map(d=>d.id)});
     if(c === "pause") await api("/api/bulk/pause", "POST", {ids: list.map(d=>d.id)});
     if(c === "redownload"){ if(confirm(`Retélécharger « ${one.filename} » depuis le début ?`)) await api(`/api/downloads/${one.id}/redownload`, "POST"); }
@@ -489,10 +500,8 @@ async function addUrls(urls){
   try{
     if(urls.length === 1){
       // fenêtre d'informations avant de démarrer
-      const w = popup("about:blank", 560, 540);
-      const r = await api("/api/capture", "POST", {url: urls[0]});
-      if(r.dialog && w) w.location = `/w?view=capture&id=${r.id}`;
-      else { if(w) w.close(); toast("Téléchargement ajouté"); }
+      const r = await api("/api/capture", "POST", {url: urls[0], open_window: true});
+      if(!r.dialog) toast("Téléchargement ajouté");
     } else {
       await api("/api/downloads", "POST", {url: urls.join("\n")});
       toast(`${urls.length} téléchargements ajoutés`);
@@ -535,8 +544,24 @@ $("#tOptions").onclick = async () => {
   $("#oConn").value = settings.connections; $("#oMax").value = settings.max_concurrent; $("#oLimit").value = settings.speed_limit_kbps;
   $("#oExts").value = settings.capture_exts.join(" "); $("#oMin").value = settings.min_capture_kb;
   $("#oFf").value = settings.ffmpeg_path; $("#oBr").value = settings.browser_path;
-  $("#oFfInfo").textContent = settings.ffmpeg_found ? "Trouvé : " + settings.ffmpeg_found : "Non trouvé. Installe-le avec : winget install ffmpeg";
+  $("#oFfInfo").textContent = settings.ffmpeg_found ? "Trouvé : " + settings.ffmpeg_found
+    : "Non trouvé : sans ffmpeg, les vidéos HD (1080p et plus) ne sont pas proposées.";
+  $("#oFfInstall").style.display = settings.windows && !settings.ffmpeg_found ? "" : "none";
+  $("#oAppBox").style.display = settings.desktop ? "" : "none";
+  $("#oBrBox").style.display = settings.desktop ? "none" : "";
+  $("#oAuto").checked = settings.autostart;
+  $("#oVer").textContent = "Rapido " + settings.version;
+  $("#oExtInfo").style.display = "none";
   $("#dOpt").showModal();
+};
+$("#oFfInstall").onclick = async () => {
+  try{ await api("/api/tools/ffmpeg", "POST"); toast("Installation lancée dans une fenêtre séparée");
+    $("#oFfInfo").textContent = "Quand l'installation est finie, rouvre les Options pour vérifier."; }
+  catch(err){ toast(err.message); }
+};
+$("#oExt").onclick = async () => {
+  try{ const r = await api("/api/tools/extension", "POST"); $("#oExtPath").textContent = r.path; $("#oExtInfo").style.display = ""; }
+  catch(err){ toast(err.message); }
 };
 $("#fOpt").addEventListener("submit", async e => {
   e.preventDefault();
@@ -548,6 +573,7 @@ $("#fOpt").addEventListener("submit", async e => {
       connections: +$("#oConn").value, max_concurrent: +$("#oMax").value, speed_limit_kbps: +$("#oLimit").value,
       capture_exts: $("#oExts").value.split(/[\s,;]+/).filter(Boolean), min_capture_kb: +$("#oMin").value,
       ffmpeg_path: $("#oFf").value.trim(), browser_path: $("#oBr").value.trim(),
+      ...(settings.desktop ? {autostart: $("#oAuto").checked} : {}),
     });
     $("#dOpt").close(); toast("Options enregistrées"); refresh();
   }catch(err){ toast(err.message); }

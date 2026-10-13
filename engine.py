@@ -20,6 +20,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -36,6 +37,12 @@ MAX_RETRIES = 5               # echecs consecutifs (sans progression) avant aban
 SAVE_EVERY = 2.0              # secondes entre deux sauvegardes de l'etat
 PENDING_TTL = 30 * 60         # une capture non confirmee disparait apres 30 min
 IS_WINDOWS = platform.system() == "Windows"
+VERSION = "1.0.0"
+FROZEN = getattr(sys, "frozen", False)                       # True dans Rapido.exe (PyInstaller)
+RES_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))   # fichiers embarques (html, icone)
+EXE_DIR = Path(sys.executable).parent if FROZEN else Path(__file__).parent
+CREATE_NEW_CONSOLE = 0x00000010
+CREATE_NO_WINDOW = 0x08000000
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -392,18 +399,20 @@ class Manager:
             return
         if action == "shutdown":
             subprocess.Popen(["shutdown", "/s", "/t", "60", "/c",
-                              "Rapido : file d'attente terminee. Arret dans 60 secondes."])
+                              "Rapido : file d'attente terminee. Arret dans 60 secondes."],
+                             creationflags=CREATE_NO_WINDOW)
         elif action == "sleep":
             # petit delai pour laisser le temps d'annuler depuis l'interface
             def _sleep():
                 if self.power and self.power.get("action") == "sleep":
                     self.power = None
-                    subprocess.Popen(["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"])
+                    subprocess.Popen(["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"],
+                                     creationflags=CREATE_NO_WINDOW)
             self.loop.call_later(60, _sleep)
 
     def cancel_power(self):
         if self.power and self.power["action"] == "shutdown" and IS_WINDOWS:
-            subprocess.Popen(["shutdown", "/a"])
+            subprocess.Popen(["shutdown", "/a"], creationflags=CREATE_NO_WINDOW)
         self.power = None
 
     # ---------- fenetres (capture / progression) ----------
@@ -621,7 +630,7 @@ class Manager:
     def _after_complete(self, dl: Download):
         if (self.settings.get("show_complete_dialog")
                 and time.time() - dl.watched > 3):     # aucune fenetre de progression ouverte
-            self.open_window(f"/w?view=progress&id={dl.id}", 520, 330)
+            self.open_window(f"/w?view=progress&id={dl.id}", 520, 360)
 
     # ---------- fichiers classiques ----------
     async def _probe(self, dl: Download):
@@ -812,10 +821,20 @@ class Manager:
         p = self.settings.get("ffmpeg_path")
         if p and Path(p).exists():
             return p
-        local = Path(__file__).parent / ("ffmpeg.exe" if IS_WINDOWS else "ffmpeg")
+        local = EXE_DIR / ("ffmpeg.exe" if IS_WINDOWS else "ffmpeg")
         if local.exists():
             return str(local)
-        return shutil.which("ffmpeg")
+        found = shutil.which("ffmpeg")
+        if found or not IS_WINDOWS:
+            return found
+        # installe par winget pendant que Rapido tournait (le PATH du processus n'est pas a jour)
+        winget = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet"
+        link = winget / "Links" / "ffmpeg.exe"
+        if link.exists():
+            return str(link)
+        for exe in (winget / "Packages").glob("Gyan.FFmpeg*/*/bin/ffmpeg.exe"):
+            return str(exe)
+        return None
 
     def _ydl_base_opts(self, dl: Download) -> dict:
         opts = {
@@ -1055,6 +1074,6 @@ class Manager:
     def _capture_and_show(self, url: str):
         if self.settings.get("show_capture_dialog", True):
             dl = self.capture(url)
-            self.open_window(f"/w?view=capture&id={dl.id}", 560, 540)
+            self.open_window(f"/w?view=capture&id={dl.id}", 560, 580)
         else:
             self.add(url)

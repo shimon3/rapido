@@ -9,7 +9,6 @@ const bypass = new Set();        // URLs relancées dans Chrome par nous (à ne 
 let cfg = {                      // copie locale des réglages Rapido (mise à jour au démarrage)
   capture_exts: ["zip","rar","7z","iso","exe","msi","mp4","mkv","avi","mov","mp3","flac","pdf","apk","dmg","gz","tar"],
   min_capture_kb: 512,
-  show_progress_window: true,
 };
 
 /* ---------- réglages ---------- */
@@ -18,7 +17,7 @@ async function loadCfg() {
     const r = await fetch(`${SERVER}/api/settings`);
     if (r.ok) {
       const s = await r.json();
-      cfg = { capture_exts: s.capture_exts, min_capture_kb: s.min_capture_kb, show_progress_window: s.show_progress_window };
+      cfg = { capture_exts: s.capture_exts, min_capture_kb: s.min_capture_kb };
       await chrome.storage.local.set({ cfg });
     }
   } catch {
@@ -67,26 +66,17 @@ async function post(path, body) {
   if (!r.ok) throw new Error(`Rapido a répondu ${r.status}`);
   return r.json();
 }
-function openWindow(path, width, height) {
-  chrome.windows.getLastFocused({}, (w) => {
-    const left = w ? Math.round(w.left + (w.width - width) / 2) : undefined;
-    const top = w ? Math.round(w.top + (w.height - height) / 2) : undefined;
-    chrome.windows.create({ url: SERVER + path, type: "popup", width, height, left, top, focused: true });
-  });
-}
-
+// Les fenêtres (capture, progression) sont ouvertes par Rapido lui-même :
+// ce sont de vraies fenêtres Windows, même quand on clique depuis Chrome.
 async function captureFile(url, referrer, filename) {
-  const r = await post("/api/capture", { url, filename, headers: await buildHeaders(url, referrer) });
-  if (r.dialog) openWindow(`/w?view=capture&id=${r.id}`, 560, 540);
-  else if (cfg.show_progress_window) openWindow(`/w?view=progress&id=${r.id}`, 520, 450);
+  await post("/api/capture", { url, filename, headers: await buildHeaders(url, referrer), open_window: true });
   flash("✓", "#1f6f5c");
 }
 
 async function captureVideo(pageUrl, candidates, referrer) {
-  const r = await post("/api/capture-video", {
-    page_url: pageUrl, candidates, headers: await buildHeaders(pageUrl, referrer),
+  await post("/api/capture-video", {
+    page_url: pageUrl, candidates, headers: await buildHeaders(pageUrl, referrer), open_window: true,
   });
-  openWindow(`/w?view=capture&id=${r.id}`, 560, 560);
   flash("✓", "#1f6f5c");
 }
 

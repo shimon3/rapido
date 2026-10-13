@@ -96,12 +96,17 @@ async function api(path, method="GET", body){
   if(!r.ok){ let m=r.statusText; try{ m=(await r.json()).detail||m }catch{} throw new Error(m); }
   return r.json();
 }
-function resize(w, h){ try{ window.resizeTo(w, h); }catch{} }
+const native = () => window.pywebview && window.pywebview.api;   // vraie fenêtre Windows (Rapido.exe)
+function resize(w, h){
+  try{ if(native() && native().resize) native().resize(w, h + 40); else window.resizeTo(w, h); }catch{}
+}
 function setView(v){
   view = v; const p = new URLSearchParams(location.search); p.set("view", v);
   history.replaceState(null, "", "?" + p.toString());
 }
-function closeWin(){ window.close(); setTimeout(() => { document.body.innerHTML =
+function closeWin(){
+  if(native() && native().close){ native().close(); return; }
+  window.close(); setTimeout(() => { document.body.innerHTML =
   '<div class="body" style="display:grid;place-items:center;color:var(--muted)">Tu peux fermer cette fenêtre.</div>'; }, 300); }
 
 /* ============ capture : fichier ============ */
