@@ -211,6 +211,13 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
     </div>
     <div class="db">
       <div class="pane on" data-p="g">
+        <label class="f" for="oLanguage">Langue de l'application</label>
+        <select id="oLanguage">
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+          <option value="he">עברית</option>
+        </select>
+        <p class="hint">Ce réglage est indépendant de la langue de l'installateur.</p>
         <label class="f" for="oDir">Dossier de téléchargement</label>
         <input type="text" id="oDir">
         <label class="chk"><input type="checkbox" id="oCat"> Ranger dans un sous-dossier par catégorie</label>
@@ -349,6 +356,118 @@ async function api(path, method="GET", body){
 }
 // les petites fenêtres sont ouvertes par Rapido : vraies fenêtres Windows dans l'application
 function openWin(view, id, width, height){ return api("/api/window", "POST", {view, id, width, height}); }
+
+/* ---------- premier lot de traductions UI (chaînes statiques) ---------- */
+const UI_TRANSLATIONS = {
+  "Ajouter URL": ["Add URL", "הוסף כתובת"],
+  "Reprendre": ["Resume", "המשך"],
+  "Arrêter": ["Pause", "השהה"],
+  "Tout arrêter": ["Pause all", "השהה הכול"],
+  "Supprimer": ["Delete", "מחק"],
+  "Suppr. terminés": ["Clear completed", "נקה שהושלמו"],
+  "Options": ["Settings", "הגדרות"],
+  "Planificateur": ["Scheduler", "מתזמן"],
+  "Démarrer la file": ["Start queue", "הפעל תור"],
+  "Arrêter la file": ["Stop queue", "עצור תור"],
+  "Dossier": ["Folder", "תיקייה"],
+  "Aide": ["Help", "עזרה"],
+  "Catégories": ["Categories", "קטגוריות"],
+  "Tous les téléchargements": ["All downloads", "כל ההורדות"],
+  "Non terminés": ["Unfinished", "לא הושלמו"],
+  "Terminés": ["Completed", "הושלמו"],
+  "Files d'attente": ["Queues", "תורי הורדה"],
+  "File principale": ["Main queue", "תור ראשי"],
+  "Général": ["General", "כללי"],
+  "Connexion": ["Connection", "חיבור"],
+  "Types de fichiers": ["File types", "סוגי קבצים"],
+  "Outils": ["Tools", "כלים"],
+  "Langue de l'application": ["Application language", "שפת היישום"],
+  "Ce réglage est indépendant de la langue de l'installateur.": ["This setting is independent of installer language.", "הגדרה זו אינה תלויה בשפת ההתקנה."],
+  "Dossier de téléchargement": ["Download folder", "תיקיית הורדות"],
+  "Annuler": ["Cancel", "ביטול"],
+  "Enregistrer": ["Save", "שמור"],
+  "Fermer": ["Close", "סגור"],
+  "Confirmation": ["Confirmation", "אישור"],
+  "Rechercher des mises à jour": ["Check for updates", "בדוק עדכונים"],
+  "Dernière version publiée :": ["Latest published version:", "גרסה אחרונה שפורסמה:"],
+  "Version installée :": ["Installed version:", "גרסה מותקנת:"],
+  "Vidéos": ["Videos", "סרטונים"],
+  "Musique": ["Music", "מוזיקה"],
+  "Archives": ["Archives", "ארכיונים"],
+  "Programmes": ["Programs", "תוכנות"],
+  "Documents": ["Documents", "מסמכים"],
+  "Images": ["Images", "תמונות"],
+  "Autres": ["Other", "אחר"],
+  "Nom du fichier": ["File name","שם הקובץ"],
+  "Taille": ["Size","גודל"],
+  "Statut": ["Status","מצב"],
+  "Temps restant": ["Time remaining","זמן נותר"],
+  "Vitesse": ["Speed","מהירות"],
+  "Dernier essai": ["Last attempt","ניסיון אחרון"],
+  "Description": ["Description","תיאור"],
+  "Terminé": ["Completed","הושלם"],
+  "Aide — Rapido": ["Help — Rapido","עזרה — Rapido"],
+  "Rapido est à jour.": ["Rapido is up to date.","Rapido מעודכן."],
+  "L'installation est manuelle. Les téléchargements en cours ne sont pas interrompus par la vérification.": ["Installation is manual. Update checks do not interrupt downloads.","ההתקנה ידנית. בדיקת עדכונים לא עוצרת הורדות."],
+  "Ranger dans un sous-dossier par catégorie": ["Sort into category subfolders","מיין לתיקיות משנה לפי קטגוריה"],
+  "Afficher la fenêtre d'informations avant chaque téléchargement": ["Show file information before each download","הצג מידע לפני כל הורדה"],
+  "Afficher la fenêtre de progression": ["Show progress window","הצג חלון התקדמות"],
+  "Afficher la fenêtre « Téléchargement terminé »": ["Show download completed window","הצג חלון סיום הורדה"],
+  "Surveiller le presse-papiers (copier un lien de fichier lance la capture)": ["Monitor clipboard (copying a file link starts capture)","נטר את הלוח (העתקת קישור מפעילה לכידה)"],
+  "Lancer Rapido au démarrage de Windows (réduit près de l'horloge)": ["Start Rapido with Windows (minimized to tray)","הפעל את Rapido עם Windows (ממוזער למגש)"],
+  "Fermer la fenêtre ne quitte pas Rapido : les téléchargements continuent. Pour quitter, clic droit sur l'icône Rapido près de l'horloge.": ["Closing the window keeps Rapido running. To quit, right-click its tray icon.","סגירת החלון אינה יוצאת מ-Rapido. ליציאה לחץ לחיצה ימנית על הסמל במגש."],
+  "Connexions par fichier": ["Connections per file","חיבורים לכל קובץ"],
+  "Téléchargements simultanés": ["Concurrent downloads","הורדות בו-זמנית"],
+  "Limite de vitesse globale (Ko/s, 0 = illimitée)": ["Global speed limit (KB/s, 0 = unlimited)","מגבלת מהירות כוללת (KB/s, אפס = ללא הגבלה)"],
+  "8 connexions est un bon réglage par défaut. Au-delà de 16, certains serveurs te bloquent.": ["8 connections is a good default. Some servers block over 16.","8 חיבורים הם ברירת מחדל מומלצת. שרתים מסוימים חוסמים מעל 16."],
+  "Extensions capturées automatiquement (Chrome et presse-papiers)": ["Automatically captured extensions","סיומות ללכידה אוטומטית"],
+  "Ne pas capturer les fichiers plus petits que (Ko)": ["Minimum captured file size (KB)","גודל קובץ מינימלי ללכידה (KB)"],
+  "Chemin de ffmpeg (fusion vidéo + audio en HD)": ["ffmpeg path (merge HD video and audio)","נתיב ffmpeg (מיזוג וידאו ושמע)"],
+  "Installer ffmpeg automatiquement": ["Install ffmpeg automatically","התקן ffmpeg אוטומטית"],
+  "Installer Deno automatiquement": ["Install Deno automatically","התקן Deno אוטומטית"],
+  "Détection automatique": ["Auto-detect","זיהוי אוטומטי"],
+  "Planificateur — file d'attente": ["Scheduler — queue","מתזמן — תור"],
+  "Heure de début": ["Start time","שעת התחלה"],
+  "Heure d'arrêt (optionnel)": ["Stop time (optional)","שעת עצירה (אופציונלי)"],
+  "Démarrer la file automatiquement": ["Start queue automatically","הפעל תור אוטומטית"],
+  "Jours": ["Days","ימים"],
+  "Quand la file est terminée": ["When queue finishes","בסיום התור"],
+  "Ne rien faire": ["Do nothing","ללא פעולה"],
+  "Éteindre l'ordinateur": ["Shut down computer","כבה מחשב"],
+  "Mettre en veille": ["Sleep","שינה"],
+  "Quitter Rapido": ["Exit Rapido","צא מ-Rapido"],
+  "Dépose le lien pour le télécharger": ["Drop link to download","גרור קישור להורדה"],
+  "Consultation de GitHub…": ["Checking GitHub…","בודק GitHub…"],
+  "Une nouvelle version est disponible.": ["A new version is available.","קיימת גרסה חדשה."],
+  "Vérification impossible :": ["Unable to check:", "הבדיקה נכשלה:"],
+  "Vérification…": ["Checking…","בודק…"]
+};
+let currentUiLanguage = "fr";
+const originalUiText = new WeakMap();
+function applyUiLanguage(language){
+  currentUiLanguage = ["fr","en","he"].includes(language) ? language : "fr";
+  document.documentElement.lang = currentUiLanguage;
+  // Respect RTL for labels while keeping download table columns and URLs in order.
+  document.documentElement.dir = currentUiLanguage === "he" ? "rtl" : "ltr";
+  document.querySelectorAll(".list, input[type=url], input[type=text], textarea, input[type=number], code, #helpVersion, #helpLatest").forEach(el => el.dir = "ltr");
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while((node = walker.nextNode())){
+    if(["SCRIPT","STYLE","OPTION"].includes(node.parentElement?.tagName)) continue;
+    const orig = originalUiText.get(node) ?? node.textContent;
+    const key = orig.trim();
+    if(!(key in UI_TRANSLATIONS)) continue;
+    originalUiText.set(node, orig);
+    const translation = currentUiLanguage === "fr" ? key : UI_TRANSLATIONS[key][currentUiLanguage === "en" ? 0 : 1];
+    node.textContent = orig.replace(key, translation);
+  }
+  document.querySelectorAll("input[placeholder]").forEach(el => {
+    const original = el.dataset.originalPlaceholder || el.getAttribute("placeholder");
+    if(!UI_TRANSLATIONS[original]) return;
+    el.dataset.originalPlaceholder = original;
+    el.placeholder = currentUiLanguage === "fr" ? original : UI_TRANSLATIONS[original][currentUiLanguage === "en" ? 0 : 1];
+  });
+}
 
 /* ---------- filtres ---------- */
 const FILTERS = {
@@ -567,19 +686,19 @@ async function checkRapidoUpdates(){
   button.disabled = true;
   $("#helpDownload").style.display = "none";
   $("#helpLatest").textContent = "Vérification…";
-  $("#helpUpdateStatus").textContent = "Consultation de GitHub…";
+  $("#helpUpdateStatus").textContent = "Consultation de GitHub…"; applyUiLanguage(currentUiLanguage);
   try {
     const info = await api("/api/updates/check");
     $("#helpVersion").textContent = info.current;
     $("#helpLatest").textContent = info.latest;
     if(info.update_available){
-      $("#helpUpdateStatus").textContent = "Une nouvelle version est disponible.";
+      $("#helpUpdateStatus").textContent = "Une nouvelle version est disponible."; applyUiLanguage(currentUiLanguage);
       const link = $("#helpDownload");
       link.href = info.url;
       link.textContent = "Télécharger Rapido " + info.latest;
       link.style.display = "";
     } else {
-      $("#helpUpdateStatus").textContent = "Rapido est à jour.";
+      $("#helpUpdateStatus").textContent = "Rapido est à jour."; applyUiLanguage(currentUiLanguage);
     }
   } catch(err){
     $("#helpLatest").textContent = "Indisponible";
@@ -591,6 +710,7 @@ async function checkRapidoUpdates(){
 $("#tHelp").onclick = async () => {
   $("#helpVersion").textContent = "…";
   $("#helpLatest").textContent = "Vérification…";
+  applyUiLanguage(currentUiLanguage);
   $("#dHelp").showModal();
   try {
     const info = await api("/api/settings");
@@ -608,6 +728,7 @@ $("#optTabs").addEventListener("click", e => { const b = e.target.closest("[data
   $$("#dOpt .pane").forEach(p => p.classList.toggle("on", p.dataset.p === b.dataset.p)); });
 $("#tOptions").onclick = async () => {
   settings = await api("/api/settings");
+  $("#oLanguage").value = settings.language || "fr";
   $("#oDir").value = settings.download_dir; $("#oCat").checked = settings.sort_by_category;
   $("#oCap").checked = settings.show_capture_dialog; $("#oProg").checked = settings.show_progress_window;
   $("#oDone").checked = settings.show_complete_dialog; $("#oClip").checked = settings.monitor_clipboard;
@@ -654,6 +775,7 @@ $("#fOpt").addEventListener("submit", async e => {
   e.preventDefault();
   try{
     await api("/api/settings", "PUT", {
+      language: $("#oLanguage").value,
       download_dir: $("#oDir").value.trim(), sort_by_category: $("#oCat").checked,
       show_capture_dialog: $("#oCap").checked, show_progress_window: $("#oProg").checked,
       show_complete_dialog: $("#oDone").checked, monitor_clipboard: $("#oClip").checked,
@@ -662,6 +784,7 @@ $("#fOpt").addEventListener("submit", async e => {
       ffmpeg_path: $("#oFf").value.trim(), browser_path: $("#oBr").value.trim(),
       ...(settings.desktop ? {autostart: $("#oAuto").checked} : {}),
     });
+    applyUiLanguage($("#oLanguage").value);
     $("#dOpt").close(); toast("Options enregistrées"); refresh();
   }catch(err){ toast(err.message); }
 });
@@ -686,6 +809,11 @@ $("#fSched").addEventListener("submit", async e => {
   }catch(err){ toast(err.message); }
 });
 
+api("/api/settings").then(s => applyUiLanguage(s.language || "fr")).catch(() => {});
+// Newly rendered download rows and status messages use the same selected locale.
+const translationObserver = new MutationObserver(() => applyUiLanguage(currentUiLanguage));
+translationObserver.observe(document.querySelector("#side"), {childList:true, subtree:true});
+translationObserver.observe(document.querySelector("#tbody"), {childList:true, subtree:true});
 refresh();
 setInterval(refresh, 1000);
 </script>

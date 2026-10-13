@@ -82,6 +82,32 @@ const params = new URLSearchParams(location.search);
 const ID = /^[0-9a-f]{6,32}$/.test(params.get("id") || "") ? params.get("id") : null;
 let view = params.get("view") || "progress";
 let dl = null, settings = null, confirmed = false, timer = null, pausedBusy = false;
+// Translations shared by capture, progress and completion dialogs.
+const translations = {"Informations sur le fichier de téléchargement":["Download file information","פרטי קובץ להורדה"],"Adresse (URL)":["Address (URL)","כתובת (URL)"],"Catégorie":["Category","קטגוריה"],"Enregistrer dans":["Save to","שמור בתיקייה"],"Nom du fichier":["File name","שם הקובץ"],"Description":["Description","תיאור"],"Optionnel":["Optional","אופציונלי"],"Ne plus afficher cette fenêtre (les téléchargements démarreront directement)":["Don't show this window again (downloads start directly)","אל תציג חלון זה שוב (ההורדות יתחילו מיד)"],"Analyse du lien…":["Checking link…","בודק קישור…"],"Reprise possible":["Resume available","ניתן להמשיך"],"Reprise impossible":["Resume unavailable","לא ניתן להמשיך"],"Télécharger plus tard":["Download later","הורד מאוחר יותר"],"Annuler":["Cancel","ביטול"],"Démarrer le téléchargement":["Start download","התחל הורדה"],"Télécharger la vidéo":["Download video","הורד סרטון"],"Impossible de récupérer cette vidéo.":["Unable to retrieve this video.","לא ניתן לאחזר את הסרטון."],"Analyse de la vidéo…":["Analyzing video…","מנתח סרטון…"],"Qualité":["Quality","איכות"],"En attente":["Waiting","ממתין"],"Téléchargement…":["Downloading…","מוריד…"],"En pause":["Paused","מושהה"],"Erreur":["Error","שגיאה"],"En attente de confirmation":["Awaiting confirmation","ממתין לאישור"],"Adresse":["Address","כתובת"],"Statut":["Status","מצב"],"Taille du fichier":["File size","גודל הקובץ"],"Téléchargé":["Downloaded","הורד"],"Vitesse":["Speed","מהירות"],"Temps restant":["Time remaining","זמן נותר"],"Oui":["Yes","כן"],"Non":["No","לא"],"Pause":["Pause","השהה"],"Reprendre":["Resume","המשך"],"Masquer":["Hide","הסתר"],"Téléchargement terminé":["Download completed","ההורדה הושלמה"],"Enregistré dans":["Saved to","נשמר בתיקייה"],"Ne plus afficher":["Don't show again","אל תציג שוב"],"Ouvrir":["Open","פתח"],"Ouvrir le dossier":["Open folder","פתח תיקייה"],"Fermer":["Close","סגור"],"Terminé":["Completed","הושלם"],"Réception des données…":["Receiving data…","מקבל נתונים…"],"Début":["Start","התחלה"],"Info":["Info","מידע"],"Vidéos":["Videos","סרטונים"],"Musique":["Music","מוזיקה"],"Archives":["Archives","ארכיונים"],"Programmes":["Programs","תוכנות"],"Documents":["Documents","מסמכים"],"Images":["Images","תמונות"],"Autres":["Other","אחר"],"Confirmation":["Confirmation","אישור"],"Confirmer":["Confirm","אשר"]};
+let dialogLanguage = "fr";
+const sourceText = new WeakMap();
+function translateDialog(){
+  document.documentElement.lang = dialogLanguage;
+  document.documentElement.dir = dialogLanguage === "he" ? "rtl" : "ltr";
+  document.querySelectorAll("input[type=text], input[type=url], table.kv td:last-child").forEach(el => el.dir = "ltr");
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while((node = walker.nextNode())){
+    if(["SCRIPT","STYLE"].includes(node.parentElement?.tagName)) continue;
+    const original = sourceText.get(node) ?? node.textContent;
+    const key = original.trim();
+    if(!(key in translations)) continue;
+    sourceText.set(node, original);
+    const value = dialogLanguage === "fr" ? key : translations[key][dialogLanguage === "en" ? 0 : 1];
+    node.textContent = original.replace(key, value);
+  }
+  document.querySelectorAll("[placeholder]").forEach(el => {
+    const orig = el.dataset.originalPlaceholder ?? el.getAttribute("placeholder");
+    if(!(orig in translations)) return;
+    el.dataset.originalPlaceholder = orig;
+    el.setAttribute("placeholder", dialogLanguage === "fr" ? orig : translations[orig][dialogLanguage === "en" ? 0 : 1]);
+  });
+}
 const CATS = ["Vidéos","Musique","Archives","Programmes","Documents","Images","Autres"];
 
 function hostOf(u){ try{ return new URL(u).hostname; }catch{ return ""; } }
@@ -339,6 +365,10 @@ window.addEventListener("beforeunload", () => {
 (async () => {
   if(!ID){ $("#body").textContent = "Paramètre id manquant"; return; }
   settings = await api("/api/settings").catch(() => ({}));
+  dialogLanguage = ["fr","en","he"].includes(settings.language) ? settings.language : "fr";
+  const observer = new MutationObserver(() => translateDialog());
+  observer.observe(document.body, {subtree:true,childList:true});
+  translateDialog();
   await tick();
   timer = setInterval(tick, 700);
 })();
