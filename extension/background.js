@@ -51,13 +51,18 @@ async function cookieHeader(url) {
     return cookies.map(c => `${c.name}=${c.value}`).join("; ");
   } catch { return ""; }
 }
+// S3 — fail closed until the extension and Rapido have an authenticated pairing.
+// Never send session cookies to an unverified HTTP listener on loopback.
 async function buildHeaders(url, referrer) {
   const h = {};
-  const c = await cookieHeader(url);
-  if (c) h.Cookie = c;
   if (referrer) h.Referer = referrer;
   h["User-Agent"] = navigator.userAgent;
   return h;
+}
+async function needsBrowserSession(url) {
+  // If we cannot inspect the cookie jar, do not cancel the Chrome download.
+  try { return (await chrome.cookies.getAll({ url })).length > 0; }
+  catch { return true; }
 }
 async function post(path, body) {
   const r = await fetch(SERVER + path, {
@@ -118,6 +123,8 @@ async function handleDownload(item, ext) {
   if (!(await isEnabled())) return;
   const size = item.totalBytes || item.fileSize || 0;
   if (size > 0 && size < cfg.min_capture_kb * 1024) return;
+  // Authentication is not yet paired: leave cookie-backed downloads to Chrome.
+  if (await needsBrowserSession(url)) return;
   if (handled.has(item.id)) return;
   handled.add(item.id);
 
