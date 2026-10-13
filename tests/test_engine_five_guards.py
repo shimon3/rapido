@@ -125,3 +125,50 @@ async def test_server_busy_uses_retry_after_and_retry_budget(monkeypatch):
     with pytest.raises(engine.ServerBackoff):
         await make_manager(client)._segment_worker(dl, dl.segments[0], FakeFH())
     assert sleeps == [8]
+
+
+@pytest.mark.asyncio
+async def test_rejects_wrong_resource_total_in_content_range():
+    client = FakeClient(FakeStream(headers={"content-range":"bytes 0-4/6", "etag": '"v1"'}))
+    dl = make_download()
+    with pytest.raises(IOError, match="Plage inattendue"):
+        await make_manager(client)._segment_worker(dl, dl.segments[0], FakeFH())
+
+
+@pytest.mark.asyncio
+async def test_rejects_reversed_content_range():
+    client = FakeClient(FakeStream(headers={"content-range":"bytes 0-0/5", "etag": '"v1"'}))
+    dl = make_download()
+    # Start offset for the next segment is one, but server responds with zero.
+    dl.segments[0].done = 1
+    with pytest.raises(IOError, match="Plage inattendue"):
+        await make_manager(client)._segment_worker(dl, dl.segments[0], FakeFH())
+
+
+@pytest.mark.asyncio
+async def test_short_file_write_fails_and_does_not_advance_progress():
+    client = FakeClient(FakeStream(headers={"content-range":"bytes 0-4/5", "etag": '"v1"'}))
+    dl = make_download()
+    class ShortWrite(FakeFH):
+        def write(self, chunk):
+            return len(chunk) - 1
+    with pytest.raises(OSError):
+        await make_manager(client)._segment_worker(dl, dl.segments[0], ShortWrite())
+    assert dl.downloaded == 0
+
+
+@pytest.mark.asyncio
+async def test_range_fetch_requires_identity_encoding():
+    client = FakeClient(FakeStream(headers={"content-range":"bytes 0-4/5", "etag": '"v1"'}))
+    dl = make_download()
+    await make_manager(client)._segment_worker(dl, dl.segments[0], FakeFH())
+    assert client.headers["Accept-Encoding"] == "identity"
+
+
+@pytest.mark.asyncio
+async def test_weak_validator_is_not_sent_as_if_range_without_timestamp():
+    client = FakeClient(FakeStream(headers={"content-range":"bytes 0-4/5"}))
+    dl = make_download()
+    dl.etag = 'W/"v1"'
+    await make_manager(client)._segment_worker(dl, dl.segments[0], FakeFH())
+    assert "If-Range" not in client.headers
