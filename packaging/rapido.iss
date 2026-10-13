@@ -70,6 +70,8 @@ Name: "{group}\{cm:Uninstall}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Rapido"; Filename: "{app}\Rapido.exe"; Tasks: desktopicon
 
 [Registry]
+; Premiere langue choisie dans l'installateur (sans effacer les preferences existantes).
+Root: HKCU; Subkey: "Software\Rapido"; ValueType: string; ValueName: "InstallerLanguage"; ValueData: "{language}"; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Rapido"; \
   ValueData: """{app}\Rapido.exe"" --tray"; Flags: uninsdeletevalue; Tasks: autostart
 
