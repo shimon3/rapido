@@ -45,12 +45,6 @@ function flash(text, color) {
 }
 
 /* ---------- échanges avec le serveur ---------- */
-async function cookieHeader(url) {
-  try {
-    const cookies = await chrome.cookies.getAll({ url });
-    return cookies.map(c => `${c.name}=${c.value}`).join("; ");
-  } catch { return ""; }
-}
 // S3 — fail closed until the extension and Rapido have an authenticated pairing.
 // Never send session cookies to an unverified HTTP listener on loopback.
 async function buildHeaders(url, referrer) {
