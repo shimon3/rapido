@@ -79,3 +79,13 @@ def test_client_pid_discovery_is_not_authentication():
     from windows_ipc import open_authenticated_pipe
     with pytest.raises(NotImplementedError):
         open_authenticated_pipe()
+
+
+def test_connected_client_must_match_expected_pid(monkeypatch):
+    import windows_ipc
+    monkeypatch.setattr(windows_ipc, "connected_client_pid", lambda handle: 1234)
+    assert windows_ipc.connected_client_matches_pid(99, 1234) is True
+    assert windows_ipc.connected_client_matches_pid(99, 5678) is False
+    for invalid in (0, -1, None, True, "1234"):
+        with pytest.raises(ValueError):
+            windows_ipc.connected_client_matches_pid(99, invalid)
