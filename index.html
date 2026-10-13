@@ -758,6 +758,7 @@ $("#fSched").addEventListener("submit", async e => {
   }catch(err){ toast(err.message); }
 });
 
+api("/api/settings").then(s => applyUiLanguage(s.language || "fr")).catch(() => {});
 refresh();
 setInterval(refresh, 1000);
 </script>
