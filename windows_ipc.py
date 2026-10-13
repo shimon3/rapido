@@ -47,3 +47,79 @@ def pipe_security_sddl(user_sid: str) -> str:
     """
     require_windows_identity_policy(user_sid=user_sid, process_id=1)
     return "D:P(A;;0x12019f;;;SY)(A;;0x12019f;;;" + user_sid + ")"
+
+
+def create_restricted_pipe(name: str, user_sid: str):
+    """Create a Windows named-pipe *listener handle* with explicit DACL.
+
+    This is deliberately not an authenticated session: callers MUST NOT read
+    requests or return secrets until connected-client identity verification
+    and the application protocol are implemented. Returns an owned OS handle.
+    """
+    import os
+    if os.name != "nt":
+        raise OSError("Windows named pipes require Windows")
+    import ctypes
+    from ctypes import wintypes
+
+    path = validate_pipe_name(name)
+    sddl = pipe_security_sddl(user_sid)
+    advapi = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    class SECURITY_ATTRIBUTES(ctypes.Structure):
+        _fields_ = [("nLength", wintypes.DWORD),
+                    ("lpSecurityDescriptor", wintypes.LPVOID),
+                    ("bInheritHandle", wintypes.BOOL)]
+
+    convert = advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW
+    convert.argtypes = [wintypes.LPCWSTR, wintypes.DWORD,
+                        ctypes.POINTER(wintypes.LPVOID), ctypes.POINTER(wintypes.DWORD)]
+    convert.restype = wintypes.BOOL
+    create = kernel.CreateNamedPipeW
+    create.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                       wintypes.DWORD, wintypes.DWORD, wintypes.DWORD,
+                       wintypes.DWORD, ctypes.POINTER(SECURITY_ATTRIBUTES)]
+    create.restype = wintypes.HANDLE
+    free = kernel.LocalFree
+    free.argtypes = [wintypes.HLOCAL]
+    free.restype = wintypes.HLOCAL
+    descriptor = wintypes.LPVOID()
+    if not convert(sddl, 1, ctypes.byref(descriptor), None):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        attrs = SECURITY_ATTRIBUTES(ctypes.sizeof(SECURITY_ATTRIBUTES), descriptor, False)
+        # PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED is unnecessary for this
+        # single-instance, not-yet-connected listener. FILE_FLAG_FIRST_PIPE_INSTANCE
+        # prevents silently opening a second server with this name.
+        PIPE_ACCESS_DUPLEX = 0x00000003
+        FILE_FLAG_FIRST_PIPE_INSTANCE = 0x00080000
+        PIPE_TYPE_MESSAGE = 0x00000004
+        PIPE_READMODE_MESSAGE = 0x00000002
+        PIPE_WAIT = 0x00000000
+        PIPE_REJECT_REMOTE_CLIENTS = 0x00000008
+        handle = create(path, PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+                        PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT |
+                        PIPE_REJECT_REMOTE_CLIENTS,
+                        1, 4096, 4096, 0, ctypes.byref(attrs))
+        invalid = ctypes.c_void_p(-1).value
+        if handle is None or handle == invalid:
+            raise ctypes.WinError(ctypes.get_last_error())
+        return handle
+    finally:
+        free(descriptor)
+
+
+def close_restricted_pipe(handle):
+    """Release the handle returned by create_restricted_pipe."""
+    import os
+    if os.name != "nt":
+        raise OSError("Windows named pipes require Windows")
+    import ctypes
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    close = kernel.CloseHandle
+    close.argtypes = [wintypes.HANDLE]
+    close.restype = wintypes.BOOL
+    if not close(handle):
+        raise ctypes.WinError(ctypes.get_last_error())
