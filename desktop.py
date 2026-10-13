@@ -300,7 +300,8 @@ def run_selftest(main_win, open_popup, result: dict):
         import engine
         result["dpapi_ok"] = engine.unprotect(engine.protect("session=abc")) == "session=abc"
         zi = Path(d["path"] + ":Zone.Identifier")
-        result["motw_ok"] = zi.exists() and "ZoneId=3" in zi.read_text()
+        raw = zi.read_bytes() if zi.exists() else b""
+        result["motw_ok"] = b"ZoneId=3\r\n" in raw and b"\r\r" not in raw
         result["settings_desktop"] = api("/api/settings").get("desktop")
 
         result["ok"] = bool(

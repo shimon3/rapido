@@ -139,7 +139,8 @@ def mark_of_the_web(path: str, url: str, referrer: str = ""):
         except Exception:
             return ""
     try:
-        with open(path + ":Zone.Identifier", "w", encoding="utf-8") as f:
+        # newline="" : on ecrit nous-memes les \r\n (sinon Windows les double en \r\r\n)
+        with open(path + ":Zone.Identifier", "w", encoding="utf-8", newline="") as f:
             f.write("[ZoneTransfer]\r\nZoneId=3\r\n")
             if referrer:
                 f.write(f"ReferrerUrl={clean(referrer)}\r\n")
