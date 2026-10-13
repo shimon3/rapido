@@ -148,3 +148,14 @@ def connected_client_pid(pipe_handle) -> int:
     if pid.value == 0:
         raise ValueError("Missing client process ID")
     return int(pid.value)
+
+
+def connected_client_matches_pid(pipe_handle, expected_pid: int) -> bool:
+    """Fail closed unless Windows reports the expected connected client PID.
+
+    This only binds a connection to a PID at query time. It does not prove the
+    binary identity or protect against same-user attackers and PID reuse.
+    """
+    if not isinstance(expected_pid, int) or isinstance(expected_pid, bool) or expected_pid <= 0:
+        raise ValueError("Invalid expected client PID")
+    return connected_client_pid(pipe_handle) == expected_pid
