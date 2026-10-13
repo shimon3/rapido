@@ -397,7 +397,46 @@ const UI_TRANSLATIONS = {
   "Programmes": ["Programs", "תוכנות"],
   "Documents": ["Documents", "מסמכים"],
   "Images": ["Images", "תמונות"],
-  "Autres": ["Other", "אחר"]
+  "Autres": ["Other", "אחר"],
+  "Nom du fichier": ["File name","שם הקובץ"],
+  "Taille": ["Size","גודל"],
+  "Statut": ["Status","מצב"],
+  "Temps restant": ["Time remaining","זמן נותר"],
+  "Vitesse": ["Speed","מהירות"],
+  "Dernier essai": ["Last attempt","ניסיון אחרון"],
+  "Description": ["Description","תיאור"],
+  "Terminé": ["Completed","הושלם"],
+  "Aide — Rapido": ["Help — Rapido","עזרה — Rapido"],
+  "Rapido est à jour.": ["Rapido is up to date.","Rapido מעודכן."],
+  "L'installation est manuelle. Les téléchargements en cours ne sont pas interrompus par la vérification.": ["Installation is manual. Update checks do not interrupt downloads.","ההתקנה ידנית. בדיקת עדכונים לא עוצרת הורדות."],
+  "Ranger dans un sous-dossier par catégorie": ["Sort into category subfolders","מיין לתיקיות משנה לפי קטגוריה"],
+  "Afficher la fenêtre d'informations avant chaque téléchargement": ["Show file information before each download","הצג מידע לפני כל הורדה"],
+  "Afficher la fenêtre de progression": ["Show progress window","הצג חלון התקדמות"],
+  "Afficher la fenêtre « Téléchargement terminé »": ["Show download completed window","הצג חלון סיום הורדה"],
+  "Surveiller le presse-papiers (copier un lien de fichier lance la capture)": ["Monitor clipboard (copying a file link starts capture)","נטר את הלוח (העתקת קישור מפעילה לכידה)"],
+  "Lancer Rapido au démarrage de Windows (réduit près de l'horloge)": ["Start Rapido with Windows (minimized to tray)","הפעל את Rapido עם Windows (ממוזער למגש)"],
+  "Fermer la fenêtre ne quitte pas Rapido : les téléchargements continuent. Pour quitter, clic droit sur l'icône Rapido près de l'horloge.": ["Closing the window keeps Rapido running. To quit, right-click its tray icon.","סגירת החלון אינה יוצאת מ-Rapido. ליציאה לחץ לחיצה ימנית על הסמל במגש."],
+  "Connexions par fichier": ["Connections per file","חיבורים לכל קובץ"],
+  "Téléchargements simultanés": ["Concurrent downloads","הורדות בו-זמנית"],
+  "Limite de vitesse globale (Ko/s, 0 = illimitée)": ["Global speed limit (KB/s, 0 = unlimited)","מגבלת מהירות כוללת (KB/s, אפס = ללא הגבלה)"],
+  "8 connexions est un bon réglage par défaut. Au-delà de 16, certains serveurs te bloquent.": ["8 connections is a good default. Some servers block over 16.","8 חיבורים הם ברירת מחדל מומלצת. שרתים מסוימים חוסמים מעל 16."],
+  "Extensions capturées automatiquement (Chrome et presse-papiers)": ["Automatically captured extensions","סיומות ללכידה אוטומטית"],
+  "Ne pas capturer les fichiers plus petits que (Ko)": ["Minimum captured file size (KB)","גודל קובץ מינימלי ללכידה (KB)"],
+  "Chemin de ffmpeg (fusion vidéo + audio en HD)": ["ffmpeg path (merge HD video and audio)","נתיב ffmpeg (מיזוג וידאו ושמע)"],
+  "Installer ffmpeg automatiquement": ["Install ffmpeg automatically","התקן ffmpeg אוטומטית"],
+  "Installer Deno automatiquement": ["Install Deno automatically","התקן Deno אוטומטית"],
+  "Détection automatique": ["Auto-detect","זיהוי אוטומטי"],
+  "Planificateur — file d'attente": ["Scheduler — queue","מתזמן — תור"],
+  "Heure de début": ["Start time","שעת התחלה"],
+  "Heure d'arrêt (optionnel)": ["Stop time (optional)","שעת עצירה (אופציונלי)"],
+  "Démarrer la file automatiquement": ["Start queue automatically","הפעל תור אוטומטית"],
+  "Jours": ["Days","ימים"],
+  "Quand la file est terminée": ["When queue finishes","בסיום התור"],
+  "Ne rien faire": ["Do nothing","ללא פעולה"],
+  "Éteindre l'ordinateur": ["Shut down computer","כבה מחשב"],
+  "Mettre en veille": ["Sleep","שינה"],
+  "Quitter Rapido": ["Exit Rapido","צא מ-Rapido"],
+  "Dépose le lien pour le télécharger": ["Drop link to download","גרור קישור להורדה"]
 };
 let currentUiLanguage = "fr";
 const originalUiText = new WeakMap();
@@ -406,7 +445,7 @@ function applyUiLanguage(language){
   document.documentElement.lang = currentUiLanguage;
   // Respect RTL for labels while keeping download table columns and URLs in order.
   document.documentElement.dir = currentUiLanguage === "he" ? "rtl" : "ltr";
-  document.querySelectorAll(".list, input[type=url], input[type=text], textarea").forEach(el => el.dir = "ltr");
+  document.querySelectorAll(".list, input[type=url], input[type=text], textarea, input[type=number], code, #helpVersion, #helpLatest").forEach(el => el.dir = "ltr");
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   let node;
   while((node = walker.nextNode())){
@@ -418,6 +457,12 @@ function applyUiLanguage(language){
     const translation = currentUiLanguage === "fr" ? key : UI_TRANSLATIONS[key][currentUiLanguage === "en" ? 0 : 1];
     node.textContent = orig.replace(key, translation);
   }
+  document.querySelectorAll("input[placeholder]").forEach(el => {
+    const original = el.dataset.originalPlaceholder || el.getAttribute("placeholder");
+    if(!UI_TRANSLATIONS[original]) return;
+    el.dataset.originalPlaceholder = original;
+    el.placeholder = currentUiLanguage === "fr" ? original : UI_TRANSLATIONS[original][currentUiLanguage === "en" ? 0 : 1];
+  });
 }
 
 /* ---------- filtres ---------- */
