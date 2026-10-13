@@ -5,7 +5,7 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
-    branches: [main, security/s2-auth-core]
+    branches: [main, security/s2-auth-core, security/native-messaging-prototype]
   workflow_dispatch:
 
 # Droits minimum par defaut ; seul le job de compilation peut publier une release.
