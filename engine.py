@@ -949,7 +949,7 @@ class Manager:
                         if (not m or int(m.group(1)) != pos or
                                 int(m.group(2)) < int(m.group(1)) or
                                 int(m.group(2)) > seg.end or int(m.group(3)) != dl.size):
-                            raise IOError(f"Plage inattendue du serveur : {r.headers.get('content-range')!r} "
+                            raise ResourceChanged(f"Plage inattendue du serveur : {r.headers.get('content-range')!r} "
                                           f"au lieu de {pos}-{seg.end}")
                         # E5 : des octets compresses ne correspondent plus aux positions du fichier
                         if r.headers.get("content-encoding", "identity").lower() not in ("identity", ""):
