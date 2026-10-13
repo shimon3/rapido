@@ -123,3 +123,28 @@ def close_restricted_pipe(handle):
     close.restype = wintypes.BOOL
     if not close(handle):
         raise ctypes.WinError(ctypes.get_last_error())
+
+
+def connected_client_pid(pipe_handle) -> int:
+    """Ask Windows for the PID of the client connected to a named pipe.
+
+    PID discovery alone is NOT authentication. Before granting any operation
+    the server must validate the client's Windows token and process identity.
+    """
+    import os
+    if os.name != "nt":
+        raise OSError("Windows named pipes require Windows")
+    import ctypes
+    from ctypes import wintypes
+    if not isinstance(pipe_handle, int) or isinstance(pipe_handle, bool) or pipe_handle <= 0:
+        raise ValueError("Invalid named-pipe handle")
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_pid = kernel.GetNamedPipeClientProcessId
+    get_pid.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)]
+    get_pid.restype = wintypes.BOOL
+    pid = wintypes.ULONG()
+    if not get_pid(pipe_handle, ctypes.byref(pid)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    if pid.value == 0:
+        raise ValueError("Missing client process ID")
+    return int(pid.value)
