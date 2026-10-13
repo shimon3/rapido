@@ -760,6 +760,10 @@ $("#fSched").addEventListener("submit", async e => {
 });
 
 api("/api/settings").then(s => applyUiLanguage(s.language || "fr")).catch(() => {});
+// Newly rendered download rows and status messages use the same selected locale.
+const translationObserver = new MutationObserver(() => applyUiLanguage(currentUiLanguage));
+translationObserver.observe(document.querySelector("#side"), {childList:true, subtree:true});
+translationObserver.observe(document.querySelector("#tbody"), {childList:true, subtree:true});
 refresh();
 setInterval(refresh, 1000);
 </script>
