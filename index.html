@@ -211,6 +211,13 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
     </div>
     <div class="db">
       <div class="pane on" data-p="g">
+        <label class="f" for="oLanguage">Langue de l'application</label>
+        <select id="oLanguage">
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+          <option value="he">עברית</option>
+        </select>
+        <p class="hint">Ce réglage est indépendant de la langue de l'installateur.</p>
         <label class="f" for="oDir">Dossier de téléchargement</label>
         <input type="text" id="oDir">
         <label class="chk"><input type="checkbox" id="oCat"> Ranger dans un sous-dossier par catégorie</label>
@@ -349,6 +356,68 @@ async function api(path, method="GET", body){
 }
 // les petites fenêtres sont ouvertes par Rapido : vraies fenêtres Windows dans l'application
 function openWin(view, id, width, height){ return api("/api/window", "POST", {view, id, width, height}); }
+
+/* ---------- premier lot de traductions UI (chaînes statiques) ---------- */
+const UI_TRANSLATIONS = {
+  "Ajouter URL": ["Add URL", "הוסף כתובת"],
+  "Reprendre": ["Resume", "המשך"],
+  "Arrêter": ["Pause", "השהה"],
+  "Tout arrêter": ["Pause all", "השהה הכול"],
+  "Supprimer": ["Delete", "מחק"],
+  "Suppr. terminés": ["Clear completed", "נקה שהושלמו"],
+  "Options": ["Settings", "הגדרות"],
+  "Planificateur": ["Scheduler", "מתזמן"],
+  "Démarrer la file": ["Start queue", "הפעל תור"],
+  "Arrêter la file": ["Stop queue", "עצור תור"],
+  "Dossier": ["Folder", "תיקייה"],
+  "Aide": ["Help", "עזרה"],
+  "Catégories": ["Categories", "קטגוריות"],
+  "Tous les téléchargements": ["All downloads", "כל ההורדות"],
+  "Non terminés": ["Unfinished", "לא הושלמו"],
+  "Terminés": ["Completed", "הושלמו"],
+  "Files d'attente": ["Queues", "תורי הורדה"],
+  "File principale": ["Main queue", "תור ראשי"],
+  "Général": ["General", "כללי"],
+  "Connexion": ["Connection", "חיבור"],
+  "Types de fichiers": ["File types", "סוגי קבצים"],
+  "Outils": ["Tools", "כלים"],
+  "Langue de l'application": ["Application language", "שפת היישום"],
+  "Ce réglage est indépendant de la langue de l'installateur.": ["This setting is independent of installer language.", "הגדרה זו אינה תלויה בשפת ההתקנה."],
+  "Dossier de téléchargement": ["Download folder", "תיקיית הורדות"],
+  "Annuler": ["Cancel", "ביטול"],
+  "Enregistrer": ["Save", "שמור"],
+  "Fermer": ["Close", "סגור"],
+  "Confirmation": ["Confirmation", "אישור"],
+  "Rechercher des mises à jour": ["Check for updates", "בדוק עדכונים"],
+  "Dernière version publiée :": ["Latest published version:", "גרסה אחרונה שפורסמה:"],
+  "Version installée :": ["Installed version:", "גרסה מותקנת:"],
+  "Vidéos": ["Videos", "סרטונים"],
+  "Musique": ["Music", "מוזיקה"],
+  "Archives": ["Archives", "ארכיונים"],
+  "Programmes": ["Programs", "תוכנות"],
+  "Documents": ["Documents", "מסמכים"],
+  "Images": ["Images", "תמונות"],
+  "Autres": ["Other", "אחר"]
+};
+let currentUiLanguage = "fr";
+const originalUiText = new WeakMap();
+function applyUiLanguage(language){
+  currentUiLanguage = ["fr","en","he"].includes(language) ? language : "fr";
+  document.documentElement.lang = currentUiLanguage;
+  // Respect RTL for labels while keeping download table columns and URLs in order.
+  document.documentElement.dir = currentUiLanguage === "he" ? "rtl" : "ltr";
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while((node = walker.nextNode())){
+    if(["SCRIPT","STYLE","OPTION"].includes(node.parentElement?.tagName)) continue;
+    const orig = originalUiText.get(node) ?? node.textContent;
+    const key = orig.trim();
+    if(!(key in UI_TRANSLATIONS)) continue;
+    originalUiText.set(node, orig);
+    const translation = currentUiLanguage === "fr" ? key : UI_TRANSLATIONS[key][currentUiLanguage === "en" ? 0 : 1];
+    node.textContent = orig.replace(key, translation);
+  }
+}
 
 /* ---------- filtres ---------- */
 const FILTERS = {
@@ -608,6 +677,7 @@ $("#optTabs").addEventListener("click", e => { const b = e.target.closest("[data
   $$("#dOpt .pane").forEach(p => p.classList.toggle("on", p.dataset.p === b.dataset.p)); });
 $("#tOptions").onclick = async () => {
   settings = await api("/api/settings");
+  $("#oLanguage").value = settings.language || "fr";
   $("#oDir").value = settings.download_dir; $("#oCat").checked = settings.sort_by_category;
   $("#oCap").checked = settings.show_capture_dialog; $("#oProg").checked = settings.show_progress_window;
   $("#oDone").checked = settings.show_complete_dialog; $("#oClip").checked = settings.monitor_clipboard;
@@ -654,6 +724,7 @@ $("#fOpt").addEventListener("submit", async e => {
   e.preventDefault();
   try{
     await api("/api/settings", "PUT", {
+      language: $("#oLanguage").value,
       download_dir: $("#oDir").value.trim(), sort_by_category: $("#oCat").checked,
       show_capture_dialog: $("#oCap").checked, show_progress_window: $("#oProg").checked,
       show_complete_dialog: $("#oDone").checked, monitor_clipboard: $("#oClip").checked,
@@ -662,6 +733,7 @@ $("#fOpt").addEventListener("submit", async e => {
       ffmpeg_path: $("#oFf").value.trim(), browser_path: $("#oBr").value.trim(),
       ...(settings.desktop ? {autostart: $("#oAuto").checked} : {}),
     });
+    applyUiLanguage($("#oLanguage").value);
     $("#dOpt").close(); toast("Options enregistrées"); refresh();
   }catch(err){ toast(err.message); }
 });
