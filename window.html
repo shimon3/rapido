@@ -77,7 +77,9 @@ table.conn td{padding:2px 4px;border-bottom:1px solid var(--line)}
 <script>
 const $ = s => document.querySelector(s);
 const params = new URLSearchParams(location.search);
-const ID = params.get("id");
+// l'identifiant vient de l'adresse de la page : on n'accepte qu'un identifiant Rapido
+// (hexadecimal), sinon une adresse piegee pourrait detourner les appels a l'API
+const ID = /^[0-9a-f]{6,32}$/.test(params.get("id") || "") ? params.get("id") : null;
 let view = params.get("view") || "progress";
 let dl = null, settings = null, confirmed = false, timer = null, pausedBusy = false;
 const CATS = ["Vidéos","Musique","Archives","Programmes","Documents","Images","Autres"];
@@ -325,7 +327,7 @@ async function tick(){
 }
 
 window.addEventListener("beforeunload", () => {
-  if(view === "capture" && !confirmed)
+  if(ID && view === "capture" && !confirmed)
     fetch(`/api/downloads/${ID}/cancel-capture`, {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}", keepalive:true});
 });
 

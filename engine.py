@@ -36,10 +36,11 @@ import httpx
 CHUNK = 256 * 1024            # taille des blocs lus sur le reseau
 MIN_SEGMENT = 1024 * 1024     # on ne decoupe pas en morceaux de moins de 1 Mo
 MAX_RETRIES = 5               # echecs consecutifs (sans progression) avant abandon
+RETRY_DELAY = 1.0             # multiplicateur des pauses entre essais (2, 4, 8, 16, 20 s) ; reduit par les tests
 SAVE_EVERY = 2.0              # secondes entre deux sauvegardes de l'etat
 PENDING_TTL = 30 * 60         # une capture non confirmee disparait apres 30 min
 IS_WINDOWS = platform.system() == "Windows"
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 FROZEN = getattr(sys, "frozen", False)                       # True dans Rapido.exe (PyInstaller)
 RES_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))   # fichiers embarques (html, icone)
 EXE_DIR = Path(sys.executable).parent if FROZEN else Path(__file__).parent
@@ -369,7 +370,9 @@ class Manager:
         self.client = httpx.AsyncClient(
             follow_redirects=True,
             timeout=httpx.Timeout(30.0, read=60.0),
-            headers={"User-Agent": USER_AGENT},
+            # E5 : on demande les octets bruts, jamais compresses (gzip / br) : seuls des octets
+            # bruts correspondent aux positions des plages Range dans le fichier
+            headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity"},
             limits=httpx.Limits(max_connections=200, max_keepalive_connections=50),
         )
         self._scheduler = asyncio.create_task(self._schedule_loop())
@@ -673,12 +676,29 @@ class Manager:
             p.cancel()
         dl = self.downloads.pop(dl_id, None)
         if dl and dl.path:
-            for part in Path(dl.path).parent.glob(Path(dl.path).stem + "*.part"):
-                part.unlink(missing_ok=True)
-            Path(dl.path + ".part").unlink(missing_ok=True)
+            if dl.status != "completed":
+                for tmp in self._temp_files(dl):
+                    tmp.unlink(missing_ok=True)
             if delete_file:
                 Path(dl.path).unlink(missing_ok=True)
         self.save(force=True)
+
+    @staticmethod
+    def _temp_files(dl: Download) -> list[Path]:
+        """Fichiers temporaires appartenant A CE telechargement seulement.
+        (Avant : un motif "film*.part" effacait aussi "film (1).mp4.part" d'un autre telechargement.)"""
+        own = Path(dl.path + ".part")
+        files = [own] if own.exists() else []
+        if dl.kind == "video":
+            # fichiers de yt-dlp : film.mp4.part, film.f137.mp4.part, film.f137.mp4.part-Frag3.part,
+            # film.mp4.ytdl, film.temp.mp4
+            stem = re.escape(Path(dl.path).stem)
+            pat = re.compile(rf"^{stem}\.(?:(?:f[\w-]+\.)?[A-Za-z0-9]+(?:\.part(?:-Frag\d+\.part)?|\.ytdl)"
+                             rf"|temp\.[A-Za-z0-9]+)$")
+            folder = Path(dl.path).parent
+            if folder.is_dir():
+                files += [p for p in folder.iterdir() if p.is_file() and p != own and pat.match(p.name)]
+        return files
 
     async def _cancel_task(self, dl_id: str):
         flag = self._stop_flags.get(dl_id)
@@ -866,9 +886,22 @@ class Manager:
                 dl.active_connections += 1
                 async with self.client.stream("GET", dl.url, headers=headers) as r:
                     r.raise_for_status()
-                    if dl.resumable and r.status_code != 206:
-                        raise IOError("Le serveur a cesse d'accepter la reprise (Range)")
-                    async for chunk in r.aiter_bytes(CHUNK):
+                    if dl.resumable:
+                        if r.status_code != 206:
+                            raise IOError("Le serveur a cesse d'accepter la reprise (Range)")
+                        # E2 : la plage recue doit commencer exactement la ou on l'a demandee,
+                        # sinon les octets seraient ecrits au mauvais endroit du fichier
+                        m = re.match(r"\s*bytes\s+(\d+)-(\d+)/", r.headers.get("content-range", ""))
+                        if not m or int(m.group(1)) != pos or int(m.group(2)) > seg.end:
+                            raise IOError(f"Plage inattendue du serveur : {r.headers.get('content-range')!r} "
+                                          f"au lieu de {pos}-{seg.end}")
+                        # E5 : des octets compresses ne correspondent plus aux positions du fichier
+                        if r.headers.get("content-encoding", "identity").lower() not in ("identity", ""):
+                            raise IOError("Le serveur compresse une plage d'octets : impossible de la reprendre")
+                        chunks = r.aiter_raw(CHUNK)
+                    else:
+                        chunks = r.aiter_bytes(CHUNK)
+                    async for chunk in chunks:
                         if dl.resumable:
                             # le segment a pu etre raccourci par _supervise
                             room = seg.end - (seg.start + seg.done) + 1
@@ -885,7 +918,14 @@ class Manager:
                             seg.end = seg.start + seg.done - 1
                             dl.size = seg.done
                         return
-                attempt = 0
+                if seg.finished:
+                    return
+                # E3 : la reponse s'est terminee sans erreur mais trop tot. Si rien n'est arrive,
+                # c'est un echec : on attend avant de reessayer (sinon boucle de requetes sans pause).
+                if seg.done > before:
+                    attempt = 0
+                    continue
+                raise IOError("Le serveur n'envoie plus de donnees pour ce segment")
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -893,7 +933,7 @@ class Manager:
                 attempt = 1 if seg.done > before else attempt + 1
                 if attempt > MAX_RETRIES or not dl.resumable:
                     raise
-                await asyncio.sleep(min(2 ** attempt, 20))
+                await asyncio.sleep(min(2 ** attempt, 20) * RETRY_DELAY)
             finally:
                 dl.active_connections = max(0, dl.active_connections - 1)
 

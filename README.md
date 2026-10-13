@@ -97,7 +97,7 @@ Rapido runs a local API that can write files to disk and launch programs, so it 
 
 | Threat | Protection |
 |---|---|
-| A website calls the local API (CSRF) | Every write must be `application/json` (strict media-type check), which forces a CORS preflight. CORS only allows Rapido's extension, and any other `Origin` is rejected with 403. |
+| A website calls the local API (CSRF) | Every write must be `application/json` (strict media-type check), which forces a CORS preflight. CORS only allows Rapido's extension, and any other `Origin` is rejected with 403. Any request or page load that the browser marks as coming from another site (`Sec-Fetch-Site: cross-site` or `same-site`, even from another port on 127.0.0.1) is refused. The popup page only accepts a hexadecimal download id, and bulk actions never default to "everything". |
 | DNS rebinding (`evil.com` resolving to 127.0.0.1) | The `Host` header must be `127.0.0.1:9614` or `localhost:9614`. |
 | Another Chrome extension calls the API | The extension has a fixed ID (public `key` in the manifest), and only that ID is allowed. |
 | HTML or script injection through file names, video titles or error messages | All remote text is HTML-escaped. A strict Content-Security-Policy only allows Rapido's scripts (SHA-256 hashes), with no `eval`, `connect-src 'self'` and `frame-ancestors 'none'`. |
@@ -118,6 +118,15 @@ Rapido runs a local API that can write files to disk and launch programs, so it 
 - DRM-protected streams (Netflix, Disney+…) are not supported.
 - Signed links that expire may refuse to resume hours later: use *Refresh download address*.
 - Shutdown / sleep actions and clipboard monitoring are Windows only.
+
+## Tests
+
+```bash
+pip install pytest
+python -m pytest -q tests
+```
+
+The regression tests reproduce the issues found by the October 2026 audit (CSRF, deletion of another download's temp file, shifted or compressed ranges, retry loop) plus multi-connection integrity and resume after a hard restart. They run on every Windows build before the executable is built.
 
 ## License
 

@@ -478,9 +478,9 @@ async function act(c, list){
 $("#tAdd").onclick = () => openAdd("");
 $("#tResume").onclick = () => act("resume", selected());
 $("#tPause").onclick = () => act("pause", selected());
-$("#tPauseAll").onclick = async () => { await api("/api/bulk/pause","POST",{}); refresh(); };
+$("#tPauseAll").onclick = async () => { await api("/api/bulk/pause","POST",{all:true}); refresh(); };
 $("#tDelete").onclick = () => act("delete", selected());
-$("#tClear").onclick = async () => { await api("/api/bulk/clear-completed","POST",{}); refresh(); };
+$("#tClear").onclick = async () => { await api("/api/bulk/clear-completed","POST",{all:true}); refresh(); };
 $("#tQStart").onclick = async () => { await api("/api/queue/start","POST"); toast("File d'attente démarrée"); refresh(); };
 $("#tQStop").onclick = async () => { await api("/api/queue/stop","POST"); refresh(); };
 $("#tFolder").onclick = () => api("/api/open-folder","POST",{url:""}).catch(e => toast(e.message));

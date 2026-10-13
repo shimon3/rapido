@@ -56,7 +56,8 @@ app = FastAPI(title="Rapido", lifespan=lifespan)
 #  4. CORS limite a l'extension Rapido (identifiant fixe grace a la cle du manifest)
 EXTENSION_ID = "hlpkfnodjoglfdiekijebbppfgkjkbmp"
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
-ALLOWED_ORIGINS = {f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}", f"chrome-extension://{EXTENSION_ID}"}
+EXTENSION_ORIGIN = f"chrome-extension://{EXTENSION_ID}"
+ALLOWED_ORIGINS = {f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}", EXTENSION_ORIGIN}
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -83,6 +84,13 @@ async def guard(request: Request, call_next):
     origin = request.headers.get("origin")
     if origin is not None and origin not in ALLOWED_ORIGINS:
         return _deny(403, "Origine non autorisee")
+    # Une page ou une requete declenchee par un AUTRE site (meme sur 127.0.0.1 avec un autre
+    # port) est refusee : le navigateur l'annonce dans Sec-Fetch-Site. Seuls passent l'interface
+    # de Rapido elle-meme (same-origin), une adresse tapee / une fenetre ouverte par Rapido (none),
+    # l'extension Rapido, et les programmes sans navigateur (pas d'en-tete).
+    fetch_site = request.headers.get("sec-fetch-site")
+    if fetch_site and fetch_site not in ("same-origin", "none") and origin != EXTENSION_ORIGIN:
+        return _deny(403, "Requete venant d'un autre site refusee")
     if request.method in ("POST", "PUT", "DELETE"):
         ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
         if ctype != "application/json":
@@ -179,6 +187,7 @@ class UrlRequest(BaseModel):
 
 class IdsRequest(BaseModel):
     ids: Annotated[list[Annotated[str, Field(max_length=32)]], Field(max_length=10_000)] = []
+    all: bool = False          # agir sur toute la liste : doit etre demande explicitement
     delete_file: bool = False
 
 
@@ -443,7 +452,12 @@ async def set_description(dl_id: str, req: UrlRequest):
 
 @app.post("/api/bulk/{action}")
 async def bulk(action: str, req: IdsRequest):
-    ids = req.ids or [d.id for d in manager.downloads.values() if d.status != "pending"]
+    if req.all:
+        if action == "delete":
+            raise HTTPException(400, "Suppression de toute la liste refusee : indique les elements")
+        ids = [d.id for d in manager.downloads.values() if d.status != "pending"]
+    else:
+        ids = req.ids          # liste vide = rien (jamais « tout » par defaut)
     for i in ids:
         dl = manager.downloads.get(i)
         if not dl:
@@ -662,7 +676,7 @@ def run_tray(on_open, on_quit):
 
     def pause_all(*_):
         import asyncio
-        asyncio.run_coroutine_threadsafe(bulk("pause", IdsRequest()), manager.loop)
+        asyncio.run_coroutine_threadsafe(bulk("pause", IdsRequest(all=True)), manager.loop)
 
     def resume_all(*_):
         manager.loop.call_soon_threadsafe(lambda: [manager.resume(d.id) for d in list(manager.downloads.values())
