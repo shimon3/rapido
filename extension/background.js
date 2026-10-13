@@ -11,6 +11,17 @@ let cfg = {                      // copie locale des réglages Rapido (mise à j
   min_capture_kb: 512,
 };
 
+/* Native Messaging is optional until S2/S3 is fully migrated.
+   No cookies, downloads or secrets traverse this diagnostic channel. */
+const NATIVE_HOST = "com.rapido.bridge";
+async function probeNativeBridge(){
+  try {
+    const reply = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {type:"ping"});
+    return reply && reply.type === "pong" && reply.protocol === 1;
+  } catch (_error) {
+    return false; // Older Rapido installations have no registered native host.
+  }
+}
 /* ---------- réglages ---------- */
 async function loadCfg() {
   try {
