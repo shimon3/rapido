@@ -924,7 +924,7 @@ class Manager:
             before = seg.done
             if dl.resumable:
                 headers["Range"] = f"bytes={pos}-{seg.end}"
-                if dl.etag.startswith('"') and dl.etag.endswith('"'):
+                if dl.etag.startswith('"') and dl.etag.endswith('"') and len(dl.etag) > 2:
                     headers["If-Range"] = dl.etag
                 elif dl.last_modified:
                     headers["If-Range"] = dl.last_modified
