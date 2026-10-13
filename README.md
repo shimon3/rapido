@@ -91,6 +91,27 @@ Windows builds are produced by [GitHub Actions](.github/workflows/windows.yml) o
 | POST | `/api/queue/start` · `/api/queue/stop` | Queue control |
 | GET / PUT | `/api/settings` | Settings, including the schedule |
 
+## Security
+
+Rapido runs a local API that can write files to disk and launch programs, so it is locked down so that only Rapido's own windows and its own Chrome extension can drive it.
+
+| Threat | Protection |
+|---|---|
+| A website calls the local API (CSRF) | Every write must be `application/json` (strict media-type check), which forces a CORS preflight. CORS only allows Rapido's extension, and any other `Origin` is rejected with 403. |
+| DNS rebinding (`evil.com` resolving to 127.0.0.1) | The `Host` header must be `127.0.0.1:9614` or `localhost:9614`. |
+| Another Chrome extension calls the API | The extension has a fixed ID (public `key` in the manifest), and only that ID is allowed. |
+| HTML or script injection through file names, video titles or error messages | All remote text is HTML-escaped. A strict Content-Security-Policy only allows Rapido's scripts (SHA-256 hashes), with no `eval`, `connect-src 'self'` and `frame-ancestors 'none'`. |
+| Clickjacking | `X-Frame-Options: DENY` and `frame-ancestors 'none'`. |
+| Session cookies leaking to other sites | Cookies only go to the site they belong to. For videos they go through a cookie jar scoped to the page's host, deleted right after. HTTP redirects drop them. |
+| Session cookies on disk | They are never written in clear: they are encrypted with Windows DPAPI (only your Windows account can read them) and forgotten as soon as the download finishes. |
+| Opening a downloaded program or document | Files get the *Mark of the Web* (`Zone.Identifier`, like Chrome/Edge), so SmartScreen and Office Protected View still warn you. |
+| Disguised or dangerous file names | `/ \ : * ? " < > \|` and control characters are replaced, right-to-left override characters (`photo\u202Egpj.exe`) are removed, and reserved names (`CON`, `NUL`, `COM1`…) are prefixed. |
+| Tampered settings launching another program | `ffmpeg` and browser paths must point to an existing file with the expected name. "Open folder" only opens the download folder. |
+| Non-HTTP links (`file://`, `javascript:`) | Only `http(s)` URLs with a host are accepted, including video streams detected by the extension. All inputs have size limits. |
+| Build supply chain | GitHub Actions are pinned to commit SHAs, the workflow has read-only permissions by default, and every build runs a self-test on Windows (security checks included) before an installer is published. |
+
+**Not covered:** the executable isn't code-signed yet, so SmartScreen shows a warning on first launch. Malware already running under your Windows account could read Rapido's files, as it could any other application's.
+
 ## Limitations
 
 - Servers that don't support `Range` requests fall back to a single connection, and a pause restarts that file from zero (shown as "no resume").

@@ -19,6 +19,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from typing import Annotated
+
 from pydantic import BaseModel, Field
 
 from engine import (Manager, IS_WINDOWS, VERSION, FROZEN, RES_DIR, EXE_DIR,
@@ -32,7 +34,7 @@ DATA_DIR = Path(os.environ.get("RAPIDO_DATA", Path.home() / ".rapido"))
 manager = Manager(DATA_DIR, PORT)
 
 # Rempli par desktop.py quand Rapido tourne comme application Windows
-UI = {"desktop": False, "show_main": None}
+UI = {"desktop": False, "show_main": None, "window_action": None}
 
 
 @asynccontextmanager
@@ -44,54 +46,117 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Rapido", lifespan=lifespan)
 
-# Seules l'interface (meme origine) et l'extension Chrome peuvent appeler l'API.
+# ---------- securite de l'API locale ----------
+# L'API peut ecrire des fichiers sur le disque : seuls l'interface de Rapido et SA propre
+# extension Chrome doivent pouvoir l'utiliser, jamais un site web ouvert dans le navigateur.
+#
+#  1. Host verifie        -> bloque le "DNS rebinding" (site.com qui pointe vers 127.0.0.1)
+#  2. Origin verifie      -> bloque les autres sites et les autres extensions
+#  3. JSON obligatoire    -> un formulaire HTML ou un fetch "simple" ne peut pas ecrire
+#  4. CORS limite a l'extension Rapido (identifiant fixe grace a la cle du manifest)
+EXTENSION_ID = "hlpkfnodjoglfdiekijebbppfgkjkbmp"
+ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
+ALLOWED_ORIGINS = {f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}", f"chrome-extension://{EXTENSION_ID}"}
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Cross-Origin-Resource-Policy": "same-origin",
+}
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^chrome-extension://.*$",
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[f"chrome-extension://{EXTENSION_ID}"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type"],
 )
 
 
+def _deny(status: int, detail: str):
+    return JSONResponse({"detail": detail}, status_code=status, headers=SECURITY_HEADERS)
+
+
 @app.middleware("http")
-async def require_json(request: Request, call_next):
-    # Empeche un site web quelconque de declencher des telechargements via un
-    # formulaire "simple" : toute ecriture doit etre en JSON (=> preflight CORS).
-    if request.method in ("POST", "PUT", "DELETE") and request.url.path.startswith("/api/"):
-        if "application/json" not in request.headers.get("content-type", ""):
-            return JSONResponse({"detail": "Content-Type application/json requis"}, status_code=415)
-    return await call_next(request)
+async def guard(request: Request, call_next):
+    if request.headers.get("host", "").lower() not in ALLOWED_HOSTS:
+        return _deny(403, "Hote non autorise")
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in ALLOWED_ORIGINS:
+        return _deny(403, "Origine non autorisee")
+    if request.method in ("POST", "PUT", "DELETE"):
+        ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            return _deny(415, "Content-Type application/json requis")
+    response = await call_next(request)
+    for k, v in SECURITY_HEADERS.items():
+        response.headers.setdefault(k, v)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
-# ---------- modeles ----------
+def _html_page(name: str):
+    """Sert une page avec une Content-Security-Policy stricte : seuls les scripts de
+    Rapido (identifies par leur empreinte SHA-256) peuvent s'executer, et la page ne
+    peut contacter que Rapido. Une injection HTML ne pourrait donc ni executer de
+    code, ni envoyer de donnees ailleurs."""
+    import base64
+    import hashlib
+    import re
+    from fastapi.responses import HTMLResponse
+    html = (BASE / name).read_text("utf-8")
+    hashes = " ".join(
+        "'sha256-" + base64.b64encode(hashlib.sha256(js.encode("utf-8")).digest()).decode() + "'"
+        for js in re.findall(r"<script>(.*?)</script>", html, re.S)
+    )
+    csp = ("default-src 'none'; "
+           f"script-src {hashes}; "
+           "style-src 'self' 'unsafe-inline'; "
+           "img-src 'self' data: https: http:; "
+           "connect-src 'self'; "
+           "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+    return lambda: HTMLResponse(html, headers={"Content-Security-Policy": csp, "Cache-Control": "no-store"})
+
+
+_INDEX = _html_page("index.html")
+_WINDOW = _html_page("window.html")
+
+
+# ---------- modeles (avec limites de taille : rien d'enorme ne rentre) ----------
+Url = Annotated[str, Field(min_length=8, max_length=8192)]
+Headers = Annotated[dict[str, Annotated[str, Field(max_length=16384)]], Field(max_length=10)]
+Name = Annotated[str, Field(max_length=255)]
+PathStr = Annotated[str, Field(max_length=1024)]
+
+
 class AddRequest(BaseModel):
-    url: str
-    filename: str | None = None
+    url: Annotated[str, Field(min_length=8, max_length=200_000)]   # plusieurs liens, un par ligne
+    filename: Name | None = None
     connections: int | None = Field(default=None, ge=1, le=32)
-    headers: dict[str, str] | None = None
+    headers: Headers | None = None
     later: bool = False
 
 
 class CaptureRequest(BaseModel):
-    url: str
-    headers: dict[str, str] | None = None
-    filename: str | None = None
+    url: Url
+    headers: Headers | None = None
+    filename: Name | None = None
     open_window: bool = False     # True = le serveur ouvre lui-meme la fenetre de capture
 
 
 class VideoCaptureRequest(BaseModel):
-    page_url: str
-    candidates: list[str] = []
-    headers: dict[str, str] | None = None
+    page_url: Url
+    candidates: Annotated[list[Url], Field(max_length=15)] = []
+    headers: Headers | None = None
     open_window: bool = False
 
 
 class ConfirmRequest(BaseModel):
-    filename: str | None = None
-    folder: str | None = None
+    filename: Name | None = None
+    folder: PathStr | None = None
     later: bool = False
-    description: str = ""
-    format_id: str | None = None
+    description: Annotated[str, Field(max_length=200)] = ""
+    format_id: Annotated[str, Field(max_length=20)] | None = None
 
 
 class WindowRequest(BaseModel):
@@ -101,39 +166,71 @@ class WindowRequest(BaseModel):
     height: int = Field(default=460, ge=200, le=1000)
 
 
+class WindowActionRequest(BaseModel):
+    token: str = Field(pattern=r"^[0-9a-f]{16,64}$")     # identifiant secret de la fenetre
+    action: str = Field(pattern=r"^(close|resize)$")
+    width: int = Field(default=520, ge=300, le=1200)
+    height: int = Field(default=460, ge=200, le=1000)
+
+
 class UrlRequest(BaseModel):
-    url: str
+    url: Annotated[str, Field(max_length=8192)]
 
 
 class IdsRequest(BaseModel):
-    ids: list[str] = []
+    ids: Annotated[list[Annotated[str, Field(max_length=32)]], Field(max_length=10_000)] = []
     delete_file: bool = False
 
 
 class Schedule(BaseModel):
     enabled: bool | None = None
-    start: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
-    stop: str | None = Field(default=None, pattern=r"^(\d{2}:\d{2})?$")
-    days: list[int] | None = None
+    start: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    stop: str | None = Field(default=None, pattern=r"^(([01]\d|2[0-3]):[0-5]\d)?$")
+    days: Annotated[list[Annotated[int, Field(ge=0, le=6)]], Field(max_length=7)] | None = None
     on_complete: str | None = Field(default=None, pattern=r"^(none|shutdown|sleep|exit)$")
 
 
 class SettingsRequest(BaseModel):
-    download_dir: str | None = None
+    download_dir: PathStr | None = None
     max_concurrent: int | None = Field(default=None, ge=1, le=10)
     connections: int | None = Field(default=None, ge=1, le=32)
     sort_by_category: bool | None = None
-    speed_limit_kbps: int | None = Field(default=None, ge=0)
+    speed_limit_kbps: int | None = Field(default=None, ge=0, le=10_000_000)
     show_capture_dialog: bool | None = None
     show_progress_window: bool | None = None
     show_complete_dialog: bool | None = None
     monitor_clipboard: bool | None = None
-    capture_exts: list[str] | None = None
-    min_capture_kb: int | None = Field(default=None, ge=0)
-    ffmpeg_path: str | None = None
-    browser_path: str | None = None
+    capture_exts: Annotated[list[Annotated[str, Field(max_length=10)]], Field(max_length=200)] | None = None
+    min_capture_kb: int | None = Field(default=None, ge=0, le=10_000_000)
+    ffmpeg_path: PathStr | None = None
+    browser_path: PathStr | None = None
     schedule: Schedule | None = None
     autostart: bool | None = None
+
+
+# Rapido lance ces programmes : on n'accepte que de vrais ffmpeg / navigateurs existants
+FFMPEG_NAMES = {"ffmpeg", "ffmpeg.exe"}
+BROWSER_NAMES = {"chrome.exe", "msedge.exe", "brave.exe", "chromium.exe", "vivaldi.exe",
+                 "chrome", "chromium", "chromium-browser", "google-chrome", "microsoft-edge", "brave-browser"}
+
+
+def check_program(path: str, names: set[str], label: str) -> str:
+    if not path:
+        return ""
+    p = Path(path).expanduser()
+    if not p.is_absolute() or not p.is_file() or p.name.lower() not in names:
+        raise HTTPException(400, f"{label} : indique le chemin complet d'un fichier existant "
+                                 f"({', '.join(sorted(n for n in names if n.endswith('.exe') or not IS_WINDOWS))})")
+    return str(p)
+
+
+def check_folder(path: str, label: str) -> str:
+    p = Path(path).expanduser()
+    if not p.is_absolute():
+        raise HTTPException(400, f"{label} : indique un chemin complet (ex. C:\\Users\\toi\\Downloads)")
+    if p.exists() and not p.is_dir():
+        raise HTTPException(400, f"{label} : ce chemin est un fichier, pas un dossier")
+    return str(p)
 
 
 def get_dl(dl_id: str):
@@ -144,20 +241,25 @@ def get_dl(dl_id: str):
 
 
 def check_url(u: str):
-    if not u.lower().startswith(("http://", "https://")):
+    from urllib.parse import urlsplit
+    try:
+        parts = urlsplit(u)
+    except ValueError:
+        raise HTTPException(400, "URL invalide")
+    if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
         raise HTTPException(400, "URL http(s) invalide")
 
 
 # ---------- pages ----------
 @app.get("/")
 async def index():
-    return FileResponse(BASE / "index.html")
+    return _INDEX()
 
 
 @app.get("/w")
 async def window_page():
     """Petites fenetres : capture, video, progression / termine."""
-    return FileResponse(BASE / "window.html")
+    return _WINDOW()
 
 
 @app.get("/favicon.ico")
@@ -230,7 +332,14 @@ async def capture(req: CaptureRequest):
 @app.post("/api/capture-video")
 async def capture_video(req: VideoCaptureRequest):
     check_url(req.page_url)
-    dl = manager.capture_video(req.page_url, req.candidates, req.headers)
+    candidates = []
+    for c in req.candidates:          # flux detectes par l'extension : http(s) uniquement
+        try:
+            check_url(c)
+            candidates.append(c)
+        except HTTPException:
+            pass
+    dl = manager.capture_video(req.page_url, candidates, req.headers)
     if req.open_window:
         manager.open_window(f"/w?view=capture&id={dl.id}", 560, 620)
     return {"id": dl.id, "dialog": True}
@@ -253,10 +362,11 @@ async def confirm(dl_id: str, req: ConfirmRequest):
             ext = Path(dl.filename).suffix
             req.filename = Path(req.filename).stem + ext
     if req.folder:
+        req.folder = check_folder(req.folder, "Dossier")
         try:
             Path(req.folder).mkdir(parents=True, exist_ok=True)
-        except Exception:
-            raise HTTPException(400, "Dossier invalide")
+        except OSError:
+            raise HTTPException(400, "Impossible de creer ce dossier")
     manager.confirm(dl_id, req.filename, req.folder, req.later, req.description)
     return dl.to_public()
 
@@ -386,7 +496,9 @@ async def open_file(dl_id: str, folder: bool = False):
 
 @app.post("/api/open-folder")
 async def open_folder(req: UrlRequest):
-    p = Path(req.url or manager.settings["download_dir"])
+    # n'ouvre QUE le dossier de telechargement (jamais un chemin fourni par la requete,
+    # qui pourrait designer un programme a executer)
+    p = Path(manager.settings["download_dir"])
     p.mkdir(parents=True, exist_ok=True)
     _reveal(p, select=False)
     return {"ok": True}
@@ -465,8 +577,16 @@ async def put_settings(req: SettingsRequest):
     data = req.model_dump(exclude_none=True)
     sched = data.pop("schedule", None)
     autostart = data.pop("autostart", None)
+    if "download_dir" in data:
+        data["download_dir"] = check_folder(data["download_dir"], "Dossier de telechargement")
+    if "ffmpeg_path" in data:
+        data["ffmpeg_path"] = check_program(data["ffmpeg_path"], FFMPEG_NAMES, "ffmpeg")
+    if "browser_path" in data:
+        data["browser_path"] = check_program(data["browser_path"], BROWSER_NAMES, "Navigateur")
     if "capture_exts" in data:
-        data["capture_exts"] = sorted({e.strip().lower().lstrip(".") for e in data["capture_exts"] if e.strip()})
+        import re as _re
+        data["capture_exts"] = sorted({e.strip().lower().lstrip(".") for e in data["capture_exts"]
+                                       if _re.fullmatch(r"\.?[a-z0-9]{1,8}", e.strip().lower())})
     manager.settings.update(data)
     if sched:
         manager.settings["schedule"].update(sched)
@@ -487,6 +607,15 @@ async def open_window(req: WindowRequest):
     """Ouvre une petite fenetre (capture / progression) : native dans l'application Windows."""
     manager.open_window(f"/w?view={req.view}&id={req.id}", req.width, req.height)
     return {"ok": True}
+
+
+@app.post("/api/window-action")
+async def window_action(req: WindowActionRequest):
+    """Fermer / redimensionner une petite fenetre native (remplace le pont JavaScript de
+    pywebview, incompatible avec la Content-Security-Policy stricte)."""
+    if not UI["window_action"]:
+        return {"ok": False}
+    return {"ok": bool(UI["window_action"](req.token, req.action, req.width, req.height))}
 
 
 @app.post("/api/show")

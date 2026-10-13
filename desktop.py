@@ -165,21 +165,18 @@ def main() -> int:
             except Exception:
                 pass
 
+    popups: dict[str, object] = {}       # jeton secret -> fenetre
+
     def open_popup(path: str, width: int = 540, height: int = 480):
         """Petites fenetres : capture, choix de qualite video, progression, termine."""
+        import secrets
         dl_id = path.split("id=")[-1].split("&")[0]
+        token = secrets.token_hex(16)
         win = webview.create_window(
-            "Rapido", BASE_URL + path, width=width, height=height, min_size=(420, 300),
+            "Rapido", f"{BASE_URL}{path}&w={token}", width=width, height=height, min_size=(420, 300),
             on_top=True, background_color="#F3F4F1",
         )
-
-        def close():
-            win.destroy()
-
-        def resize(w, h):
-            win.resize(int(w), int(h))
-
-        win.expose(close, resize)
+        popups[token] = win
 
         def unpin():
             time.sleep(2.5)
@@ -189,6 +186,7 @@ def main() -> int:
                 pass
 
         def on_closed():
+            popups.pop(token, None)
             # fenetre de capture fermee avec la croix = annuler (sans effet si deja confirme)
             threading.Thread(target=lambda: _quiet(lambda: api(f"/api/downloads/{dl_id}/cancel-capture", {})),
                              daemon=True).start()
@@ -197,7 +195,17 @@ def main() -> int:
         win.events.closed += on_closed
         return win
 
-    rapido.UI.update(desktop=True, show_main=show_main)
+    def window_action(token: str, action: str, width: int, height: int) -> bool:
+        win = popups.get(token)
+        if win is None:
+            return False
+        if action == "close":
+            win.destroy()
+        else:
+            win.resize(width, height)
+        return True
+
+    rapido.UI.update(desktop=True, show_main=show_main, window_action=window_action)
     rapido.manager.open_window = open_popup
     rapido.manager.on_exit = quit_all          # action "Quitter Rapido" a la fin de la file d'attente
 
@@ -274,13 +282,33 @@ def run_selftest(main_win, open_popup, result: dict):
         result["popup_loaded"] = popup.events.loaded.wait(30)
         time.sleep(1.5)
         result["popup_title"] = popup.evaluate_js("document.title")
-        result["popup_api"] = popup.evaluate_js("!!(window.pywebview && window.pywebview.api && window.pywebview.api.close)")
+        result["popup_token"] = popup.evaluate_js("!!new URLSearchParams(location.search).get('w')")
+        # la page fait elle-meme l'appel, comme le bouton "Fermer" (verifie aussi la CSP)
+        popup.evaluate_js("resize(600, 400)")
+        time.sleep(1.5)
+        result["popup_resized"] = abs(popup.width - 600) <= 20
+        result["csp"] = "script-src 'sha256-" in urllib.request.urlopen(BASE_URL + "/").headers.get(
+            "Content-Security-Policy", "")
+        # securite : un site web ne doit pas pouvoir piloter Rapido
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                BASE_URL + "/api/show", data=b"{}", method="POST",
+                headers={"Content-Type": "application/json", "Origin": "https://evil.example"}), timeout=3)
+            result["guard_ok"] = False
+        except urllib.error.HTTPError as e:
+            result["guard_ok"] = e.code == 403
+        import engine
+        result["dpapi_ok"] = engine.unprotect(engine.protect("session=abc")) == "session=abc"
+        zi = Path(d["path"] + ":Zone.Identifier")
+        result["motw_ok"] = zi.exists() and "ZoneId=3" in zi.read_text()
         result["settings_desktop"] = api("/api/settings").get("desktop")
 
         result["ok"] = bool(
             result["renderer"] == "edgechromium" and result["main_loaded"]
             and result["main_title"] == "Rapido" and status == "completed" and result["download_file_ok"]
-            and result["popup_loaded"] and result["popup_api"] and result["settings_desktop"]
+            and result["popup_loaded"] and result["popup_token"] and result["popup_resized"]
+            and result["settings_desktop"] and result["csp"] and result["guard_ok"]
+            and result["dpapi_ok"] and result["motw_ok"]
         )
     except Exception as e:
         import traceback

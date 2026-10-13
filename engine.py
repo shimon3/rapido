@@ -12,6 +12,7 @@ Rapido - moteur de telechargement.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import ctypes
 import datetime as dt
 import json
@@ -21,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -37,12 +39,14 @@ MAX_RETRIES = 5               # echecs consecutifs (sans progression) avant aban
 SAVE_EVERY = 2.0              # secondes entre deux sauvegardes de l'etat
 PENDING_TTL = 30 * 60         # une capture non confirmee disparait apres 30 min
 IS_WINDOWS = platform.system() == "Windows"
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 FROZEN = getattr(sys, "frozen", False)                       # True dans Rapido.exe (PyInstaller)
 RES_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))   # fichiers embarques (html, icone)
 EXE_DIR = Path(sys.executable).parent if FROZEN else Path(__file__).parent
 CREATE_NEW_CONSOLE = 0x00000010
 CREATE_NO_WINDOW = 0x08000000
+BROWSER_EXES = {"chrome.exe", "msedge.exe", "brave.exe", "chromium.exe", "vivaldi.exe",
+                "chrome", "chromium", "chromium-browser", "google-chrome", "microsoft-edge", "brave-browser"}
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -71,9 +75,76 @@ def category_for(filename: str) -> str:
     return "Autres"
 
 
+WIN_RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
+
+
 def safe_filename(name: str) -> str:
-    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
+    # caracteres interdits + caracteres de controle
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', "_", name)
+    # caracteres d'inversion de texte : "photo\u202egpj.exe" s'afficherait "photoexe.jpg"
+    name = re.sub("[\u200e\u200f\u202a-\u202e\u2066-\u2069]", "", name)
+    name = name.strip(" .")
+    if name.split(".")[0].strip().lower() in WIN_RESERVED:     # CON, NUL, COM1... (noms reserves Windows)
+        name = "_" + name
     return name[:180] or "telechargement"
+
+
+# ---------- protection des donnees ----------
+def _dpapi(data: bytes, encrypt: bool) -> bytes:
+    """Chiffre / dechiffre avec Windows DPAPI : seul ton compte Windows peut relire."""
+    from ctypes import wintypes
+
+    class Blob(ctypes.Structure):
+        _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.c_void_p)]
+
+    buf = ctypes.create_string_buffer(data, len(data))
+    blob_in = Blob(len(data), ctypes.cast(buf, ctypes.c_void_p))
+    blob_out = Blob()
+    crypt32, kernel32 = ctypes.windll.crypt32, ctypes.windll.kernel32
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    fn = crypt32.CryptProtectData if encrypt else crypt32.CryptUnprotectData
+    ok = fn(ctypes.byref(blob_in), None, None, None, None, 0x1, ctypes.byref(blob_out))  # 0x1 = pas d'interface
+    if not ok:
+        raise OSError("DPAPI a echoue")
+    try:
+        return ctypes.string_at(blob_out.pbData, blob_out.cbData)
+    finally:
+        kernel32.LocalFree(blob_out.pbData)
+
+
+def protect(text: str) -> str:
+    import base64
+    return base64.b64encode(_dpapi(text.encode("utf-8"), True)).decode()
+
+
+def unprotect(token: str) -> str:
+    import base64
+    return _dpapi(base64.b64decode(token), False).decode("utf-8")
+
+
+def mark_of_the_web(path: str, url: str, referrer: str = ""):
+    """Marque le fichier comme venant d'Internet (comme Chrome / Edge) : Windows SmartScreen
+    et Office (mode protege) avertiront avant d'ouvrir un programme ou un document telecharge."""
+    if not IS_WINDOWS or not path:
+        return
+
+    def clean(u: str) -> str:
+        try:
+            p = urlparse(u)
+            netloc = p.hostname or ""
+            if p.port:
+                netloc += f":{p.port}"
+            return p._replace(netloc=netloc).geturl().replace("\r", "").replace("\n", "")
+        except Exception:
+            return ""
+    try:
+        with open(path + ":Zone.Identifier", "w", encoding="utf-8") as f:
+            f.write("[ZoneTransfer]\r\nZoneId=3\r\n")
+            if referrer:
+                f.write(f"ReferrerUrl={clean(referrer)}\r\n")
+            f.write(f"HostUrl={clean(url)}\r\n")
+    except OSError:
+        pass        # disque non NTFS (cle USB FAT32...) : pas de flux alternatif possible
 
 
 def filename_from_headers(headers: httpx.Headers, url: str) -> str:
@@ -178,13 +249,29 @@ class Download:
         d = asdict(self)
         for k in ("speed", "active_connections", "watched"):
             d.pop(k, None)
+        # les cookies de connexion ne sont jamais ecrits en clair sur le disque
+        headers = d.pop("headers", {}) or {}
+        d["headers"] = {k: v for k, v in headers.items() if k.lower() != "cookie"}
+        cookie = next((v for k, v in headers.items() if k.lower() == "cookie"), "")
+        if cookie and IS_WINDOWS:
+            try:
+                d["cookie_enc"] = protect(cookie)
+            except OSError:
+                pass
         return d
 
     @classmethod
     def from_disk(cls, d: dict) -> "Download":
         segs = [Segment(**s) for s in d.pop("segments", [])]
+        cookie_enc = d.pop("cookie_enc", "")
         dl = cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
         dl.segments = segs
+        dl.headers = {k: v for k, v in (dl.headers or {}).items() if k.lower() != "cookie"}
+        if cookie_enc and IS_WINDOWS:
+            try:
+                dl.headers["Cookie"] = unprotect(cookie_enc)
+            except Exception:
+                pass
         if dl.status == "downloading":     # le programme a ete ferme en plein telechargement
             dl.status = "queued"
         if dl.probe == "probing":
@@ -418,7 +505,7 @@ class Manager:
     # ---------- fenetres (capture / progression) ----------
     def _find_browser(self) -> str | None:
         custom = self.settings.get("browser_path")
-        if custom and Path(custom).exists():
+        if custom and Path(custom).is_file() and Path(custom).name.lower() in BROWSER_EXES:
             return custom
         if not IS_WINDOWS:
             for name in ("google-chrome", "chromium", "chromium-browser", "microsoft-edge"):
@@ -628,6 +715,9 @@ class Manager:
         return folder
 
     def _after_complete(self, dl: Download):
+        mark_of_the_web(dl.path, dl.url if dl.kind == "http" else (dl.page_url or dl.url),
+                        dl.headers.get("Referer", ""))
+        dl.headers = {}            # on oublie les cookies des que le fichier est termine
         if (self.settings.get("show_complete_dialog")
                 and time.time() - dl.watched > 3):     # aucune fenetre de progression ouverte
             self.open_window(f"/w?view=progress&id={dl.id}", 520, 360)
@@ -819,7 +909,7 @@ class Manager:
     # ---------- videos (yt-dlp) ----------
     def ffmpeg(self) -> str | None:
         p = self.settings.get("ffmpeg_path")
-        if p and Path(p).exists():
+        if p and Path(p).is_file() and Path(p).name.lower() in ("ffmpeg", "ffmpeg.exe"):
             return p
         local = EXE_DIR / ("ffmpeg.exe" if IS_WINDOWS else "ffmpeg")
         if local.exists():
@@ -837,15 +927,44 @@ class Manager:
         return None
 
     def _ydl_base_opts(self, dl: Download) -> dict:
+        headers = {"User-Agent": USER_AGENT,
+                   **{k: v for k, v in dl.headers.items() if k.lower() != "cookie"}}
         opts = {
             "quiet": True, "no_warnings": True, "noprogress": True,
-            "noplaylist": True, "http_headers": {"User-Agent": USER_AGENT, **dl.headers},
+            "noplaylist": True, "http_headers": headers,
             "socket_timeout": 30,
         }
         ff = self.ffmpeg()
         if ff:
             opts["ffmpeg_location"] = ff
         return opts
+
+    @contextlib.contextmanager
+    def _ydl_opts(self, dl: Download):
+        """Options yt-dlp. Les cookies de la page ne sont PAS mis dans les en-tetes (yt-dlp les
+        enverrait a tous les serveurs contactes) : ils vont dans un fichier de cookies limite
+        au seul site de la page, supprime juste apres."""
+        opts = self._ydl_base_opts(dl)
+        cookie = next((v for k, v in dl.headers.items() if k.lower() == "cookie"), "")
+        host = urlparse(dl.page_url or dl.url).hostname or ""
+        path = None
+        if cookie and host:
+            fd, path = tempfile.mkstemp(prefix="ck-", suffix=".txt", dir=self.data_dir)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write("# Netscape HTTP Cookie File\n")
+                for part in cookie.split(";"):
+                    name, sep, value = part.strip().partition("=")
+                    if sep and name and not any(c in name + value for c in "\t\r\n"):
+                        f.write(f"{host}\tFALSE\t/\tFALSE\t0\t{name}\t{value}\n")
+            opts["cookiefile"] = path
+        try:
+            yield opts
+        finally:
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
 
     def _build_formats(self, info: dict) -> list[dict]:
         """Transforme les formats yt-dlp en quelques choix simples : 1080p, 720p, audio..."""
@@ -898,7 +1017,7 @@ class Manager:
 
         def extract(url):
             import yt_dlp
-            with yt_dlp.YoutubeDL(self._ydl_base_opts(dl)) as ydl:
+            with self._ydl_opts(dl) as opts, yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=False)
 
         tried, last_err = [], ""
@@ -997,7 +1116,8 @@ class Manager:
                 dl.v_base += d.get("total_bytes") or d.get("downloaded_bytes") or dl.v_done
                 dl.v_done = 0
 
-        opts = self._ydl_base_opts(dl)
+        cookies_ctx = self._ydl_opts(dl)
+        opts = cookies_ctx.__enter__()
         opts.update({
             "format": dl.video_format or "b",
             "outtmpl": str(folder / (stem + ".%(ext)s")),
@@ -1018,6 +1138,8 @@ class Manager:
             if stop.is_set():
                 raise StopVideo("pause")
             raise
+        finally:
+            cookies_ctx.__exit__(None, None, None)
         reqs = (info or {}).get("requested_downloads") or []
         if reqs and reqs[0].get("filepath"):
             dl.path = reqs[0]["filepath"]

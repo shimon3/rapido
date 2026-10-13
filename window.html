@@ -96,16 +96,23 @@ async function api(path, method="GET", body){
   if(!r.ok){ let m=r.statusText; try{ m=(await r.json()).detail||m }catch{} throw new Error(m); }
   return r.json();
 }
-const native = () => window.pywebview && window.pywebview.api;   // vraie fenêtre Windows (Rapido.exe)
+// Dans l'application Windows, chaque fenêtre reçoit un jeton secret (&w=...) qui permet
+// à la page de demander à Rapido de la fermer ou de la redimensionner.
+const WTOKEN = params.get("w");
+function windowAction(action, width, height){
+  return fetch("/api/window-action", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({token: WTOKEN, action, width, height})}).catch(() => {});
+}
 function resize(w, h){
-  try{ if(native() && native().resize) native().resize(w, h + 40); else window.resizeTo(w, h); }catch{}
+  if(WTOKEN){ windowAction("resize", w, h + 40); return; }
+  try{ window.resizeTo(w, h); }catch{}
 }
 function setView(v){
   view = v; const p = new URLSearchParams(location.search); p.set("view", v);
   history.replaceState(null, "", "?" + p.toString());
 }
 function closeWin(){
-  if(native() && native().close){ native().close(); return; }
+  if(WTOKEN){ windowAction("close"); return; }
   window.close(); setTimeout(() => { document.body.innerHTML =
   '<div class="body" style="display:grid;place-items:center;color:var(--muted)">Tu peux fermer cette fenêtre.</div>'; }, 300); }
 
@@ -299,7 +306,8 @@ async function tick(){
     dl = await api(`/api/downloads/${ID}?watch=${view === "progress"}`);
   }catch(e){
     $("#body").innerHTML = `<p class="err">Téléchargement introuvable (retiré de la liste ?).</p>`;
-    $("#foot").innerHTML = `<div class="sp"></div><button onclick="window.close()">Fermer</button>`;
+    $("#foot").innerHTML = `<div class="sp"></div><button id="closeErr">Fermer</button>`;
+    $("#closeErr").onclick = closeWin;
     clearInterval(timer); return;
   }
   if(view === "capture"){
