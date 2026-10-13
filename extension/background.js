@@ -70,19 +70,17 @@ function flash(text, color) {
 }
 
 /* ---------- échanges avec le serveur ---------- */
-async function cookieHeader(url) {
-  try {
-    const cookies = await chrome.cookies.getAll({ url });
-    return cookies.map(c => `${c.name}=${c.value}`).join("; ");
-  } catch { return ""; }
-}
+// S3 interim: never send Chrome cookies to the unauthenticated HTTP API.
 async function buildHeaders(url, referrer) {
   const h = {};
-  const c = await cookieHeader(url);
-  if (c) h.Cookie = c;
   if (referrer) h.Referer = referrer;
   h["User-Agent"] = navigator.userAgent;
   return h;
+}
+async function needsBrowserSession(url) {
+  // A login cookie or inaccessible cookie jar means Chrome retains this download.
+  try { return (await chrome.cookies.getAll({ url })).length > 0; }
+  catch { return true; }
 }
 async function post(path, body) {
   const r = await fetch(SERVER + path, {
@@ -143,6 +141,7 @@ async function handleDownload(item, ext) {
   if (!(await isEnabled())) return;
   const size = item.totalBytes || item.fileSize || 0;
   if (size > 0 && size < cfg.min_capture_kb * 1024) return;
+  if (await needsBrowserSession(url)) return;
   if (handled.has(item.id)) return;
   handled.add(item.id);
 
