@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rapido - Capture",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Envoie les téléchargements et les vidéos vers Rapido (serveur local).",
   "permissions": [
     "downloads",
