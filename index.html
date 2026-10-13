@@ -301,6 +301,7 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
   <div class="dh" id="helpTitle">Aide — Rapido</div>
   <div class="db">
     <p>Version installée : <strong id="helpVersion">…</strong></p>
+    <p>Dernière version publiée : <strong id="helpLatest">Vérification…</strong></p>
     <button class="btn primary" type="button" id="helpCheck">Rechercher des mises à jour</button>
     <p id="helpUpdateStatus" role="status" aria-live="polite"></p>
     <a id="helpDownload" href="https://github.com/shimon3/rapido/releases/latest" target="_blank" rel="noopener noreferrer" style="display:none">Télécharger la nouvelle version</a>
@@ -561,10 +562,35 @@ document.addEventListener("drop", e => {
 });
 
 /* ---------- aide et mises à jour ---------- */
-$("#tHelp").onclick = async () => {
-  $("#helpUpdateStatus").textContent = "";
+async function checkRapidoUpdates(){
+  const button = $("#helpCheck");
+  button.disabled = true;
   $("#helpDownload").style.display = "none";
+  $("#helpLatest").textContent = "Vérification…";
+  $("#helpUpdateStatus").textContent = "Consultation de GitHub…";
+  try {
+    const info = await api("/api/updates/check");
+    $("#helpVersion").textContent = info.current;
+    $("#helpLatest").textContent = info.latest;
+    if(info.update_available){
+      $("#helpUpdateStatus").textContent = "Une nouvelle version est disponible.";
+      const link = $("#helpDownload");
+      link.href = info.url;
+      link.textContent = "Télécharger Rapido " + info.latest;
+      link.style.display = "";
+    } else {
+      $("#helpUpdateStatus").textContent = "Rapido est à jour.";
+    }
+  } catch(err){
+    $("#helpLatest").textContent = "Indisponible";
+    $("#helpUpdateStatus").textContent = "Vérification impossible : " + err.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+$("#tHelp").onclick = async () => {
   $("#helpVersion").textContent = "…";
+  $("#helpLatest").textContent = "Vérification…";
   $("#dHelp").showModal();
   try {
     const info = await api("/api/settings");
@@ -572,28 +598,9 @@ $("#tHelp").onclick = async () => {
   } catch {
     $("#helpVersion").textContent = "Indisponible";
   }
+  if($("#dHelp").open) await checkRapidoUpdates();
 };
-$("#helpCheck").onclick = async () => {
-  const button = $("#helpCheck");
-  button.disabled = true;
-  $("#helpDownload").style.display = "none";
-  $("#helpUpdateStatus").textContent = "Vérification en cours…";
-  try {
-    const info = await api("/api/updates/check");
-    if(info.update_available) {
-      $("#helpUpdateStatus").textContent = "Nouvelle version disponible : " + info.latest + " (installée : " + info.current + ").";
-      const link = $("#helpDownload");
-      link.href = info.url;
-      link.style.display = "";
-    } else {
-      $("#helpUpdateStatus").textContent = "Rapido est à jour (version " + info.current + ").";
-    }
-  } catch(err) {
-    $("#helpUpdateStatus").textContent = "Échec de la vérification : " + err.message;
-  } finally {
-    button.disabled = false;
-  }
-};
+$("#helpCheck").onclick = checkRapidoUpdates;
 
 /* ---------- options ---------- */
 $("#optTabs").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if(!b) return;
