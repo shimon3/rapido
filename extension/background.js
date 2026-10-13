@@ -24,6 +24,12 @@ async function probeNativeBridge(){
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Only our own extension popup, not content scripts or web pages, may request diagnostics.
+  if(message?.type === "rapido_capture_state_changed" &&
+     sender.id === chrome.runtime.id &&
+     sender.url?.startsWith(chrome.runtime.getURL("popup.html"))) {
+    updateBadge().then(() => loadCfg()).then(() => sendResponse({ok:true}));
+    return true;
+  }
   if(message?.type !== "rapido_native_ping" || sender.id !== chrome.runtime.id ||
      !sender.url?.startsWith(chrome.runtime.getURL("popup.html"))) return false;
   probeNativeBridge().then(connected => sendResponse({connected}), () => sendResponse({connected:false}));
