@@ -607,12 +607,12 @@ def _latest_rapido_release():
     with urllib.request.urlopen(request, timeout=8) as response:
         payload = json.load(response)
     tag = str(payload.get("tag_name", ""))
-    match = re.fullmatch(r"v?(\\d+)\\.(\\d+)\\.(\\d+)", tag)
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", tag)
     if not match:
         raise ValueError("Version distante non reconnue")
     version = ".".join(match.groups())
     installer = next((asset.get("browser_download_url") for asset in payload.get("assets", [])
-                      if re.fullmatch(r"Rapido-Setup-\\d+\\.\\d+\\.\\d+\\.exe",
+                      if re.fullmatch(r"Rapido-Setup-\d+\.\d+\.\d+\.exe",
                                       asset.get("name", ""))), None)
     release_url = f"https://github.com/shimon3/rapido/releases/tag/{tag}"
     return version, installer or release_url
@@ -626,7 +626,7 @@ async def check_updates():
     except Exception:
         raise HTTPException(status_code=502, detail="Impossible de vérifier les mises à jour GitHub")
     def numbers(value: str):
-        match = re.fullmatch(r"v?(\\d+)\\.(\\d+)\\.(\\d+)", value)
+        match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", value)
         return tuple(map(int, match.groups())) if match else None
     current = numbers(VERSION)
     remote = numbers(latest)
