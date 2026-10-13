@@ -50,6 +50,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Rapido", lifespan=lifespan)
 
+# Staged S2 gate. No token is exposed by an HTTP endpoint or embedded in HTML.
+# The new native-only endpoint is inaccessible until a trusted Windows IPC handoff exists.
+from local_auth import LocalAuth
+_LOCAL_AUTH = LocalAuth()
+
+
 # ---------- securite de l'API locale ----------
 # L'API peut ecrire des fichiers sur le disque : seuls l'interface de Rapido et SA propre
 # extension Chrome doivent pouvoir l'utiliser, jamais un site web ouvert dans le navigateur.
@@ -325,6 +331,18 @@ async def add_download(req: AddRequest):
         for u in urls
     ]
     return [d.to_public() for d in added]
+
+
+@app.post("/api/native/capture")
+async def capture_native(req: CaptureRequest, request: Request):
+    """Opt-in native-only capture route. Legacy route remains unchanged until migration.
+
+    A trusted IPC integration must supply this process-local secret securely.
+    Do not retrieve it from HTML, /api/settings, extension storage, or logs.
+    """
+    if not _LOCAL_AUTH.header_is_authorized(request.headers.get("authorization")):
+        raise HTTPException(status_code=403, detail="Autorisation native requise")
+    return await capture(req)
 
 
 @app.post("/api/capture")
