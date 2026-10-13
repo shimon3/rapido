@@ -22,3 +22,23 @@ def test_client_identity_inputs_are_required():
 def test_incomplete_pipe_transport_refuses_to_start():
     with pytest.raises(NotImplementedError):
         open_authenticated_pipe()
+
+
+def test_pipe_dacl_grants_only_explicit_user_and_system():
+    from windows_ipc import pipe_security_sddl
+    sid = "S-1-5-21-111-222-333-1001"
+    policy = pipe_security_sddl(sid)
+    assert policy.startswith("D:P")
+    assert policy.count("(A;;") == 2
+    assert ";;;SY)" in policy
+    assert ";;;" + sid + ")" in policy
+    assert ";;;WD)" not in policy
+    assert ";;;AN)" not in policy
+    assert ";;;BA)" not in policy
+
+
+def test_pipe_dacl_rejects_untrusted_sid_text():
+    from windows_ipc import pipe_security_sddl
+    for bad in ("", "WD", "S-1-5-21-1) (A;;GA;;;WD)", None):
+        with pytest.raises(ValueError):
+            pipe_security_sddl(bad)
