@@ -36,3 +36,10 @@ def test_context_menu_capture_checks_target_and_referrer_sessions():
     assert "await needsBrowserSession(referrer)" in body
     assert body.index("await needsBrowserSession(url)") < body.index("await captureViaNative(")
     assert body.index("await needsBrowserSession(referrer)") < body.index("await captureViaNative(")
+
+
+def test_public_capture_strips_referrer_query_and_fragment():
+    body = SOURCE.split("async function captureFile(", 1)[1].split("async function captureVideo(", 1)[0]
+    assert "originUrl.origin + originUrl.pathname" in body
+    assert "originUrl.username || originUrl.password" in body
+    assert "await captureViaNative(url, safeReferrer, filename)" in body
