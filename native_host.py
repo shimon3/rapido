@@ -54,6 +54,8 @@ def write_message(stream, data):
 def handle_message(data):
     if data.get("type") == "ping" and set(data) == {"type"}:
         return {"type": "pong", "protocol": 1}
+    if data.get("type") == "capabilities" and set(data) == {"type"}:
+        return {"type": "capabilities", "protocol": 1, "features": ["ping"]}
     return {"type": "error", "code": "unsupported_message"}
 
 
