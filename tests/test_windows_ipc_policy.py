@@ -61,3 +61,21 @@ def test_pipe_listener_is_not_mistaken_for_authenticated_session():
     from windows_ipc import open_authenticated_pipe
     with pytest.raises(NotImplementedError):
         open_authenticated_pipe()
+
+
+def test_client_pid_discovery_refuses_non_windows_and_invalid_handles():
+    import os
+    from windows_ipc import connected_client_pid
+    if os.name != "nt":
+        with pytest.raises(OSError):
+            connected_client_pid(1)
+        return
+    for invalid in (0, -1, True, None, "handle"):
+        with pytest.raises(ValueError):
+            connected_client_pid(invalid)
+
+
+def test_client_pid_discovery_is_not_authentication():
+    from windows_ipc import open_authenticated_pipe
+    with pytest.raises(NotImplementedError):
+        open_authenticated_pipe()
