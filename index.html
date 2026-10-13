@@ -147,6 +147,8 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
   <div class="sep"></div>
   <button class="tb" id="tFolder" title="Ouvrir le dossier de téléchargement">
     <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Dossier</button>
+  <button class="tb" id="tHelp" title="Aide et mises à jour" aria-haspopup="dialog">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 17h.01"/></svg>Aide</button>
   <div class="brand">Rapi<span>do</span></div>
 </div>
 
@@ -292,6 +294,20 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
     </div>
     <div class="df"><button class="btn" type="button" data-close>Annuler</button><button class="btn primary">Enregistrer</button></div>
   </form>
+</dialog>
+
+<!-- Aide / mises à jour (aucune installation sans action de l'utilisateur) -->
+<dialog id="dHelp" aria-labelledby="helpTitle">
+  <div class="dh" id="helpTitle">Aide — Rapido</div>
+  <div class="db">
+    <p>Version installée : <strong id="helpVersion">…</strong></p>
+    <p>Dernière version publiée : <strong id="helpLatest">Vérification…</strong></p>
+    <button class="btn primary" type="button" id="helpCheck">Rechercher des mises à jour</button>
+    <p id="helpUpdateStatus" role="status" aria-live="polite"></p>
+    <a id="helpDownload" href="https://github.com/shimon3/rapido/releases/latest" target="_blank" rel="noopener noreferrer" style="display:none">Télécharger la nouvelle version</a>
+    <p class="hint">L'installation est manuelle. Les téléchargements en cours ne sont pas interrompus par la vérification.</p>
+  </div>
+  <div class="df"><button class="btn" type="button" data-close>Fermer</button></div>
 </dialog>
 
 <div class="drop" id="drop">Dépose le lien pour le télécharger</div>
@@ -544,6 +560,47 @@ document.addEventListener("drop", e => {
   const urls = t.split(/\s+/).filter(u => /^https?:\/\//i.test(u));
   if(urls.length) addUrls(urls);
 });
+
+/* ---------- aide et mises à jour ---------- */
+async function checkRapidoUpdates(){
+  const button = $("#helpCheck");
+  button.disabled = true;
+  $("#helpDownload").style.display = "none";
+  $("#helpLatest").textContent = "Vérification…";
+  $("#helpUpdateStatus").textContent = "Consultation de GitHub…";
+  try {
+    const info = await api("/api/updates/check");
+    $("#helpVersion").textContent = info.current;
+    $("#helpLatest").textContent = info.latest;
+    if(info.update_available){
+      $("#helpUpdateStatus").textContent = "Une nouvelle version est disponible.";
+      const link = $("#helpDownload");
+      link.href = info.url;
+      link.textContent = "Télécharger Rapido " + info.latest;
+      link.style.display = "";
+    } else {
+      $("#helpUpdateStatus").textContent = "Rapido est à jour.";
+    }
+  } catch(err){
+    $("#helpLatest").textContent = "Indisponible";
+    $("#helpUpdateStatus").textContent = "Vérification impossible : " + err.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+$("#tHelp").onclick = async () => {
+  $("#helpVersion").textContent = "…";
+  $("#helpLatest").textContent = "Vérification…";
+  $("#dHelp").showModal();
+  try {
+    const info = await api("/api/settings");
+    $("#helpVersion").textContent = info.version || "Inconnue";
+  } catch {
+    $("#helpVersion").textContent = "Indisponible";
+  }
+  if($("#dHelp").open) await checkRapidoUpdates();
+};
+$("#helpCheck").onclick = checkRapidoUpdates;
 
 /* ---------- options ---------- */
 $("#optTabs").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if(!b) return;
