@@ -67,15 +67,42 @@ table.conn td{padding:2px 4px;border-bottom:1px solid var(--line)}
 .done-row{display:flex;gap:12px;align-items:center;margin-bottom:12px}
 .done-row b{font-size:15px}
 .hidden{display:none!important}
+.confirm-dialog{width:min(410px,calc(100% - 24px));max-width:95vw;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:0;box-shadow:0 12px 32px #0002;font:inherit}
+.confirm-dialog::backdrop{background:#17231d77}
+.confirm-dialog .confirm-text{padding:16px;white-space:pre-line;overflow-wrap:anywhere}
+.confirm-dialog .confirm-actions{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}
 </style>
 </head>
 <body>
 <div class="head"><img src="/favicon.ico" alt=""><h1 id="title">Rapido</h1></div>
 <div class="body" id="body"></div>
 <div class="foot" id="foot"></div>
+<dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle" aria-describedby="confirmText">
+  <div class="head"><h1 id="confirmTitle">Confirmation</h1></div>
+  <div class="confirm-text" id="confirmText"></div>
+  <div class="confirm-actions"><button type="button" id="confirmNo">Annuler</button><button type="button" class="primary" id="confirmYes">Confirmer</button></div>
+</dialog>
 
 <script>
 const $ = s => document.querySelector(s);
+function askConfirm(message){
+  return new Promise(resolve => {
+    const dialog = $("#confirmDialog");
+    $("#confirmText").textContent = message;
+    let settled = false;
+    const finish = answer => {
+      if(settled) return;
+      settled = true;
+      dialog.close();
+      resolve(answer);
+    };
+    const yes = () => finish(true), no = () => finish(false);
+    $("#confirmYes").onclick = yes;
+    $("#confirmNo").onclick = no;
+    dialog.oncancel = event => { event.preventDefault(); no(); };
+    dialog.showModal();
+  });
+}
 const params = new URLSearchParams(location.search);
 // l'identifiant vient de l'adresse de la page : on n'accepte qu'un identifiant Rapido
 // (hexadecimal), sinon une adresse piegee pourrait detourner les appels a l'API
@@ -273,7 +300,7 @@ function renderProgress(){
     };
     $("#hide").onclick = closeWin;
     $("#cancel").onclick = async () => {
-      if(!confirm("Arrêter ce téléchargement ? Il restera dans la liste, en pause.")) return;
+      if(!await askConfirm("Arrêter ce téléchargement ? Il restera dans la liste, en pause.")) return;
       await api(`/api/downloads/${ID}/pause`, "POST"); closeWin();
     };
   }
