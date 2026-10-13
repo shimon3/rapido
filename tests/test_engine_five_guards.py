@@ -172,3 +172,12 @@ async def test_weak_validator_is_not_sent_as_if_range_without_timestamp():
     dl.etag = 'W/"v1"'
     await make_manager(client)._segment_worker(dl, dl.segments[0], FakeFH())
     assert "If-Range" not in client.headers
+
+
+@pytest.mark.asyncio
+async def test_empty_etag_not_used_for_if_range():
+    client = FakeClient(FakeStream(headers={"content-range": "bytes 0-4/5"}))
+    dl = make_download()
+    dl.etag = '""'
+    await make_manager(client)._segment_worker(dl, dl.segments[0], FakeFH())
+    assert "If-Range" not in client.headers
