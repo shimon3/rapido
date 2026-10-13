@@ -22,6 +22,15 @@ async function probeNativeBridge(){
     return false; // Older Rapido installations have no registered native host.
   }
 }
+// Never treat a successful ping as authorization to transfer downloads or cookies.
+async function nativeCapabilities(){
+  try {
+    const reply = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {type:"capabilities"});
+    if(reply?.type !== "capabilities" || reply.protocol !== 1 ||
+       !Array.isArray(reply.features) || reply.features.some(f => typeof f !== "string")) return [];
+    return reply.features.filter(f => f === "ping");
+  } catch { return []; }
+}
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Only our own extension popup, not content scripts or web pages, may request diagnostics.
   if(message?.type === "rapido_capture_state_changed" &&
