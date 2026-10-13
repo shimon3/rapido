@@ -71,6 +71,11 @@ jobs:
           --hidden-import ytworker
           desktop.py
 
+      - name: Build native messaging host (console)
+        run: >
+          pyinstaller --noconfirm --clean --onefile --console
+          --name RapidoNativeHost native_host.py
+
       - name: Self-test (real window, engine, yt-dlp)
         timeout-minutes: 4
         shell: pwsh
