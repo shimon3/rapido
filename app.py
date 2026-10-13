@@ -204,6 +204,7 @@ class Schedule(BaseModel):
 
 
 class SettingsRequest(BaseModel):
+    language: str | None = Field(default=None, pattern=r"^(fr|en|he)$")
     download_dir: PathStr | None = None
     max_concurrent: int | None = Field(default=None, ge=1, le=10)
     connections: int | None = Field(default=None, ge=1, le=32)
