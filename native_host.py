@@ -72,8 +72,13 @@ def _safe_public_capture(data):
                                  any(ch in filename for ch in "/\\\\\r\n")):
         return {"type": "error", "code": "invalid_capture"}
     headers = {}
-    if referrer and urlsplit(referrer).scheme in ("http", "https"):
-        headers["Referer"] = referrer
+    if referrer:
+        parsed_ref = urlsplit(referrer)
+        if (parsed_ref.scheme not in ("http", "https") or not parsed_ref.hostname or
+                parsed_ref.username or parsed_ref.password):
+            return {"type": "error", "code": "invalid_capture"}
+        # Defense in depth: no referrer query or fragment may cross loopback.
+        headers["Referer"] = parsed_ref._replace(query="", fragment="").geturl()
     body = json.dumps({"url": url, "filename": filename, "headers": headers,
                        "open_window": True}).encode("utf-8")
     try:
