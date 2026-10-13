@@ -28,7 +28,7 @@ async function nativeCapabilities(){
     const reply = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {type:"capabilities"});
     if(reply?.type !== "capabilities" || reply.protocol !== 1 ||
        !Array.isArray(reply.features) || reply.features.some(f => typeof f !== "string")) return [];
-    return reply.features.filter(f => f === "ping");
+    return reply.features.filter(f => f === "ping" || f === "capture_public");
   } catch { return []; }
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -100,8 +100,17 @@ async function post(path, body) {
 }
 // Les fenêtres (capture, progression) sont ouvertes par Rapido lui-même :
 // ce sont de vraies fenêtres Windows, même quand on clique depuis Chrome.
+async function captureViaNative(url, referrer, filename){
+  const features = await nativeCapabilities();
+  if(!features.includes("capture_public")) throw new Error("Pont natif indisponible");
+  const reply = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {
+    type:"capture_public", url, referrer:referrer || null, filename:filename || null
+  });
+  if(!reply || reply.type !== "capture_result" || reply.ok !== true)
+    throw new Error("Capture native refusée");
+}
 async function captureFile(url, referrer, filename) {
-  await post("/api/capture", { url, filename, headers: await buildHeaders(url, referrer), open_window: true });
+  await captureViaNative(url, referrer, filename);
   flash("✓", "#1f6f5c");
 }
 
