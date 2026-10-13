@@ -406,6 +406,7 @@ function applyUiLanguage(language){
   document.documentElement.lang = currentUiLanguage;
   // Respect RTL for labels while keeping download table columns and URLs in order.
   document.documentElement.dir = currentUiLanguage === "he" ? "rtl" : "ltr";
+  document.querySelectorAll(".list, input[type=url], input[type=text], textarea").forEach(el => el.dir = "ltr");
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   let node;
   while((node = walker.nextNode())){
