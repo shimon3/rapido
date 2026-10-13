@@ -922,7 +922,7 @@ class Manager:
             before = seg.done
             if dl.resumable:
                 headers["Range"] = f"bytes={pos}-{seg.end}"
-                if dl.etag and not dl.etag.startswith("W/"):
+                if dl.etag.startswith('"') and dl.etag.endswith('"'):
                     headers["If-Range"] = dl.etag
                 elif dl.last_modified:
                     headers["If-Range"] = dl.last_modified
@@ -943,8 +943,10 @@ class Manager:
                             raise IOError("Le serveur a cesse d'accepter la reprise (Range)")
                         # E2 : la plage recue doit commencer exactement la ou on l'a demandee,
                         # sinon les octets seraient ecrits au mauvais endroit du fichier
-                        m = re.match(r"\s*bytes\s+(\d+)-(\d+)/", r.headers.get("content-range", ""))
-                        if not m or int(m.group(1)) != pos or int(m.group(2)) > seg.end:
+                        m = re.fullmatch(r"\s*bytes\s+(\d+)-(\d+)/(\d+)\s*", r.headers.get("content-range", ""))
+                        if (not m or int(m.group(1)) != pos or
+                                int(m.group(2)) < int(m.group(1)) or
+                                int(m.group(2)) > seg.end or int(m.group(3)) != dl.size):
                             raise IOError(f"Plage inattendue du serveur : {r.headers.get('content-range')!r} "
                                           f"au lieu de {pos}-{seg.end}")
                         # E5 : des octets compresses ne correspondent plus aux positions du fichier
@@ -954,6 +956,8 @@ class Manager:
                     else:
                         chunks = r.aiter_bytes(CHUNK)
                     async for chunk in chunks:
+                        if not chunk:
+                            continue
                         if dl.resumable:
                             # le segment a pu etre raccourci par _supervise
                             room = seg.end - (seg.start + seg.done) + 1
@@ -961,7 +965,9 @@ class Manager:
                                 break
                             chunk = chunk[:room]
                         fh.seek(seg.start + seg.done)
-                        fh.write(chunk)
+                        written = fh.write(chunk)
+                        if written != len(chunk):
+                            raise OSError(errno.ENOSPC, "Incomplete write to download file")
                         seg.done += len(chunk)
                         await self._throttle(len(chunk))
                         self.save()
