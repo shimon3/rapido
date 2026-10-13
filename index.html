@@ -436,7 +436,11 @@ const UI_TRANSLATIONS = {
   "Éteindre l'ordinateur": ["Shut down computer","כבה מחשב"],
   "Mettre en veille": ["Sleep","שינה"],
   "Quitter Rapido": ["Exit Rapido","צא מ-Rapido"],
-  "Dépose le lien pour le télécharger": ["Drop link to download","גרור קישור להורדה"]
+  "Dépose le lien pour le télécharger": ["Drop link to download","גרור קישור להורדה"],
+  "Consultation de GitHub…": ["Checking GitHub…","בודק GitHub…"],
+  "Une nouvelle version est disponible.": ["A new version is available.","קיימת גרסה חדשה."],
+  "Vérification impossible :": ["Unable to check:", "הבדיקה נכשלה:"],
+  "Vérification…": ["Checking…","בודק…"]
 };
 let currentUiLanguage = "fr";
 const originalUiText = new WeakMap();
@@ -682,19 +686,19 @@ async function checkRapidoUpdates(){
   button.disabled = true;
   $("#helpDownload").style.display = "none";
   $("#helpLatest").textContent = "Vérification…";
-  $("#helpUpdateStatus").textContent = "Consultation de GitHub…";
+  $("#helpUpdateStatus").textContent = "Consultation de GitHub…"; applyUiLanguage(currentUiLanguage);
   try {
     const info = await api("/api/updates/check");
     $("#helpVersion").textContent = info.current;
     $("#helpLatest").textContent = info.latest;
     if(info.update_available){
-      $("#helpUpdateStatus").textContent = "Une nouvelle version est disponible.";
+      $("#helpUpdateStatus").textContent = "Une nouvelle version est disponible."; applyUiLanguage(currentUiLanguage);
       const link = $("#helpDownload");
       link.href = info.url;
       link.textContent = "Télécharger Rapido " + info.latest;
       link.style.display = "";
     } else {
-      $("#helpUpdateStatus").textContent = "Rapido est à jour.";
+      $("#helpUpdateStatus").textContent = "Rapido est à jour."; applyUiLanguage(currentUiLanguage);
     }
   } catch(err){
     $("#helpLatest").textContent = "Indisponible";
@@ -706,6 +710,7 @@ async function checkRapidoUpdates(){
 $("#tHelp").onclick = async () => {
   $("#helpVersion").textContent = "…";
   $("#helpLatest").textContent = "Vérification…";
+  applyUiLanguage(currentUiLanguage);
   $("#dHelp").showModal();
   try {
     const info = await api("/api/settings");
