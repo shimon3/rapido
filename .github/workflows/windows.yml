@@ -58,7 +58,11 @@ jobs:
           $out = "$env:RUNNER_TEMP\selftest.json"
           $p = Start-Process -FilePath "dist\Rapido\Rapido.exe" -ArgumentList "--selftest","--selftest-out",$out -PassThru -Wait
           Write-Host "Exit code: $($p.ExitCode)"
-          if (Test-Path $out) { Get-Content $out } else { Write-Host "Pas de resultat" }
+          if (Test-Path $out) {
+            Get-Content $out
+            $one = (Get-Content $out -Raw | ConvertFrom-Json | ConvertTo-Json -Compress -Depth 4) -replace "`r|`n", " "
+            Write-Host "::notice title=Selftest::$one"
+          } else { Write-Host "Pas de resultat" }
           if (Test-Path "$env:RAPIDO_DATA\rapido.log") { Write-Host "--- rapido.log ---"; Get-Content "$env:RAPIDO_DATA\rapido.log" -Tail 80 }
           if ($p.ExitCode -ne 0) { exit 1 }
 
@@ -75,7 +79,7 @@ jobs:
         run: |
           Copy-Item -Recurse extension dist\Rapido\extension
           Compress-Archive -Path dist\Rapido -DestinationPath "dist\Rapido-${{ steps.ver.outputs.version }}-portable.zip"
-          Get-ChildItem dist | Format-Table Name, Length
+          Get-ChildItem dist -File | ForEach-Object { Write-Host "::notice title=Fichier::$($_.Name) - $([math]::Round($_.Length/1MB,1)) Mo" }
 
       - uses: actions/upload-artifact@v4
         with:

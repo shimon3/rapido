@@ -1,6 +1,6 @@
 # Rapido
 
-**A self-hosted download accelerator for Windows**: multi-connection downloads, pause/resume that survives reboots, a scheduler, a video grabber and a Chrome extension that takes over your browser downloads.
+**A download accelerator for Windows**: multi-connection downloads, pause/resume that survives reboots, a scheduler, a video grabber and a Chrome extension that takes over your browser downloads.
 
 Built with **Python (FastAPI + asyncio + httpx)**, a single-file HTML interface, and a Manifest V3 Chrome extension. The interface is in French.
 
@@ -34,26 +34,49 @@ Chrome extension ──(JSON over localhost)──► FastAPI (127.0.0.1:9614) �
 | File | Role |
 |---|---|
 | `engine.py` | Download engine: probing, segmentation, workers, persistence, yt-dlp, scheduler, clipboard |
-| `app.py` | FastAPI app, REST API, tray icon |
+| `desktop.py` | Windows app entry point: native windows, tray, single instance, self-test |
+| `app.py` | FastAPI app, REST API, tray icon, autostart |
 | `index.html` | Main window (toolbar, categories, sortable table, context menu, options) |
 | `window.html` | Small dialogs: capture, video quality, progress, completed |
 | `extension/` | Chrome extension (Manifest V3) |
+| `packaging/` | Icon, Windows version info, Inno Setup installer script |
 
 The API only listens on `127.0.0.1`, accepts cross-origin calls only from Chrome extensions, and requires `application/json` on every write, so a random website can't trigger downloads through a simple form post.
 
-## Install (Windows)
+## Download
 
-1. Install **Python 3.10+** (tick "Add Python to PATH").
-2. Optional, for HD video (merging video + audio): `winget install ffmpeg`
-3. Double-click **`demarrer.bat`**. The first run creates a virtual environment, installs the dependencies and opens <http://localhost:9614>.
+Get the latest **`Rapido-Setup-x.y.z.exe`** from the [Releases page](https://github.com/shimon3/rapido/releases/latest) and run it. It installs per user, so no administrator rights are needed, and adds Start-menu and desktop shortcuts, an uninstaller and an optional "start with Windows" setting.
 
-**Start with Windows:** `Win + R` → `shell:startup` → add a shortcut to `demarrer-silencieux.vbs` (runs in the background, logs in `%USERPROFILE%\.rapido\rapido.log`).
+> Windows SmartScreen may show *"Windows protected your PC"* because the app isn't code-signed: click **More info → Run anyway**.
+
+A portable `.zip` is also attached to each release: unzip it and run `Rapido.exe`.
+
+**Requirements:** Windows 10 or 11 (64-bit) with Microsoft Edge WebView2, which ships with up-to-date Windows. For HD video, Rapido can install **ffmpeg** for you: *Options → Outils → Installer ffmpeg*.
 
 ### Chrome extension
 
-1. Open `chrome://extensions` and enable **Developer mode**.
-2. **Load unpacked** → select the `extension` folder.
-3. Pin the Rapido icon. Clicking it toggles capture on/off.
+*Options → Outils → Installer l'extension Chrome…* opens the extension folder and `chrome://extensions`. Turn on **Developer mode**, click **Load unpacked** and select that folder. The icon toggles capture on and off.
+
+### Desktop behaviour
+
+- Rapido is a native Windows app (Edge WebView2 windows via [pywebview](https://pywebview.flowrl.com/)). It has no console and no browser tab.
+- Closing the main window keeps Rapido running in the notification area, so downloads continue. Right-click the tray icon → **Quitter Rapido** to exit.
+- Launching Rapido a second time brings the existing window to the front.
+
+## Build from source
+
+```bash
+pip install -r requirements.txt pyinstaller
+python desktop.py            # run the desktop app
+python app.py                # or: server only, UI at http://localhost:9614
+```
+
+Windows builds are produced by [GitHub Actions](.github/workflows/windows.yml) on `windows-latest`:
+
+1. PyInstaller builds `Rapido.exe` (one-folder, windowed, with icon and version info).
+2. A self-test launches the real exe. It opens a WebView2 window, downloads a file through the engine, checks yt-dlp and opens a popup window.
+3. Inno Setup builds the installer, and a portable zip is created.
+4. Pushing a `v*` tag publishes a GitHub Release with both files.
 
 ## API
 
