@@ -297,6 +297,16 @@ def run_selftest(main_win, open_popup, result: dict):
             result["guard_ok"] = False
         except urllib.error.HTTPError as e:
             result["guard_ok"] = e.code == 403
+        # yt-dlp tourne dans un processus separe (sinon Rapido gele pendant l'analyse YouTube)
+        import asyncio
+        import app as rapido
+        fut = asyncio.run_coroutine_threadsafe(rapido.manager._yt_process(
+            "extract", BASE_URL + "/favicon.ico", {"quiet": True, "no_warnings": True}, timeout=90),
+            rapido.manager.loop)
+        kind, payload = fut.result(120)
+        result["ytdlp_detail"] = f"{kind}: {str(payload)[:160]}"
+        result["ytdlp_process"] = kind == "result" or (
+            kind == "error" and "s'est arrete" not in str(payload) and "trop longue" not in str(payload))
         import engine
         result["dpapi_ok"] = engine.unprotect(engine.protect("session=abc")) == "session=abc"
         zi = Path(d["path"] + ":Zone.Identifier")
@@ -309,7 +319,7 @@ def run_selftest(main_win, open_popup, result: dict):
             and result["main_title"] == "Rapido" and status == "completed" and result["download_file_ok"]
             and result["popup_loaded"] and result["popup_token"] and result["popup_resized"]
             and result["settings_desktop"] and result["csp"] and result["guard_ok"]
-            and result["dpapi_ok"] and result["motw_ok"]
+            and result["dpapi_ok"] and result["motw_ok"] and result["ytdlp_process"]
         )
     except Exception as e:
         import traceback
@@ -317,4 +327,7 @@ def run_selftest(main_win, open_popup, result: dict):
 
 
 if __name__ == "__main__":
+    # indispensable dans Rapido.exe : les processus yt-dlp relancent l'exe lui-meme
+    import multiprocessing
+    multiprocessing.freeze_support()
     sys.exit(main())

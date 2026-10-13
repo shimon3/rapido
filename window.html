@@ -84,6 +84,7 @@ let view = params.get("view") || "progress";
 let dl = null, settings = null, confirmed = false, timer = null, pausedBusy = false;
 const CATS = ["Vidéos","Musique","Archives","Programmes","Documents","Images","Autres"];
 
+function hostOf(u){ try{ return new URL(u).hostname; }catch{ return ""; } }
 function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function fmtBytes(n){ if(n == null || n < 0) return "Inconnue"; const u=["octets","Ko","Mo","Go","To"]; let i=0;
   while(n >= 1024 && i < u.length-1){ n/=1024; i++; } return (i ? n.toFixed(n<10?2:1) : n) + " " + u[i]; }
@@ -217,6 +218,7 @@ function renderCaptureVideo(){
     <label class="f">Enregistrer dans</label>
     <input type="text" id="folder" placeholder="${esc(defaultFolder("Vidéos"))}">
     ${settings && !settings.ffmpeg_found ? `<p style="color:var(--warn);font-size:12px;margin:10px 0 0">ffmpeg n'est pas installé : seules les qualités déjà fusionnées (souvent 360p/720p) sont proposées. Voir le README.</p>` : ""}
+    ${settings && !settings.deno_found && /(^|\.)(youtube\.com|youtu\.be)$/.test(hostOf(dl.page_url)) ? `<p style="color:var(--warn);font-size:12px;margin:6px 0 0">Deno n'est pas installé : certaines qualités YouTube peuvent manquer (Options › Outils › Installer Deno).</p>` : ""}
   `;
   captureFooter();
 }
@@ -296,7 +298,10 @@ function renderDone(){
     <button id="openf">Ouvrir le dossier</button>
     <button id="close">Fermer</button>`;
   const after = async () => { if($("#nomore").checked) await api("/api/settings","PUT",{show_complete_dialog:false}).catch(()=>{}); closeWin(); };
-  $("#open").onclick = async () => { await api(`/api/downloads/${ID}/open`, "POST").catch(e => alert(e.message)); after(); };
+  $("#open").onclick = async () => {
+    try{ await api(`/api/downloads/${ID}/open`, "POST"); after(); }
+    catch(e){ $("#body").insertAdjacentHTML("beforeend", `<p class="err">${esc(e.message)}</p>`); }
+  };
   $("#openf").onclick = async () => { await api(`/api/downloads/${ID}/open?folder=true`, "POST").catch(()=>{}); after(); };
   $("#close").onclick = after;
 }

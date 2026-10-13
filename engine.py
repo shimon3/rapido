@@ -36,11 +36,12 @@ import httpx
 CHUNK = 256 * 1024            # taille des blocs lus sur le reseau
 MIN_SEGMENT = 1024 * 1024     # on ne decoupe pas en morceaux de moins de 1 Mo
 MAX_RETRIES = 5               # echecs consecutifs (sans progression) avant abandon
+PROBE_TIMEOUT = 120           # analyse d'une video : au-dela, on abandonne (processus arrete)
 RETRY_DELAY = 1.0             # multiplicateur des pauses entre essais (2, 4, 8, 16, 20 s) ; reduit par les tests
 SAVE_EVERY = 2.0              # secondes entre deux sauvegardes de l'etat
 PENDING_TTL = 30 * 60         # une capture non confirmee disparait apres 30 min
 IS_WINDOWS = platform.system() == "Windows"
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 FROZEN = getattr(sys, "frozen", False)                       # True dans Rapido.exe (PyInstaller)
 RES_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))   # fichiers embarques (html, icone)
 EXE_DIR = Path(sys.executable).parent if FROZEN else Path(__file__).parent
@@ -223,6 +224,7 @@ class Download:
     duration: int = 0
     formats: list = field(default_factory=list)     # options de qualite proposees
     video_format: str = ""
+    yt_cookies: bool = False    # True = la video n'a marche qu'avec les cookies du navigateur
     v_base: int = 0             # octets des flux deja termines (video puis audio)
     v_done: int = 0             # octets du flux en cours
     # valeurs calculees (non sauvegardees)
@@ -281,10 +283,6 @@ class Download:
         return dl
 
 
-class StopVideo(Exception):
-    pass
-
-
 class Manager:
     def __init__(self, data_dir: Path, port: int = 9614):
         self.port = port
@@ -318,6 +316,7 @@ class Manager:
         self.tasks: dict[str, asyncio.Task] = {}
         self._probes: dict[str, asyncio.Task] = {}
         self._stop_flags: dict[str, threading.Event] = {}
+        self._procs: dict = {}            # processus yt-dlp en cours (telechargements video)
         self._last_save = 0.0
         self._wake = asyncio.Event()
         self._rate_bucket = 0.0
@@ -705,6 +704,9 @@ class Manager:
         flag = self._stop_flags.get(dl_id)
         if flag:
             flag.set()
+        proc = self._procs.get(dl_id)
+        if proc is not None and proc.is_alive():
+            proc.terminate()
         t = self.tasks.pop(dl_id, None)
         if t and not t.done():
             t.cancel()
@@ -967,9 +969,27 @@ class Manager:
             return str(exe)
         return None
 
+    def deno(self) -> str | None:
+        """Moteur JavaScript utilise par yt-dlp pour obtenir toutes les qualites YouTube."""
+        name = "deno.exe" if IS_WINDOWS else "deno"
+        local = EXE_DIR / name
+        if local.exists():
+            return str(local)
+        found = shutil.which("deno")
+        if found or not IS_WINDOWS:
+            return found
+        winget = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet"
+        if (winget / "Links" / name).exists():
+            return str(winget / "Links" / name)
+        for exe in (winget / "Packages").glob(f"DenoLand.Deno*/{name}"):
+            return str(exe)
+        return None
+
     def _ydl_base_opts(self, dl: Download) -> dict:
-        headers = {"User-Agent": USER_AGENT,
-                   **{k: v for k, v in dl.headers.items() if k.lower() != "cookie"}}
+        # Pas de User-Agent ni de cookies ici : yt-dlp choisit lui-meme l'identite adaptee a
+        # chaque site (YouTube refuse "The page needs to be reloaded" si on lui impose celle
+        # du navigateur). Seul le Referer est transmis (utile aux lecteurs integres).
+        headers = {k: v for k, v in dl.headers.items() if k.lower() == "referer"}
         opts = {
             "quiet": True, "no_warnings": True, "noprogress": True,
             "noplaylist": True, "http_headers": headers,
@@ -978,15 +998,20 @@ class Manager:
         ff = self.ffmpeg()
         if ff:
             opts["ffmpeg_location"] = ff
+        deno = self.deno()
+        if deno:
+            opts["js_runtimes"] = {"deno": {"path": deno}}
         return opts
 
     @contextlib.contextmanager
-    def _ydl_opts(self, dl: Download):
+    def _ydl_opts(self, dl: Download, with_cookies: bool | None = None):
         """Options yt-dlp. Les cookies de la page ne sont PAS mis dans les en-tetes (yt-dlp les
         enverrait a tous les serveurs contactes) : ils vont dans un fichier de cookies limite
         au seul site de la page, supprime juste apres."""
         opts = self._ydl_base_opts(dl)
-        cookie = next((v for k, v in dl.headers.items() if k.lower() == "cookie"), "")
+        if with_cookies is None:
+            with_cookies = dl.yt_cookies
+        cookie = next((v for k, v in dl.headers.items() if k.lower() == "cookie"), "") if with_cookies else ""
         host = urlparse(dl.page_url or dl.url).hostname or ""
         path = None
         if cookie and host:
@@ -1050,16 +1075,10 @@ class Manager:
 
     async def _probe_video(self, dl: Download):
         dl.probe = "probing"
-        try:
-            import yt_dlp  # noqa: F401
-        except ImportError:
+        import importlib.util
+        if importlib.util.find_spec("yt_dlp") is None:   # verifie sans charger yt-dlp ici
             dl.probe, dl.probe_error = "failed", "yt-dlp n'est pas installe (pip install yt-dlp)"
             return
-
-        def extract(url):
-            import yt_dlp
-            with self._ydl_opts(dl) as opts, yt_dlp.YoutubeDL(opts) as ydl:
-                return ydl.extract_info(url, download=False)
 
         tried, last_err = [], ""
         # 1) la page elle-meme (YouTube, Vimeo, Dailymotion... ~1800 sites)
@@ -1069,14 +1088,19 @@ class Manager:
                 continue
             tried.append(url)
             try:
-                info = await asyncio.to_thread(extract, url)
-                if info.get("_type") == "playlist":
-                    entries = [e for e in (info.get("entries") or []) if e]
-                    if not entries:
-                        raise ValueError("Playlist vide")
-                    info = entries[0]
-                if not info.get("formats") and not info.get("url"):
-                    raise ValueError("Aucun flux video")
+                # d'abord SANS les cookies du navigateur (conseille par yt-dlp, surtout pour
+                # YouTube) ; avec, seulement si ca echoue (video privee, reservee aux adultes...)
+                has_cookie = any(k.lower() == "cookie" for k in dl.headers)
+                info, errors = None, []
+                for with_cookies in ([False, True] if has_cookie else [False]):
+                    with self._ydl_opts(dl, with_cookies) as opts:
+                        kind, payload = await self._yt_process("extract", url, opts, timeout=PROBE_TIMEOUT)
+                    if kind == "result" and (payload.get("formats") or payload.get("url")):
+                        info, dl.yt_cookies = payload, with_cookies
+                        break
+                    errors.append(payload if kind != "result" else "Aucun flux video")
+                if info is None:
+                    raise ValueError(errors[0])
                 dl.url = url
                 dl.title = info.get("title") or "video"
                 dl.thumbnail = info.get("thumbnail") or ""
@@ -1104,24 +1128,16 @@ class Manager:
         raise ValueError("Format inconnu")
 
     async def _run_video(self, dl: Download):
-        stop = threading.Event()
-        self._stop_flags[dl.id] = stop
         speed_task = asyncio.create_task(self._measure_speed(dl))
-        fut = asyncio.ensure_future(asyncio.to_thread(self._video_blocking, dl, stop))
         try:
-            await asyncio.shield(fut)
+            await self._video_download(dl)
             dl.status = "completed"
             dl.finished_at = time.time()
             if dl.size <= 0 or dl.downloaded > dl.size:
                 dl.size = dl.downloaded
             self._after_complete(dl)
         except asyncio.CancelledError:
-            stop.set()
-            try:
-                await fut
-            except Exception:
-                pass
-            raise
+            raise                         # pause : le processus yt-dlp est arrete, les .part restent
         except Exception as e:
             dl.status = "error"
             dl.error = str(e).replace("ERROR: ", "")[:300]
@@ -1129,12 +1145,10 @@ class Manager:
             speed_task.cancel()
             dl.speed = 0
             dl.active_connections = 0
-            self._stop_flags.pop(dl.id, None)
             self.save(force=True)
             self.wake()
 
-    def _video_blocking(self, dl: Download, stop: threading.Event):
-        import yt_dlp
+    async def _video_download(self, dl: Download):
         folder = self._target_folder(dl)
         if not dl.path:
             dl.path = str(unique_path(folder, dl.filename))   # corrige a la fin avec le vrai nom
@@ -1142,9 +1156,7 @@ class Manager:
         dl.v_base, dl.v_done = 0, 0
         seen_done: set[str] = set()
 
-        def hook(d):
-            if stop.is_set():
-                raise StopVideo("pause")
+        def on_progress(d: dict):
             fname = d.get("filename") or ""
             if d["status"] == "downloading":
                 dl.v_done = int(d.get("downloaded_bytes") or 0)
@@ -1154,40 +1166,73 @@ class Manager:
                     dl.size = int(dl.v_base + total)
             elif d["status"] == "finished" and fname not in seen_done:
                 seen_done.add(fname)
-                dl.v_base += d.get("total_bytes") or d.get("downloaded_bytes") or dl.v_done
+                dl.v_base += int(d.get("total_bytes") or d.get("downloaded_bytes") or dl.v_done)
                 dl.v_done = 0
 
-        cookies_ctx = self._ydl_opts(dl)
-        opts = cookies_ctx.__enter__()
-        opts.update({
-            "format": dl.video_format or "b",
-            "outtmpl": str(folder / (stem + ".%(ext)s")),
-            "progress_hooks": [hook],
-            "continuedl": True,
-            "concurrent_fragment_downloads": max(1, min(16, dl.connections)),
-            "retries": 10, "fragment_retries": 10,
-        })
-        if opts.get("ffmpeg_location") and "+" in opts["format"]:
-            opts["merge_output_format"] = "mp4"
-        limit = int(self.settings.get("speed_limit_kbps") or 0)
-        if limit > 0:
-            opts["ratelimit"] = limit * 1024
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(dl.url, download=True)
-        except yt_dlp.utils.DownloadError:
-            if stop.is_set():
-                raise StopVideo("pause")
-            raise
-        finally:
-            cookies_ctx.__exit__(None, None, None)
-        reqs = (info or {}).get("requested_downloads") or []
-        if reqs and reqs[0].get("filepath"):
-            dl.path = reqs[0]["filepath"]
+        with self._ydl_opts(dl) as opts:
+            opts.update({
+                "format": dl.video_format or "b",
+                "outtmpl": str(folder / (stem + ".%(ext)s")),
+                "continuedl": True,
+                "concurrent_fragment_downloads": max(1, min(16, dl.connections)),
+                "retries": 10, "fragment_retries": 10,
+            })
+            if opts.get("ffmpeg_location") and "+" in opts["format"]:
+                opts["merge_output_format"] = "mp4"
+            limit = int(self.settings.get("speed_limit_kbps") or 0)
+            if limit > 0:
+                opts["ratelimit"] = limit * 1024
+            kind, payload = await self._yt_process("download", dl.url, opts, on_progress=on_progress, key=dl.id)
+        if kind != "done":
+            raise IOError(payload)
+        if payload.get("filepath"):
+            dl.path = payload["filepath"]
             dl.filename = Path(dl.path).name
         if Path(dl.path).exists():
             dl.size = Path(dl.path).stat().st_size
             dl.v_base, dl.v_done = dl.size, 0
+
+    async def _yt_process(self, func: str, url: str, opts: dict, on_progress=None,
+                          timeout: float | None = None, key: str | None = None):
+        """Lance yt-dlp dans un processus separe (voir ytworker.py) et attend son resultat
+        sans jamais bloquer Rapido. Annulation (pause) ou delai depasse = processus arrete."""
+        import multiprocessing as mp
+        import queue as queue_mod
+        import ytworker
+        ctx = mp.get_context("spawn")
+        q = ctx.Queue()
+        proc = ctx.Process(target=getattr(ytworker, func), args=(url, opts, q), daemon=True)
+        proc.start()
+        if key:
+            self._procs[key] = proc
+        t0 = time.monotonic()
+        try:
+            while True:
+                try:
+                    kind, payload = await asyncio.to_thread(q.get, True, 0.5)
+                except queue_mod.Empty:
+                    if not proc.is_alive():
+                        try:
+                            kind, payload = q.get_nowait()
+                        except queue_mod.Empty:
+                            return "error", f"yt-dlp s'est arrete de facon inattendue (code {proc.exitcode})"
+                    elif timeout and time.monotonic() - t0 > timeout:
+                        return "error", (f"Analyse trop longue (plus de {int(timeout)} s) : "
+                                         "site non pris en charge ou trop lent")
+                    else:
+                        continue
+                if kind == "progress":
+                    if on_progress:
+                        on_progress(payload)
+                    continue
+                return kind, payload
+        finally:
+            if key:
+                self._procs.pop(key, None)
+            if proc.is_alive():
+                proc.terminate()
+            await asyncio.to_thread(proc.join, 5)
+            q.close()
 
     # ---------- presse-papiers (Windows) ----------
     def _read_clipboard(self) -> str:

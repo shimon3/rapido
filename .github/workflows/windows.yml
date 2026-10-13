@@ -66,6 +66,7 @@ jobs:
           --add-data "extension;extension"
           --collect-submodules uvicorn
           --hidden-import pystray._win32
+          --hidden-import ytworker
           desktop.py
 
       - name: Self-test (real window, engine, yt-dlp)

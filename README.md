@@ -15,7 +15,7 @@ Built with **Python (FastAPI + asyncio + httpx)**, a single-file HTML interface,
 - **Segmented downloading**: each file is split into up to 32 parts fetched in parallel with HTTP `Range` requests, written in place into a pre-allocated `.part` file.
 - **Dynamic segmentation**: when a connection finishes early, the largest remaining segment is split in two and a new connection picks up the second half.
 - **Robust resume**: per-segment progress is persisted to disk. Pause, network drops, crashes or a reboot all resume where they stopped. Retries use exponential backoff and are not counted as failures when the connection made progress.
-- **Video grabber**: a "Download this video" button appears over videos in Chrome. Streams (HLS `.m3u8`, DASH `.mpd`, direct MP4) are detected by the extension and resolved with [yt-dlp](https://github.com/yt-dlp/yt-dlp), with a choice of quality (1080p, 720p, audio only…).
+- **Video grabber** (yt-dlp runs in a separate process so heavy extraction never freezes the app; sites are queried without your browser cookies first, which are used only if a video requires them): a "Download this video" button appears over videos in Chrome. Streams (HLS `.m3u8`, DASH `.mpd`, direct MP4) are detected by the extension and resolved with [yt-dlp](https://github.com/yt-dlp/yt-dlp), with a choice of quality (1080p, 720p, audio only…).
 - **Browser integration**: the extension intercepts downloads matching your file types, forwards cookies and referrer (so logged-in downloads work), and falls back to Chrome if Rapido isn't running. Right-click menu included.
 - **Capture → progress → done windows**: a file-info dialog before each download, a live progress window with per-connection details, and a completion dialog with "Open" / "Open folder".
 - **Queue & scheduler**: "Download later", start/stop times, days of the week, then shut down, sleep or exit when the queue is finished (with a 60-second cancel window).
@@ -51,7 +51,7 @@ Get the latest **`Rapido-Setup-x.y.z.exe`** from the [Releases page](https://git
 
 A portable `.zip` is also attached to each release: unzip it and run `Rapido.exe`.
 
-**Requirements:** Windows 10 or 11 (64-bit) with Microsoft Edge WebView2, which ships with up-to-date Windows. For HD video, Rapido can install **ffmpeg** for you: *Options → Outils → Installer ffmpeg*.
+**Requirements:** Windows 10 or 11 (64-bit) with Microsoft Edge WebView2, which ships with up-to-date Windows. For video, Rapido can install two helpers for you in *Options → Outils*: **ffmpeg** (merges video + audio for HD qualities) and **Deno** (the JavaScript runtime yt-dlp needs for every YouTube quality).
 
 ### Chrome extension
 

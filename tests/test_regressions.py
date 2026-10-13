@@ -44,6 +44,7 @@ def make_file_server():
     app = FastAPI()
     app.state.hits = {}
     app.state.accept_encoding = []
+    app.state.media_cookies = []
 
     def parse_range(request: Request):
         m = re.match(r"bytes=(\d+)-(\d*)", request.headers.get("range", ""))
@@ -60,6 +61,22 @@ def make_file_server():
             pos += 65536
             if delay:
                 await asyncio.sleep(delay)
+
+    @app.get("/media/{name}")
+    async def media(name: str, request: Request):
+        """Une 'video' directe (type video/mp4) : yt-dlp la traite comme un lien video simple."""
+        n = len(DATA)
+        app.state.media_cookies.append((name, request.headers.get("cookie", "")))
+        if name.startswith("private") and "session=ok" not in request.headers.get("cookie", ""):
+            return Response(b"connexion requise", status_code=403)
+        rng = parse_range(request)
+        delay = 0.08 if name.startswith("slow") else 0.0
+        h = {"Content-Type": "video/mp4", "Accept-Ranges": "bytes"}
+        if rng is None:
+            return StreamingResponse(body(0, n - 1, delay), headers={**h, "Content-Length": str(n)})
+        a, b = rng
+        return StreamingResponse(body(a, b, delay), status_code=206, headers={
+            **h, "Content-Range": f"bytes {a}-{b}/{n}", "Content-Length": str(b - a + 1)})
 
     @app.get("/{mode}/fichier.bin")
     async def serve(mode: str, request: Request):
@@ -267,3 +284,177 @@ def test_protections_de_base(api):
     assert c.post("/api/capture", json={"url": "file:///etc/passwd"}, headers=JSON).status_code == 400
     csp = c.get("/").headers.get("content-security-policy", "")
     assert "script-src 'sha256-" in csp and "unsafe-eval" not in csp
+
+
+# ---------------------------------------------------------------- videos : yt-dlp dans un processus
+def _manager(data_dir: Path):
+    m = engine.Manager(data_dir, port=0)
+    m.settings.update(download_dir=str(data_dir / "dl"), show_complete_dialog=False, monitor_clipboard=False)
+    m.open_window = lambda *a, **k: None
+    return m
+
+
+def test_video_analyse_et_telechargement_sans_figer_rapido(server, tmp_path):
+    """Avant : yt-dlp tournait dans un thread et figeait Rapido ("ne repond pas")."""
+    app, base = server
+
+    async def main():
+        m = _manager(tmp_path)
+        await m.start()
+        lags = []
+
+        async def ticker():               # mesure la reactivite de Rapido pendant l'analyse
+            while True:
+                t = time.perf_counter()
+                await asyncio.sleep(0.02)
+                lags.append(time.perf_counter() - t)
+
+        tk = asyncio.create_task(ticker())
+        try:
+            dl = m.capture_video(f"{base}/media/clip.mp4")
+            for _ in range(600):
+                if dl.probe in ("ready", "failed"):
+                    break
+                await asyncio.sleep(0.05)
+            assert dl.probe == "ready", dl.probe_error
+            assert m._procs == {}, "aucun processus ne doit rester apres l'analyse"
+            m.confirm(dl.id, "clip", None, later=False)
+            for _ in range(1200):
+                if dl.status in ("completed", "error"):
+                    break
+                await asyncio.sleep(0.05)
+            assert dl.status == "completed", dl.error
+            return dl, max(lags)
+        finally:
+            tk.cancel()
+            await m.stop()
+
+    dl, worst = asyncio.run(main())
+    assert sha_file(dl.path) == SHA
+    assert worst < 0.5, f"Rapido s'est fige {worst:.2f} s"
+
+
+def test_video_analyse_lourde_ne_fige_pas_rapido(server, tmp_path, monkeypatch):
+    """Reproduit le gel vu sur YouTube : 3 s de calcul intensif pendant l'analyse.
+    Dans un thread (ancienne version), Rapido etait bloque pendant tout ce temps."""
+    app, base = server
+    orig = engine.Manager._ydl_base_opts
+    monkeypatch.setattr(engine.Manager, "_ydl_base_opts",
+                        lambda self, dl: {**orig(self, dl), "_test_busy_seconds": 3})
+
+    async def main():
+        m = _manager(tmp_path)
+        await m.start()
+        lags = []
+
+        async def ticker():
+            while True:
+                t = time.perf_counter()
+                await asyncio.sleep(0.02)
+                lags.append(time.perf_counter() - t)
+
+        tk = asyncio.create_task(ticker())
+        try:
+            dl = m.capture_video(f"{base}/media/clip.mp4")
+            for _ in range(600):
+                if dl.probe in ("ready", "failed"):
+                    break
+                await asyncio.sleep(0.05)
+            assert dl.probe == "ready", dl.probe_error
+            return max(lags)
+        finally:
+            tk.cancel()
+            await m.stop()
+
+    worst = asyncio.run(main())
+    assert worst < 0.25, f"Rapido s'est fige {worst:.2f} s pendant l'analyse"
+
+
+def test_video_pause_arrete_le_processus(server, tmp_path):
+    app, base = server
+
+    async def main():
+        m = _manager(tmp_path)
+        await m.start()
+        try:
+            dl = m.capture_video(f"{base}/media/slow-clip.mp4")
+            for _ in range(600):
+                if dl.probe in ("ready", "failed"):
+                    break
+                await asyncio.sleep(0.05)
+            assert dl.probe == "ready", dl.probe_error
+            m.confirm(dl.id, "lent", None, later=False)
+            for _ in range(600):
+                if dl.id in m._procs and dl.downloaded > 0:
+                    break
+                await asyncio.sleep(0.05)
+            proc = m._procs[dl.id]
+            await m.pause(dl.id)
+            await asyncio.sleep(0.5)
+            assert dl.status == "paused"
+            assert not proc.is_alive(), "le processus yt-dlp doit etre arrete a la pause"
+            assert dl.id not in m._procs
+        finally:
+            await m.stop()
+
+    asyncio.run(main())
+
+
+def test_ouvrir_un_programme_puis_annuler_n_est_pas_une_erreur(api, monkeypatch, tmp_path):
+    """Sur le PC : Ouvrir un .exe puis annuler la demande Windows affichait 'Internal Server Error'."""
+    c, rapido = api
+    f = tmp_path / "setup.exe"
+    f.write_bytes(b"MZ")
+    dl = rapido.manager.add("http://127.0.0.1:9/setup.exe", "setup.exe", later=True)
+    dl.path, dl.status = str(f), "completed"
+
+    def annule(*a, **k):
+        e = OSError(22, "L'operation a ete annulee par l'utilisateur")
+        e.winerror = 1223
+        raise e
+
+    monkeypatch.setattr(rapido.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(rapido.os, "startfile", annule, raising=False)
+    r = c.post(f"/api/downloads/{dl.id}/open", json={}, headers=JSON)
+    assert r.status_code == 200, r.text
+
+    def autre(*a, **k):
+        e = OSError(2, "Fichier introuvable")
+        e.winerror = 2
+        raise e
+
+    monkeypatch.setattr(rapido.os, "startfile", autre, raising=False)
+    r = c.post(f"/api/downloads/{dl.id}/open", json={}, headers=JSON)
+    assert r.status_code == 400 and "Impossible d'ouvrir" in r.json()["detail"]
+
+
+def test_video_sans_cookies_d_abord_puis_avec_si_necessaire(server, tmp_path):
+    """YouTube refusait la video quand Rapido lui envoyait les cookies du navigateur.
+    Desormais : d'abord sans cookies ; avec, seulement si la video l'exige."""
+    app, base = server
+
+    async def probe(m, name):
+        dl = m.capture_video(f"{base}/media/{name}", headers={"Cookie": "session=ok"})
+        for _ in range(600):
+            if dl.probe in ("ready", "failed"):
+                break
+            await asyncio.sleep(0.05)
+        return dl
+
+    async def main():
+        m = _manager(tmp_path)
+        await m.start()
+        try:
+            app.state.media_cookies.clear()
+            public = await probe(m, "public.mp4")
+            sent_public = [c for n, c in app.state.media_cookies if n == "public.mp4"]
+            private = await probe(m, "private.mp4")
+            return public, sent_public, private
+        finally:
+            await m.stop()
+
+    public, sent_public, private = asyncio.run(main())
+    assert public.probe == "ready" and public.yt_cookies is False
+    assert sent_public and all(c == "" for c in sent_public), "aucun cookie pour une video publique"
+    assert private.probe == "ready", private.probe_error
+    assert private.yt_cookies is True

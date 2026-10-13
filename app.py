@@ -481,16 +481,23 @@ async def delete(dl_id: str, delete_file: bool = False):
 
 
 def _reveal(path: Path, select: bool):
+    """Ouvre un fichier ou un dossier avec Windows. Si l'utilisateur annule (par exemple la
+    demande d'autorisation de Windows pour un programme), ce n'est pas une erreur."""
     system = platform.system()
-    if system == "Windows":
-        if select and path.exists():
-            subprocess.Popen(["explorer", "/select,", str(path)])
+    try:
+        if system == "Windows":
+            if select and path.exists():
+                subprocess.Popen(["explorer", "/select,", str(path)])
+            else:
+                os.startfile(str(path if path.exists() else path.parent))  # type: ignore[attr-defined]
+        elif system == "Darwin":
+            subprocess.Popen(["open", "-R", str(path)] if select else ["open", str(path)])
         else:
-            os.startfile(str(path if path.exists() else path.parent))  # type: ignore[attr-defined]
-    elif system == "Darwin":
-        subprocess.Popen(["open", "-R", str(path)] if select else ["open", str(path)])
-    else:
-        subprocess.Popen(["xdg-open", str(path.parent if select else path)])
+            subprocess.Popen(["xdg-open", str(path.parent if select else path)])
+    except OSError as e:
+        if getattr(e, "winerror", None) == 1223:      # ERROR_CANCELLED : annule par l'utilisateur
+            return
+        raise HTTPException(400, f"Impossible d'ouvrir : {e.strerror or e}")
 
 
 @app.post("/api/downloads/{dl_id}/open")
@@ -581,7 +588,8 @@ def extension_dir() -> Path:
 
 @app.get("/api/settings")
 async def get_settings():
-    return {**manager.settings, "ffmpeg_found": manager.ffmpeg() or "", "windows": IS_WINDOWS,
+    return {**manager.settings, "ffmpeg_found": manager.ffmpeg() or "", "deno_found": manager.deno() or "",
+            "windows": IS_WINDOWS,
             "desktop": UI["desktop"], "autostart": get_autostart(), "version": VERSION,
             "extension_dir": str(extension_dir())}
 
@@ -646,6 +654,18 @@ async def install_ffmpeg():
         raise HTTPException(400, "Uniquement sous Windows")
     cmd = ("echo Installation de ffmpeg pour Rapido... & echo. & "
            "winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements & "
+           "echo. & echo Termine : tu peux fermer cette fenetre. & pause")
+    subprocess.Popen(["cmd", "/c", cmd], creationflags=CREATE_NEW_CONSOLE)
+    return {"ok": True}
+
+
+@app.post("/api/tools/deno")
+async def install_deno():
+    """Deno = moteur JavaScript dont yt-dlp a besoin pour toutes les qualites YouTube."""
+    if not IS_WINDOWS:
+        raise HTTPException(400, "Uniquement sous Windows")
+    cmd = ("echo Installation de Deno pour Rapido (qualites YouTube completes)... & echo. & "
+           "winget install -e --id DenoLand.Deno --accept-source-agreements --accept-package-agreements & "
            "echo. & echo Termine : tu peux fermer cette fenetre. & pause")
     subprocess.Popen(["cmd", "/c", cmd], creationflags=CREATE_NEW_CONSOLE)
     return {"ok": True}

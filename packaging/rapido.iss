@@ -2,7 +2,7 @@
 ; Compile par GitHub Actions :  ISCC.exe /DAppVersion=1.0.0 packaging\rapido.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.2.1"
+  #define AppVersion "1.2.2"
 #endif
 
 [Setup]
