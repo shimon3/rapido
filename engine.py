@@ -330,7 +330,29 @@ class Manager:
         self.on_exit = None              # callback pour quitter l'application
         self.loop: asyncio.AbstractEventLoop | None = None
         self._clip_last = ""
+        # Choix de langue de l'installation uniquement si aucune preference n'existe.
+        if not self.settings_file.exists() or not self._saved_language_present():
+            self.settings["language"] = self._installer_language()
         self._load()
+
+    def _saved_language_present(self) -> bool:
+        try:
+            saved = json.loads(self.settings_file.read_text("utf-8"))
+            return saved.get("language") in ("fr", "en", "he")
+        except (OSError, ValueError, TypeError):
+            return False
+
+    @staticmethod
+    def _installer_language() -> str:
+        if not IS_WINDOWS:
+            return "fr"
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\\Rapido") as key:
+                language, _ = winreg.QueryValueEx(key, "InstallerLanguage")
+            return language if language in ("fr", "en", "he") else "fr"
+        except OSError:
+            return "fr"
 
     # ---------- persistance ----------
     def _load(self):
