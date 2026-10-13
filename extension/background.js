@@ -110,6 +110,11 @@ async function captureViaNative(url, referrer, filename){
     throw new Error("Capture native refusée");
 }
 async function captureFile(url, referrer, filename) {
+  // S3: context-menu captures must obey the same fail-closed session policy
+  // as automatic downloads; no browser session details cross native messaging.
+  if (await needsBrowserSession(url)) throw new Error("Capture privée laissée à Chrome (S3)");
+  if (referrer && await needsBrowserSession(referrer))
+    throw new Error("Page de connexion laissée à Chrome (S3)");
   await captureViaNative(url, referrer, filename);
   flash("✓", "#1f6f5c");
 }
