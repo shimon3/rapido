@@ -47,3 +47,29 @@ def test_local_api_unavailable_returns_error_without_success():
                "referrer": None, "filename": None}
     with patch("native_host.urllib.request.urlopen", side_effect=OSError("offline")):
         assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
+
+
+
+def test_referrer_credentials_are_rejected_without_http_call():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": "https://alice:secret@example.org/path", "filename": None}
+    with patch("native_host.urllib.request.urlopen") as network:
+        assert handle_message(payload) == {"type": "error", "code": "invalid_capture"}
+        network.assert_not_called()
+
+
+def test_native_host_strips_referrer_query_and_fragment():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": "https://example.org/page?token=secret#private", "filename": None}
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, *args): return b'{"id":"abcdef12"}'
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()) as network:
+        assert handle_message(payload) == {"type": "capture_result", "ok": True}
+    body = json.loads(network.call_args.args[0].data)
+    assert body["headers"]["Referer"] == "https://example.org/page"
+    assert "secret" not in json.dumps(body["headers"])
