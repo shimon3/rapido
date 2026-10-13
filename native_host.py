@@ -13,6 +13,18 @@ import sys
 MAX_MESSAGE_BYTES = 64 * 1024
 
 
+def _read_exact(stream, size):
+    chunks = []
+    remaining = size
+    while remaining:
+        part = stream.read(remaining)
+        if not part:
+            raise ValueError("Incomplete native messaging frame")
+        chunks.append(part)
+        remaining -= len(part)
+    return b"".join(chunks)
+
+
 def read_message(stream):
     header = stream.read(4)
     if not header:
@@ -22,12 +34,12 @@ def read_message(stream):
     size = struct.unpack("<I", header)[0]
     if size < 1 or size > MAX_MESSAGE_BYTES:
         raise ValueError("Invalid native messaging message length")
-    payload = stream.read(size)
-    if len(payload) != size:
-        raise ValueError("Incomplete native messaging payload")
+    payload = _read_exact(stream, size)
     data = json.loads(payload.decode("utf-8"))
     if not isinstance(data, dict):
         raise ValueError("Expected object")
+    if len(data) > 8 or any(not isinstance(key, str) for key in data):
+        raise ValueError("Invalid native messaging object")
     return data
 
 
