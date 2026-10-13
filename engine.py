@@ -15,6 +15,8 @@ import asyncio
 import contextlib
 import ctypes
 import datetime as dt
+import errno
+import email.utils
 import json
 import os
 import platform
@@ -32,6 +34,37 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import httpx
+
+class ResourceChanged(IOError):
+    """Remote bytes no longer match the resource originally probed."""
+
+
+class ServerBackoff(IOError):
+    def __init__(self, status: int, delay: float):
+        self.delay = delay
+        super().__init__(f"HTTP {status}: server requested retry")
+
+
+def retry_after_seconds(value: str | None) -> float:
+    """Accept Retry-After seconds or HTTP dates; cap untrusted delays at 60 s."""
+    if not value:
+        return 0.0
+    try:
+        seconds = float(value.strip())
+        if not (0 <= seconds < float("inf")):
+            return 0.0
+        return min(seconds, 60.0)
+    except (ValueError, AttributeError, OverflowError):
+        pass
+    try:
+        when = email.utils.parsedate_to_datetime(value)
+        if when.tzinfo is None:
+            return 0.0
+        now = dt.datetime.now(dt.timezone.utc)
+        return min(60.0, max(0.0, (when - now).total_seconds()))
+    except (ValueError, TypeError, OverflowError):
+        return 0.0
+
 
 CHUNK = 256 * 1024            # taille des blocs lus sur le reseau
 MIN_SEGMENT = 1024 * 1024     # on ne decoupe pas en morceaux de moins de 1 Mo
@@ -202,6 +235,8 @@ class Download:
     path: str = ""              # chemin final
     size: int = -1              # -1 = inconnue
     resumable: bool = False
+    etag: str = ""
+    last_modified: str = ""
     connections: int = 8
     status: str = "queued"      # pending | queued | downloading | paused | completed | error
     later: bool = False         # dans la file d'attente (attend le planificateur / "Demarrer la file")
@@ -760,6 +795,8 @@ class Manager:
             else:
                 size = int(r.headers.get("content-length", -1) or -1)
                 resumable = False
+            dl.etag = r.headers.get("etag", "")
+            dl.last_modified = r.headers.get("last-modified", "")
             name = filename_from_headers(r.headers, final_url)
             ctype = r.headers.get("content-type", "")
             if "." not in name and "/" in ctype:
@@ -885,11 +922,23 @@ class Manager:
             before = seg.done
             if dl.resumable:
                 headers["Range"] = f"bytes={pos}-{seg.end}"
+                if dl.etag and not dl.etag.startswith("W/"):
+                    headers["If-Range"] = dl.etag
+                elif dl.last_modified:
+                    headers["If-Range"] = dl.last_modified
             try:
                 dl.active_connections += 1
                 async with self.client.stream("GET", dl.url, headers=headers) as r:
+                    if r.status_code in (429, 503):
+                        raise ServerBackoff(r.status_code, retry_after_seconds(r.headers.get("retry-after")))
                     r.raise_for_status()
                     if dl.resumable:
+                        got_etag = r.headers.get("etag", "")
+                        if dl.etag and got_etag and got_etag != dl.etag:
+                            raise ResourceChanged("ETag changed during resumable download")
+                        got_modified = r.headers.get("last-modified", "")
+                        if dl.last_modified and got_modified and got_modified != dl.last_modified:
+                            raise ResourceChanged("Last-Modified changed during resumable download")
                         if r.status_code != 206:
                             raise IOError("Le serveur a cesse d'accepter la reprise (Range)")
                         # E2 : la plage recue doit commencer exactement la ou on l'a demandee,
@@ -931,12 +980,19 @@ class Manager:
                 raise IOError("Le serveur n'envoie plus de donnees pour ce segment")
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                # une coupure apres avoir progresse ne compte pas comme un echec
-                attempt = 1 if seg.done > before else attempt + 1
-                if attempt > MAX_RETRIES or not dl.resumable:
+            except Exception as exc:
+                # Disk-full and changed resources must never be retried as network errors.
+                if isinstance(exc, (ResourceChanged, OSError)) and (
+                    isinstance(exc, ResourceChanged) or getattr(exc, "errno", None) in (errno.ENOSPC, errno.EDQUOT)
+                ):
                     raise
-                await asyncio.sleep(min(2 ** attempt, 20) * RETRY_DELAY)
+                attempt = 1 if seg.done > before else attempt + 1
+                if attempt > MAX_RETRIES or (not dl.resumable and not isinstance(exc, ServerBackoff)):
+                    raise
+                delay = min(2 ** attempt, 20) * RETRY_DELAY
+                if isinstance(exc, ServerBackoff):
+                    delay = max(delay, exc.delay)
+                await asyncio.sleep(delay)
             finally:
                 dl.active_connections = max(0, dl.active_connections - 1)
 
