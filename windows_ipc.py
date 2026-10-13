@@ -35,3 +35,15 @@ def require_windows_identity_policy(*, user_sid: str, process_id: int) -> None:
 def open_authenticated_pipe(*args, **kwargs):
     """Do not create an IPC listener until ACL and impersonation are implemented."""
     raise NotImplementedError("Authenticated Windows named-pipe transport not yet implemented")
+
+
+def pipe_security_sddl(user_sid: str) -> str:
+    """Minimal explicit DACL candidate for a future Windows named pipe.
+
+    Grants the specified user only read/write access, SYSTEM full control;
+    does not grant Everyone, anonymous or administrators by default.
+    This SDDL MUST still be attached to CreateNamedPipeW and client identity
+    must be verified after connection. It does not authenticate by itself.
+    """
+    require_windows_identity_policy(user_sid=user_sid, process_id=1)
+    return "D:P(A;;0x12019f;;;SY)(A;;0x12019f;;;" + user_sid + ")"
