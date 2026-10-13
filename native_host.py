@@ -26,11 +26,10 @@ def _read_exact(stream, size):
 
 
 def read_message(stream):
-    header = stream.read(4)
-    if not header:
+    first = stream.read(1)
+    if not first:
         return None
-    if len(header) != 4:
-        raise ValueError("Incomplete native messaging header")
+    header = first + _read_exact(stream, 3)
     size = struct.unpack("<I", header)[0]
     if size < 1 or size > MAX_MESSAGE_BYTES:
         raise ValueError("Invalid native messaging message length")
