@@ -40,3 +40,17 @@ def test_authenticated_native_capture_uses_existing_capture_flow():
             assert response.status_code == 200
             assert response.json()["id"] == "test"
             assert capture.called
+
+
+def test_browser_context_cannot_call_native_route_even_with_valid_token():
+    token = app._LOCAL_AUTH.token_for_trusted_transport()
+    with TestClient(app.app) as client:
+        for extra in (
+            {"origin": "http://127.0.0.1:9614"},
+            {"origin": "chrome-extension://hlpkfnodjoglfdiekijebbppfgkjkbmp"},
+            {"sec-fetch-site": "same-origin"},
+        ):
+            response = client.post("/api/native/capture",
+                json={"url":"https://example.org/file.zip"},
+                headers={"host":"127.0.0.1:9614", "authorization":"Bearer " + token, **extra})
+            assert response.status_code == 403
