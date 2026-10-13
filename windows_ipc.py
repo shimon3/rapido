@@ -17,7 +17,7 @@ def validate_pipe_name(name: str) -> str:
         raise ValueError("Invalid pipe name")
     if not re.fullmatch(r"Rapido-[A-Za-z0-9_-]{16,64}", name):
         raise ValueError("Invalid pipe name")
-    return r"\\.\pipe\" + name
+    return "\\\\.\\pipe\\" + name
 
 
 def require_windows_identity_policy(*, user_sid: str, process_id: int) -> None:
