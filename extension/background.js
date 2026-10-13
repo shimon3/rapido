@@ -115,7 +115,16 @@ async function captureFile(url, referrer, filename) {
   if (await needsBrowserSession(url)) throw new Error("Capture privée laissée à Chrome (S3)");
   if (referrer && await needsBrowserSession(referrer))
     throw new Error("Page de connexion laissée à Chrome (S3)");
-  await captureViaNative(url, referrer, filename);
+  // Never disclose referrer query strings or fragments (often contain session tokens).
+  let safeReferrer = null;
+  if (referrer) {
+    const originUrl = new URL(referrer);
+    if (!["http:", "https:"].includes(originUrl.protocol) ||
+        originUrl.username || originUrl.password)
+      throw new Error("Referrer non sécurisé (S3)");
+    safeReferrer = originUrl.origin + originUrl.pathname;
+  }
+  await captureViaNative(url, safeReferrer, filename);
   flash("✓", "#1f6f5c");
 }
 
