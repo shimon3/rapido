@@ -9,6 +9,9 @@ from __future__ import annotations
 import json
 import struct
 import sys
+import urllib.request
+import urllib.error
+from urllib.parse import urlsplit
 
 MAX_MESSAGE_BYTES = 64 * 1024
 
@@ -51,11 +54,49 @@ def write_message(stream, data):
     stream.flush()
 
 
+def _safe_public_capture(data):
+    """Constrained Chrome->native->local API bridge; API S2 still needs authentication."""
+    if set(data) != {"type", "url", "referrer", "filename"}:
+        return {"type": "error", "code": "invalid_capture"}
+    url = data.get("url")
+    referrer = data.get("referrer")
+    filename = data.get("filename")
+    if not isinstance(url, str) or len(url) > 4096:
+        return {"type": "error", "code": "invalid_capture"}
+    parsed = urlsplit(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+        return {"type": "error", "code": "invalid_capture"}
+    if referrer is not None and (not isinstance(referrer, str) or len(referrer) > 4096):
+        return {"type": "error", "code": "invalid_capture"}
+    if filename is not None and (not isinstance(filename, str) or len(filename) > 255 or
+                                 any(ch in filename for ch in "/\\\\\r\n")):
+        return {"type": "error", "code": "invalid_capture"}
+    headers = {}
+    if referrer and urlsplit(referrer).scheme in ("http", "https"):
+        headers["Referer"] = referrer
+    body = json.dumps({"url": url, "filename": filename, "headers": headers,
+                       "open_window": True}).encode("utf-8")
+    try:
+        request = urllib.request.Request("http://127.0.0.1:9614/api/capture",
+                                         data=body, headers={"Content-Type": "application/json"},
+                                         method="POST")
+        with urllib.request.urlopen(request, timeout=6) as response:
+            if response.status != 200:
+                return {"type": "error", "code": "rapido_unavailable"}
+            result = json.load(response)
+        return {"type": "capture_result", "ok": True} if isinstance(result.get("id"), str) else {
+            "type": "error", "code": "rapido_unavailable"}
+    except (OSError, ValueError, urllib.error.URLError):
+        return {"type": "error", "code": "rapido_unavailable"}
+
+
 def handle_message(data):
     if data.get("type") == "ping" and set(data) == {"type"}:
         return {"type": "pong", "protocol": 1}
     if data.get("type") == "capabilities" and set(data) == {"type"}:
-        return {"type": "capabilities", "protocol": 1, "features": ["ping"]}
+        return {"type": "capabilities", "protocol": 1, "features": ["ping", "capture_public"]}
+    if data.get("type") == "capture_public":
+        return _safe_public_capture(data)
     return {"type": "error", "code": "unsupported_message"}
 
 
