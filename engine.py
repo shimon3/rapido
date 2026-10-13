@@ -348,7 +348,7 @@ class Manager:
             return "fr"
         try:
             import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\\Rapido") as key:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Rapido") as key:
                 language, _ = winreg.QueryValueEx(key, "InstallerLanguage")
             return language if language in ("fr", "en", "he") else "fr"
         except OSError:
