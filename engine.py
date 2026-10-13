@@ -292,6 +292,7 @@ class Manager:
         self.settings_file = data_dir / "settings.json"
         self.settings = {
             "download_dir": str(Path.home() / "Downloads" / "Rapido"),
+            "language": "fr",            # fr | en | he ; independant de la langue de l'installateur
             "max_concurrent": 3,
             "connections": 8,
             "sort_by_category": True,
