@@ -312,6 +312,16 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
 
 <div class="drop" id="drop">Dépose le lien pour le télécharger</div>
 <div class="toast" id="toast"></div>
+<!-- Notification de version : aucune exécution automatique. -->
+<div id="updateNotice" role="status" aria-live="polite" style="display:none;position:fixed;z-index:999;right:20px;bottom:20px;max-width:360px;padding:16px;border-radius:12px;background:var(--bg,#fff);border:1px solid var(--line,#ccc);box-shadow:0 4px 22px #0003">
+  <strong id="updateNoticeTitle">Nouvelle version disponible</strong>
+  <p id="updateNoticeText"></p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button type="button" class="btn primary" id="updateNoticeView">Voir la mise à jour</button>
+    <button type="button" class="btn" id="updateNoticeLater">Plus tard</button>
+    <button type="button" class="btn" id="updateNoticeIgnore">Ignorer cette version</button>
+  </div>
+</div>
 
 <script>
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -560,6 +570,48 @@ document.addEventListener("drop", e => {
   const urls = t.split(/\s+/).filter(u => /^https?:\/\//i.test(u));
   if(urls.length) addUrls(urls);
 });
+
+/* ---------- notifications de mise à jour (aucune installation non vérifiée) ---------- */
+const updateNotice = $("#updateNotice");
+let availableUpdate = null;
+let updateCheckedAt = 0;
+function updateNoticeText(key){
+  const tr = {
+    fr:["Nouvelle version disponible","Rapido ","Voir la mise à jour","Plus tard","Ignorer cette version"],
+    en:["New version available","Rapido ","View update","Later","Ignore this version"],
+    he:["קיימת גרסה חדשה","Rapido ","הצג עדכון","מאוחר יותר","התעלם מגרסה זו"]
+  };
+  return (tr[document.documentElement.lang] || tr.fr)[key];
+}
+async function pollRapidoUpdate(){
+  if(document.visibilityState === "hidden" || $("#dHelp").open) return;
+  try {
+    const s = await api("/api/updates/check");
+    updateCheckedAt = Date.now();
+    if(!s.update_available || !/^\\d+\\.\\d+\\.\\d+$/.test(s.latest)) return;
+    const ignored = localStorage.getItem("rapido-ignored-update");
+    if(ignored === s.latest) return;
+    availableUpdate = s;
+    $("#updateNoticeTitle").textContent = updateNoticeText(0);
+    $("#updateNoticeText").textContent = updateNoticeText(1) + s.latest;
+    $("#updateNoticeView").textContent = updateNoticeText(2);
+    $("#updateNoticeLater").textContent = updateNoticeText(3);
+    $("#updateNoticeIgnore").textContent = updateNoticeText(4);
+    updateNotice.style.display = "";
+  }catch(_err){ /* Réseau absent : silencieux, aucune opération sur les téléchargements. */ }
+}
+$("#updateNoticeLater").onclick = () => { updateNotice.style.display = "none"; };
+$("#updateNoticeIgnore").onclick = () => {
+  if(availableUpdate) localStorage.setItem("rapido-ignored-update", availableUpdate.latest);
+  updateNotice.style.display = "none";
+};
+$("#updateNoticeView").onclick = () => {
+  if(!availableUpdate) return;
+  updateNotice.style.display = "none";
+  $("#tHelp").click();
+};
+setTimeout(pollRapidoUpdate, 15000);
+setInterval(pollRapidoUpdate, 6 * 60 * 60 * 1000);
 
 /* ---------- aide et mises à jour ---------- */
 async function checkRapidoUpdates(){
