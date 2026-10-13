@@ -4,7 +4,7 @@ from native_host import handle_message
 
 def test_native_capabilities_do_not_advertise_privileged_commands():
     assert handle_message({"type": "capabilities"}) == {
-        "type": "capabilities", "protocol": 1, "features": ["ping"]
+        "type": "capabilities", "protocol": 1, "features": ["ping", "capture_public"]
     }
     assert handle_message({"type": "capabilities", "cookies": True})["code"] == "unsupported_message"
 
