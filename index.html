@@ -96,6 +96,8 @@ input[type=text],input[type=number],input[type=time],select,textarea{width:100%;
 textarea{font-family:var(--mono);font-size:12px;resize:vertical}
 .chk{display:flex;align-items:center;gap:8px;margin-top:10px}
 .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+.steps{margin:8px 0 6px;padding-left:20px;display:flex;flex-direction:column;gap:6px;color:var(--ink)}
+button.btn.mini{padding:2px 8px;font-size:11px;margin-left:4px}
 .hint code{font-family:var(--mono);font-size:11px;word-break:break-all;color:var(--ink)}
 .days{display:flex;gap:4px;flex-wrap:wrap}
 .days label{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:6px;padding:4px 8px}
@@ -242,8 +244,17 @@ button.btn.primary{background:var(--accent);border-color:var(--accent);color:var
         <button class="btn" type="button" id="oFfInstall">Installer ffmpeg automatiquement</button>
         <label class="f">Extension Chrome (capture des téléchargements et bouton sur les vidéos)</label>
         <button class="btn" type="button" id="oExt">Installer l'extension Chrome…</button>
-        <p class="hint" id="oExtInfo" style="display:none">Dans la page qui s'ouvre : active le <b>Mode développeur</b> (en haut à droite),
-          clique sur <b>Charger l'extension non empaquetée</b> et choisis le dossier qui vient de s'ouvrir :<br><code id="oExtPath"></code></p>
+        <div class="hint" id="oExtInfo" style="display:none">
+          <ol class="steps">
+            <li>Dans Chrome, colle cette adresse dans la barre d'adresse puis Entrée :
+              <code>chrome://extensions</code> <button class="btn mini" type="button" data-copy="chrome://extensions">Copier</button></li>
+            <li>Active <b>Mode développeur</b> (en haut à droite).</li>
+            <li>Clique sur <b>Charger l'extension non empaquetée</b>, colle ce dossier dans la barre d'adresse de la fenêtre, puis <b>Sélectionner un dossier</b> :
+              <code id="oExtPath"></code> <button class="btn mini" type="button" id="oExtCopy">Copier</button></li>
+            <li>L'identifiant affiché doit être <code>hlpkfnodjoglfdiekijebbppfgkjkbmp</code>.</li>
+          </ol>
+          Avec Edge, l'adresse est <code>edge://extensions</code>.
+        </div>
         <div id="oBrBox">
           <label class="f" for="oBr">Navigateur pour les petites fenêtres (Chrome / Edge)</label>
           <input type="text" id="oBr" placeholder="Détection automatique">
@@ -559,6 +570,14 @@ $("#oFfInstall").onclick = async () => {
     $("#oFfInfo").textContent = "Quand l'installation est finie, rouvre les Options pour vérifier."; }
   catch(err){ toast(err.message); }
 };
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); toast("Copié : " + t); }
+  catch{ toast("Copie impossible : sélectionne le texte et fais Ctrl+C"); }
+}
+$("#oExtInfo").addEventListener("click", e => {
+  const b = e.target.closest("[data-copy]"); if(b) copyText(b.dataset.copy);
+  if(e.target.id === "oExtCopy") copyText($("#oExtPath").textContent);
+});
 $("#oExt").onclick = async () => {
   try{ const r = await api("/api/tools/extension", "POST"); $("#oExtPath").textContent = r.path; $("#oExtInfo").style.display = ""; }
   catch(err){ toast(err.message); }

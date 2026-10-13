@@ -653,15 +653,11 @@ async def install_ffmpeg():
 
 @app.post("/api/tools/extension")
 async def extension_help():
-    """Ouvre le dossier de l'extension et la page des extensions du navigateur."""
+    """Ouvre le dossier de l'extension dans l'Explorateur.
+    (On n'ouvre plus chrome://extensions nous-memes : Chrome refuse les adresses chrome://
+    transmises par un autre programme, il s'ouvrait puis se refermait. L'interface guide
+    l'utilisateur pas a pas a la place.)"""
     _reveal(extension_dir(), select=False)
-    exe = manager._find_browser()
-    if exe:
-        page = "edge://extensions" if "msedge" in exe.lower() else "chrome://extensions"
-        try:
-            subprocess.Popen([exe, page])
-        except OSError:
-            pass
     return {"ok": True, "path": str(extension_dir())}
 
 
