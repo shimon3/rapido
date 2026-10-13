@@ -9,7 +9,8 @@
     "contextMenus",
     "cookies",
     "storage",
-    "webRequest"
+    "webRequest",
+    "nativeMessaging"
   ],
   "host_permissions": [
     "<all_urls>"
