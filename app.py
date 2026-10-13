@@ -340,6 +340,11 @@ async def capture_native(req: CaptureRequest, request: Request):
     A trusted IPC integration must supply this process-local secret securely.
     Do not retrieve it from HTML, /api/settings, extension storage, or logs.
     """
+    # Native-only entrypoint: reject browser-originated requests even when a token is supplied.
+    # These headers alone are not an authentication mechanism; the bearer secret is required.
+    if (request.headers.get("origin") is not None or
+            request.headers.get("sec-fetch-site") is not None):
+        raise HTTPException(status_code=403, detail="Route reservee au transport natif")
     if not _LOCAL_AUTH.header_is_authorized(request.headers.get("authorization")):
         raise HTTPException(status_code=403, detail="Autorisation native requise")
     return await capture(req)
