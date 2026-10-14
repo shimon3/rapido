@@ -181,7 +181,7 @@ jobs:
             if ((Test-Path -LiteralPath $key) -and $null -ne (Get-Item -LiteralPath $key).GetValue('')) { throw "Native registration survived uninstall: $key" }
           }
 
-      - name: Two full installs preserve first registration after second install attempt
+      - name: Installed and portable copies coexist across uninstall
         shell: pwsh
         timeout-minutes: 5
         run: |
@@ -189,7 +189,6 @@ jobs:
           $first = Join-Path $env:RUNNER_TEMP 'rapido-ci-owner'
           $second = Join-Path $env:RUNNER_TEMP 'rapido-ci-other'
           $args1 = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',("/DIR=" + $first))
-          $args2 = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',("/DIR=" + $second))
           $p1 = Start-Process -FilePath $setup -ArgumentList $args1 -PassThru -Wait
           if ($p1.ExitCode -ne 0) { throw "First installer failed: $($p1.ExitCode)" }
           $host1 = Join-Path $first 'RapidoNativeHost.exe'
