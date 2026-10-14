@@ -2,7 +2,7 @@ name: Windows build
 
 on:
   push:
-    branches: [main]
+    branches: [main, security/s2-api-native-migration-20261014]
     tags: ["v*"]
   # Validate stacked PRs too: their base branch changes during security review.
   pull_request:
