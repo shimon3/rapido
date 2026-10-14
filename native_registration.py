@@ -19,11 +19,17 @@ BROWSERS = {
 }
 
 
+def _has_linked_component(path):
+    """Reject a direct symlink or symlinked ancestor without resolving ownership."""
+    candidate = Path(os.path.abspath(path))
+    return any(part.is_symlink() for part in (candidate, *candidate.parents))
+
+
 def _same_path(left, right):
     # A registry owner is the exact manifest pathname, not a path redirected
     # through a symbolic link. Never adopt or remove a foreign registration.
     left, right = Path(left), Path(right)
-    if left.is_symlink() or right.is_symlink():
+    if _has_linked_component(left) or _has_linked_component(right):
         return False
     return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
 
@@ -32,12 +38,12 @@ def manifests(executable, *, name=HOST):
     if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)+", name):
         raise ValueError("Invalid native host name")
     executable = Path(executable)
-    if executable.is_symlink():
+    if _has_linked_component(executable):
         raise ValueError("Native host executable must not be a symbolic link")
     executable = executable.resolve()
     if executable.name != "RapidoNativeHost.exe" or not executable.is_file():
         raise ValueError("Missing packaged native host")
-    if executable.with_name("Rapido.exe").is_symlink():
+    if _has_linked_component(executable.with_name("Rapido.exe")):
         raise ValueError("Desktop executable must not be a symbolic link")
     if not executable.with_name("Rapido.exe").is_file():
         raise ValueError("Missing adjacent Rapido executable")
@@ -91,7 +97,7 @@ class WindowsRegistry:
 
 def _owned_manifest(path, value):
     # Never follow an attacker-controlled manifest link when checking ownership.
-    if path.is_symlink():
+    if _has_linked_component(path):
         return False
     try:
         existing = json.loads(path.read_text(encoding="utf-8"))
