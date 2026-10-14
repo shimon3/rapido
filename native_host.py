@@ -63,8 +63,11 @@ def _safe_public_capture(data):
     filename = data.get("filename")
     if not isinstance(url, str) or len(url) > 4096:
         return {"type": "error", "code": "invalid_capture"}
-    parsed = urlsplit(url)
-    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+    try:
+        parsed = urlsplit(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+            return {"type": "error", "code": "invalid_capture"}
+    except ValueError:
         return {"type": "error", "code": "invalid_capture"}
     if referrer is not None and (not isinstance(referrer, str) or len(referrer) > 4096):
         return {"type": "error", "code": "invalid_capture"}
@@ -73,9 +76,12 @@ def _safe_public_capture(data):
         return {"type": "error", "code": "invalid_capture"}
     headers = {}
     if referrer:
-        parsed_ref = urlsplit(referrer)
-        if (parsed_ref.scheme not in ("http", "https") or not parsed_ref.hostname or
-                parsed_ref.username or parsed_ref.password):
+        try:
+            parsed_ref = urlsplit(referrer)
+            if (parsed_ref.scheme not in ("http", "https") or not parsed_ref.hostname or
+                    parsed_ref.username or parsed_ref.password):
+                return {"type": "error", "code": "invalid_capture"}
+        except ValueError:
             return {"type": "error", "code": "invalid_capture"}
         # Defense in depth: no referrer query or fragment may cross loopback.
         headers["Referer"] = parsed_ref._replace(query="", fragment="").geturl()
