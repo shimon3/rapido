@@ -160,3 +160,22 @@ le registre Windows réel et l’installation/désinstallation compilée. Ils ne
 remplacent pas les essais manuels dans les trois navigateurs : capture, navigation
 privée, hôte absent, redémarrage et installation durable. Aucun paquet n’est publié
 sur les boutiques par cette procédure.
+
+### Protection de l’historique Windows (S3)
+
+Chaque fiche de téléchargement est désormais enregistrée dans une enveloppe
+DPAPI liée au compte Windows : URL signée, cookies, référents, candidats vidéo,
+miniatures, descriptions et messages d’erreur ne sont plus écrits en clair dans
+`downloads.json`. Les anciennes fiches lisibles sont migrées au chargement.
+La reprise conserve l’URL complète après déchiffrement, sans supprimer la
+signature nécessaire au serveur.
+
+Un échec de protection ou une fiche illisible produit un état d’erreur sans URL
+à relancer ; aucun champ en clair voisin d’une enveloppe ne sert de repli.
+Les anciennes versions de Rapido ne savent pas lire ce nouveau format. Les
+copies et sauvegardes d’un ancien historique ne sont pas modifiées.
+
+La marque Windows `Zone.Identifier` conserve `ZoneId=3`, mais ses URL source
+et référente ne contiennent plus que l’origine : chemins, identifiants,
+paramètres et fragments peuvent contenir des jetons et ne sont plus recopiés
+dans ces métadonnées. Les builds de développement hors Windows n’ont pas DPAPI.

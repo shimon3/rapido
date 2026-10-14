@@ -136,7 +136,13 @@ def mark_of_the_web(path: str, url: str, referrer: str = ""):
             netloc = p.hostname or ""
             if p.port:
                 netloc += f":{p.port}"
-            return p._replace(netloc=netloc).geturl().replace("\r", "").replace("\n", "")
+            if p.scheme not in ("http", "https") or not netloc:
+                return ""
+            # ZoneId=3 is preserved; source metadata only needs the origin.
+            # Path, userinfo, query and fragment may all contain bearer tokens.
+            if ":" in (p.hostname or ""):
+                netloc = "[" + p.hostname + "]" + (f":{p.port}" if p.port else "")
+            return p._replace(netloc=netloc, path="/", params="", query="", fragment="").geturl().replace("\r", "").replace("\n", "")
         except Exception:
             return ""
     try:
@@ -253,30 +259,51 @@ class Download:
         d = asdict(self)
         for k in ("speed", "active_connections", "watched"):
             d.pop(k, None)
-        # les cookies de connexion ne sont jamais ecrits en clair sur le disque
+        if IS_WINDOWS:
+            try:
+                # Protect the entire record, including signed URLs, referrers,
+                # candidates, thumbnails and errors which may contain URLs.
+                return {"id": self.id, "private_state_version": 1,
+                        "private_state_enc": protect(json.dumps(d, ensure_ascii=False))}
+            except (OSError, ValueError, TypeError, UnicodeError):
+                # No plaintext fallback, including during DPAPI failure.
+                return {"id": self.id, "url": "", "status": "error",
+                        "error": "Historique prive indisponible : protection Windows en echec."}
+        # Non-Windows development builds have no DPAPI; never persist cookies.
         headers = d.pop("headers", {}) or {}
         d["headers"] = {k: v for k, v in headers.items() if k.lower() != "cookie"}
-        cookie = next((v for k, v in headers.items() if k.lower() == "cookie"), "")
-        if cookie and IS_WINDOWS:
-            try:
-                d["cookie_enc"] = protect(cookie)
-            except OSError:
-                pass
         return d
 
     @classmethod
     def from_disk(cls, d: dict) -> "Download":
+        d = dict(d)
+        sealed = "private_state_enc" in d or "private_state_version" in d
+        if sealed:
+            try:
+                if not IS_WINDOWS or d.get("private_state_version") != 1:
+                    raise ValueError("Unsupported private state")
+                value = json.loads(unprotect(d["private_state_enc"]))
+                if not isinstance(value, dict) or value.get("id") != d.get("id"):
+                    raise ValueError("Invalid private state")
+                d = value
+            except (OSError, ValueError, TypeError, KeyError, UnicodeError):
+                # Never interpret attacker-supplied plaintext fields beside an
+                # unreadable envelope as a URL to resume.
+                return cls(id=str(d.get("id", "")), url="", status="error",
+                           error="Historique prive illisible pour ce compte Windows.")
         segs = [Segment(**s) for s in d.pop("segments", [])]
         cookie_enc = d.pop("cookie_enc", "")
         dl = cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
         dl.segments = segs
-        dl.headers = {k: v for k, v in (dl.headers or {}).items() if k.lower() != "cookie"}
-        if cookie_enc and IS_WINDOWS:
-            try:
-                dl.headers["Cookie"] = unprotect(cookie_enc)
-            except Exception:
-                pass
-        if dl.status == "downloading":     # le programme a ete ferme en plein telechargement
+        if not sealed:
+            # Legacy records may contain encrypted cookies, never trust plain ones.
+            dl.headers = {k: v for k, v in (dl.headers or {}).items() if k.lower() != "cookie"}
+            if cookie_enc and IS_WINDOWS:
+                try:
+                    dl.headers["Cookie"] = unprotect(cookie_enc)
+                except Exception:
+                    pass
+        if dl.status == "downloading":
             dl.status = "queued"
         if dl.probe == "probing":
             dl.probe = ""
@@ -343,9 +370,13 @@ class Manager:
                 pass
         if self.state_file.exists():
             try:
-                for d in json.loads(self.state_file.read_text("utf-8")):
+                records = json.loads(self.state_file.read_text("utf-8"))
+                for d in records:
                     dl = Download.from_disk(d)
                     self.downloads[dl.id] = dl
+                if IS_WINDOWS and any("private_state_enc" not in d for d in records):
+                    # Upgrade loaded legacy history immediately, before startup.
+                    self.save(force=True)
             except Exception:
                 pass
 
