@@ -13,6 +13,8 @@ def test_rejects_invalid_capture_before_http():
         {"type": "capture_public", "url": "https://example.org/a", "referrer": None, "filename": "../evil"},
         {"type": "capture_public", "url": "https://example.org/a", "referrer": None, "filename": "ok", "cookie": "secret"},
         {"type": "capture_public", "url": "https://example.org/a", "referrer": 123, "filename": "ok"},
+        {"type": "capture_public", "url": "https://[broken/a", "referrer": None, "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org/a", "referrer": "https://[broken/a", "filename": "ok"},
     ]
     with patch("native_host.urllib.request.urlopen") as network:
         for payload in bad:
