@@ -110,15 +110,29 @@ async function captureViaNative(url, referrer, filename){
     throw new Error("Capture native refusée");
 }
 async function captureFile(url, referrer, filename) {
-  await captureViaNative(url, referrer, filename);
+  // S3: context-menu captures must obey the same fail-closed session policy
+  // as automatic downloads; no browser session details cross native messaging.
+  if (await needsBrowserSession(url)) throw new Error("Capture privée laissée à Chrome (S3)");
+  if (referrer && await needsBrowserSession(referrer))
+    throw new Error("Page de connexion laissée à Chrome (S3)");
+  // Never disclose referrer query strings or fragments (often contain session tokens).
+  let safeReferrer = null;
+  if (referrer) {
+    const originUrl = new URL(referrer);
+    if (!["http:", "https:"].includes(originUrl.protocol) ||
+        originUrl.username || originUrl.password)
+      throw new Error("Referrer non sécurisé (S3)");
+    safeReferrer = originUrl.origin + originUrl.pathname;
+  }
+  await captureViaNative(url, safeReferrer, filename);
   flash("✓", "#1f6f5c");
 }
 
 async function captureVideo(pageUrl, candidates, referrer) {
-  await post("/api/capture-video", {
-    page_url: pageUrl, candidates, headers: await buildHeaders(pageUrl, referrer), open_window: true,
-  });
-  flash("✓", "#1f6f5c");
+  // S3: video capture still targets an unauthenticated loopback API.
+  // Never send page URLs, candidates or session-derived metadata over that path.
+  // Re-enable only after the native authenticated transport is implemented.
+  throw new Error("Capture vidéo temporairement désactivée : canal sécurisé requis (S3)");
 }
 
 /* ---------- interception des téléchargements ---------- */

@@ -1,8 +1,9 @@
-"""Rapido Chrome Native Messaging protocol prototype (NOT YET REGISTERED).
+"""Rapido Chrome Native Messaging host prototype.
 
-Chrome launches the native host using its authorized extension manifest.
-This minimal host deliberately accepts only a harmless 'ping' message.
-No cookies, filesystem writes or download controls are supported yet.
+Supports ping, capabilities and constrained public-download capture.
+The public capture bridge still targets a legacy unauthenticated loopback API;
+S2 authenticated IPC and protected mutation routes are NOT implemented.
+Never forward browser cookies or other authentication credentials.
 """
 from __future__ import annotations
 
@@ -61,19 +62,35 @@ def _safe_public_capture(data):
     url = data.get("url")
     referrer = data.get("referrer")
     filename = data.get("filename")
-    if not isinstance(url, str) or len(url) > 4096:
+    if not isinstance(url, str) or not url or len(url) > 4096 or any(ord(ch) < 32 or ord(ch) == 127 for ch in url):
         return {"type": "error", "code": "invalid_capture"}
-    parsed = urlsplit(url)
-    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+    try:
+        parsed = urlsplit(url)
+        # Accessing .port rejects malformed/out-of-range explicit ports.
+        parsed.port
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+            return {"type": "error", "code": "invalid_capture"}
+    except ValueError:
         return {"type": "error", "code": "invalid_capture"}
-    if referrer is not None and (not isinstance(referrer, str) or len(referrer) > 4096):
+    if referrer is not None and (not isinstance(referrer, str) or len(referrer) > 4096 or
+                                 any(ord(ch) < 32 or ord(ch) == 127 for ch in referrer)):
         return {"type": "error", "code": "invalid_capture"}
     if filename is not None and (not isinstance(filename, str) or len(filename) > 255 or
-                                 any(ch in filename for ch in "/\\\\\r\n")):
+                                 any(ch in filename for ch in "/\\\\\r\n") or
+                                 any(ord(ch) < 32 or ord(ch) == 127 for ch in filename)):
         return {"type": "error", "code": "invalid_capture"}
     headers = {}
-    if referrer and urlsplit(referrer).scheme in ("http", "https"):
-        headers["Referer"] = referrer
+    if referrer:
+        try:
+            parsed_ref = urlsplit(referrer)
+            parsed_ref.port
+            if (parsed_ref.scheme not in ("http", "https") or not parsed_ref.hostname or
+                    parsed_ref.username or parsed_ref.password):
+                return {"type": "error", "code": "invalid_capture"}
+        except ValueError:
+            return {"type": "error", "code": "invalid_capture"}
+        # Defense in depth: no referrer query or fragment may cross loopback.
+        headers["Referer"] = parsed_ref._replace(query="", fragment="").geturl()
     body = json.dumps({"url": url, "filename": filename, "headers": headers,
                        "open_window": True}).encode("utf-8")
     try:
@@ -83,8 +100,12 @@ def _safe_public_capture(data):
         with urllib.request.urlopen(request, timeout=6) as response:
             if response.status != 200:
                 return {"type": "error", "code": "rapido_unavailable"}
-            result = json.load(response)
-        return {"type": "capture_result", "ok": True} if isinstance(result.get("id"), str) else {
+            # Bound untrusted loopback responses before decoding JSON.
+            raw = response.read(65537)
+            if len(raw) > 65536:
+                return {"type": "error", "code": "rapido_unavailable"}
+            result = json.loads(raw)
+        return {"type": "capture_result", "ok": True} if isinstance(result, dict) and isinstance(result.get("id"), str) else {
             "type": "error", "code": "rapido_unavailable"}
     except (OSError, ValueError, urllib.error.URLError):
         return {"type": "error", "code": "rapido_unavailable"}

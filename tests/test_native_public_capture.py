@@ -13,6 +13,16 @@ def test_rejects_invalid_capture_before_http():
         {"type": "capture_public", "url": "https://example.org/a", "referrer": None, "filename": "../evil"},
         {"type": "capture_public", "url": "https://example.org/a", "referrer": None, "filename": "ok", "cookie": "secret"},
         {"type": "capture_public", "url": "https://example.org/a", "referrer": 123, "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org/a", "referrer": None, "filename": "bad\tname"},
+        {"type": "capture_public", "url": "https://example.org/a", "referrer": None, "filename": "bad\x7fname"},
+        {"type": "capture_public", "url": "https://example.org/a\r\nInjected: yes", "referrer": None, "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org/a", "referrer": "https://example.org/\tpath", "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org/a\x7f", "referrer": None, "filename": "ok"},
+        {"type": "capture_public", "url": "https://[broken/a", "referrer": None, "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org:bad/a", "referrer": None, "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org:99999/a", "referrer": None, "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org/a", "referrer": "https://example.org:bad/path", "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org/a", "referrer": "https://[broken/a", "filename": "ok"},
     ]
     with patch("native_host.urllib.request.urlopen") as network:
         for payload in bad:
@@ -46,4 +56,91 @@ def test_local_api_unavailable_returns_error_without_success():
     payload = {"type": "capture_public", "url": "https://example.org/a.zip",
                "referrer": None, "filename": None}
     with patch("native_host.urllib.request.urlopen", side_effect=OSError("offline")):
+        assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
+
+
+
+def test_referrer_credentials_are_rejected_without_http_call():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": "https://alice:secret@example.org/path", "filename": None}
+    with patch("native_host.urllib.request.urlopen") as network:
+        assert handle_message(payload) == {"type": "error", "code": "invalid_capture"}
+        network.assert_not_called()
+
+
+def test_native_host_strips_referrer_query_and_fragment():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": "https://example.org/page?token=secret#private", "filename": None}
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, *args): return b'{"id":"abcdef12"}'
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()) as network:
+        assert handle_message(payload) == {"type": "capture_result", "ok": True}
+    body = json.loads(network.call_args.args[0].data)
+    assert body["headers"]["Referer"] == "https://example.org/page"
+    assert "secret" not in json.dumps(body["headers"])
+
+
+def test_local_api_non_object_reply_fails_closed():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": None, "filename": None}
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, *args): return b'["not", "an", "object"]'
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+        assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
+
+
+def test_oversized_loopback_reply_is_rejected():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": None, "filename": None}
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, size=-1):
+            assert size == 65537
+            return b" " * 65537
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+        assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
+
+
+def test_loopback_reply_at_size_limit_is_accepted():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": None, "filename": None}
+    reply = b'{"id":"ok"}' + b" " * (65536 - len(b'{"id":"ok"}'))
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, size=-1):
+            assert size == 65537
+            return reply
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+        assert handle_message(payload) == {"type": "capture_result", "ok": True}
+
+
+def test_malformed_loopback_json_fails_closed():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": None, "filename": None}
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, size=-1): return b'{"id":'
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()):
         assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
