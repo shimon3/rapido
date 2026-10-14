@@ -70,7 +70,8 @@ def test_client_pid_discovery_refuses_non_windows_and_invalid_handles():
         with pytest.raises(OSError):
             connected_client_pid(1)
         return
-    for invalid in (0, -1, True, None, "handle"):
+    import ctypes
+    for invalid in (0, -1, ctypes.c_void_p(-1).value, True, None, "handle"):
         with pytest.raises(ValueError):
             connected_client_pid(invalid)
 
@@ -98,7 +99,8 @@ def test_close_restricted_pipe_rejects_invalid_handle():
         with pytest.raises(OSError):
             close_restricted_pipe(1)
         return
-    for bad in (None, False, True, 0, -1, "handle"):
+    import ctypes
+    for bad in (None, False, True, 0, -1, ctypes.c_void_p(-1).value, "handle"):
         with pytest.raises(ValueError):
             close_restricted_pipe(bad)
 
