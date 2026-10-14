@@ -47,6 +47,46 @@ class ApiAuthTests(unittest.TestCase):
             self.assertEqual(client.post("/api/bulk/resume",json={}).status_code,200)
             self.assertNotIn(token,client.get("/").text)
 
+    def test_malformed_bearer_headers_never_authorize_private_api(self):
+        token = app._LOCAL_AUTH.token_for_trusted_transport()
+        invalid = (
+            "", "Bearer", "Bearer ", "Basic " + token,
+            "Bearer " + token + "extra", "Bearer " + token + " ",
+            "Bearer  " + token, "Bearer\\t" + token,
+            "Bearer " + token[:-1], "Bearer " + token + "\\n",
+        )
+        with TestClient(app.app, base_url="http://127.0.0.1:9614") as client:
+            for value in invalid:
+                with self.subTest(value=repr(value)[:25]):
+                    response = client.get("/api/settings", headers={"Authorization": value})
+                    self.assertEqual(response.status_code, 403)
+                    self.assertNotIn(token, response.text)
+
+    def test_valid_token_cannot_override_host_or_origin_policy(self):
+        token = app._LOCAL_AUTH.token_for_trusted_transport()
+        protected = {"Authorization": "Bearer " + token}
+        with TestClient(app.app, base_url="http://127.0.0.1:9614") as client:
+            cases = (
+                {"Host": "attacker.example:9614"},
+                {"Origin": "https://attacker.example"},
+                {"Sec-Fetch-Site": "cross-site"},
+                {"Origin": "http://127.0.0.1:12345", "Sec-Fetch-Site": "same-site"},
+            )
+            for headers in cases:
+                with self.subTest(headers=headers):
+                    response = client.get("/api/settings", headers={**protected, **headers})
+                    self.assertEqual(response.status_code, 403)
+                    self.assertNotIn(token, response.text)
+
+    def test_patch_requires_json_even_with_valid_native_token(self):
+        token = app._LOCAL_AUTH.token_for_trusted_transport()
+        with TestClient(app.app, base_url="http://127.0.0.1:9614") as client:
+            headers = {"Authorization": "Bearer " + token,
+                       "Content-Type": "text/plain"}
+            response = client.patch("/api/settings", content=b"{}", headers=headers)
+            self.assertEqual(response.status_code, 415)
+            self.assertNotIn(token, response.text)
+
     def test_native_rpc_has_no_general_route_or_secret_authority(self):
         for role, request in (("native",{"type":"delete","id":"abcdef"}),
                               ("native",{"type":"auth"}),
