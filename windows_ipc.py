@@ -120,7 +120,9 @@ def close_restricted_pipe(handle):
     import os
     if os.name != "nt":
         raise OSError("Windows named pipes require Windows")
-    if not isinstance(handle, int) or isinstance(handle, bool) or handle <= 0:
+    import ctypes
+    if (not isinstance(handle, int) or isinstance(handle, bool) or
+            handle <= 0 or handle == ctypes.c_void_p(-1).value):
         raise ValueError("Invalid named-pipe handle")
     import ctypes
     from ctypes import wintypes
@@ -143,7 +145,8 @@ def connected_client_pid(pipe_handle) -> int:
         raise OSError("Windows named pipes require Windows")
     import ctypes
     from ctypes import wintypes
-    if not isinstance(pipe_handle, int) or isinstance(pipe_handle, bool) or pipe_handle <= 0:
+    if (not isinstance(pipe_handle, int) or isinstance(pipe_handle, bool) or
+            pipe_handle <= 0 or pipe_handle == ctypes.c_void_p(-1).value):
         raise ValueError("Invalid named-pipe handle")
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     get_pid = kernel.GetNamedPipeClientProcessId
