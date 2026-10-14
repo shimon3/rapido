@@ -26,7 +26,13 @@ class FirefoxProbeTests(unittest.TestCase):
 
     def test_probe_preserves_shipped_manifest_and_background(self):
         target=prepare_probe(self.source,self.root/"probe","http://127.0.0.1:8765")
-        self.assertEqual(json.loads((target/"manifest.json").read_text()),self.manifest)
+        self.assertEqual(json.loads((self.source/"manifest.json").read_text()),self.manifest)
+        probe_manifest=json.loads((target/"manifest.json").read_text())
+        self.assertEqual(probe_manifest["background"]["scripts"],["background.js","smoke_bootstrap.js"])
+        self.assertEqual(probe_manifest["browser_specific_settings"],self.manifest["browser_specific_settings"])
+        self.assertEqual(probe_manifest["manifest_version"],self.manifest["manifest_version"])
+        self.assertIn("chrome.tabs.create", (target/"smoke_bootstrap.js").read_text())
+        self.assertFalse((self.source/"smoke_bootstrap.js").exists())
         self.assertEqual((target/"background.js").read_text(),"original-background")
         self.assertFalse((self.source/"smoke.js").exists())
         self.assertIn('src="smoke.js"',(target/"smoke.html").read_text())
