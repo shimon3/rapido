@@ -25,6 +25,11 @@ class LauncherPolicyTests(unittest.TestCase):
             self.assertFalse(valid_origin("firefox",[r"C:\Other\rapido-native-firefox.json",FIREFOX_ID],EXE))
         self.assertFalse(valid_origin("desktop",[CHROMIUM_ORIGIN],EXE))
 
+    def test_firefox_rejects_linked_manifest_even_with_expected_path(self):
+        # Link detection is independent of lexical manifest path validation.
+        with patch("native_launcher.Path.is_symlink", return_value=True):
+            self.assertFalse(valid_origin("firefox", [r"C:\Rapido\rapido-native-firefox.json", FIREFOX_ID], EXE))
+
     def run_chain(self, parent, args=None):
         child=ProcessIdentity(100,SID,r"c:\rapido\rapidonativehost.exe",200)
         @contextmanager
