@@ -156,6 +156,32 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(self.registry.values,
                          {self.registry.locations(key)[0]: str(alias / path.name)})
 
+    @unittest.skipUnless(os.name == "nt", "Real Windows junction")
+    def test_real_junction_registration_rejected_without_registry_change(self):
+        import subprocess
+        target = self.exe.parent
+        alias = target.parent / ("rapido-junction-" + uuid.uuid4().hex)
+        created = subprocess.run(
+            ["cmd", "/d", "/c", "mklink", "/J", str(alias), str(target)],
+            capture_output=True, text=True, check=True,
+        )
+        self.assertTrue(alias.is_junction(), created.stdout)
+        self.addCleanup(alias.rmdir)
+        with self.assertRaises(ValueError):
+            register(alias / "RapidoNativeHost.exe", registry=self.registry)
+        self.assertFalse(self.registry.values)
+
+        register(self.exe, registry=self.registry)
+        key, path, _ = manifests(self.exe)["firefox"]
+        location = self.registry.locations(key)[0]
+        foreign_path = alias / path.name
+        self.registry.values[location] = str(foreign_path)
+        with self.assertRaises(FileExistsError):
+            register(self.exe, registry=self.registry)
+        unregister(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values, {location: str(foreign_path)})
+        self.assertTrue(alias.is_junction())
+
     @unittest.skipUnless(os.name == "nt", "Windows junction detection")
     def test_junction_install_directory_is_rejected(self):
         from unittest.mock import patch
