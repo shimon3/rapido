@@ -79,7 +79,6 @@ Filename: "{app}\Rapido.exe"; Description: "{cm:LaunchProgram,Rapido}"; Flags: n
 
 [UninstallRun]
 Filename: "{app}\RapidoNativeHost.exe"; Parameters: "--unregister-native-hosts"; Flags: runhidden waituntilterminated; RunOnceId: "UnregisterNativeHosts"
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im Rapido.exe"; Flags: runhidden; RunOnceId: "StopRapido"
 
 [Code]
 // Ferme Rapido s'il tourne (mise a jour par-dessus une version deja installee)
