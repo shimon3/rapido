@@ -19,6 +19,9 @@ def test_rejects_invalid_capture_before_http():
         {"type": "capture_public", "url": "https://example.org/a", "referrer": "https://example.org/\tpath", "filename": "ok"},
         {"type": "capture_public", "url": "https://example.org/a\x7f", "referrer": None, "filename": "ok"},
         {"type": "capture_public", "url": "https://[broken/a", "referrer": None, "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org:bad/a", "referrer": None, "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org:99999/a", "referrer": None, "filename": "ok"},
+        {"type": "capture_public", "url": "https://example.org/a", "referrer": "https://example.org:bad/path", "filename": "ok"},
         {"type": "capture_public", "url": "https://example.org/a", "referrer": "https://[broken/a", "filename": "ok"},
     ]
     with patch("native_host.urllib.request.urlopen") as network:
