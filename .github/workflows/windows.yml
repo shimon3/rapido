@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  # Validate stacked PRs too: their base branch changes during security review.
   pull_request:
-    branches: [main, security/s2-auth-core, security/native-messaging-prototype, security/s2-auth-enforcement-tests]
   workflow_dispatch:
 
 # Droits minimum par defaut ; seul le job de compilation peut publier une release.
