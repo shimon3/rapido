@@ -37,7 +37,8 @@ LEGACY_MUTATIONS = {
     ("POST", "/api/tools/deno"),
     ("POST", "/api/tools/extension"),
 }
-AUTHENTICATED_MUTATIONS = {("POST", "/api/native/capture")}
+AUTHENTICATED_MUTATIONS = {("POST", "/api/native/capture"),
+    ("POST", "/api/downloads/{dl_id}/recover-handoff")}
 
 
 def test_explicit_mutation_inventory_prevents_unreviewed_routes():

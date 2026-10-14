@@ -193,16 +193,22 @@ du binaire, et DPAPI ne sépare pas les programmes du même compte Windows.
 La protection complète contre le remplacement du host ou de sa registration
 reste à valider avec une ancre de confiance système et une politique d'exécution.
 
-### Annulation du téléchargement original
+### Transfert préparé et récupération
 
-Après acceptation native, Rapido ne supprime l'entrée du navigateur que si
-l'annulation réussit. Si le navigateur refuse l'annulation (par exemple parce
-que le fichier est déjà terminé), l'entrée reste visible et aucune requête
-de remplacement n'est lancée. Les événements déjà complets ou interrompus
-ne déclenchent pas une nouvelle capture.
+La capture automatique exige désormais la capacité native `capture_handoff`.
+Rapido enregistre d'abord une préparation chiffrée, sans démarrer de réseau,
+sonde ou fenêtre. L'extension annule ensuite le téléchargement du navigateur,
+puis valide la préparation. Si l'annulation échoue, elle abandonne la préparation.
+La validation répétée du même ticket ne crée pas une deuxième capture, y compris
+après redémarrage de Rapido. Le ticket n'apparaît pas dans les réponses HTTP.
 
-Le transfert entre deux applications n'est pas encore transactionnel :
-une capture native déjà acceptée ne peut pas être retirée par ce protocole
-si l'annulation navigateur échoue. Une double capture reste donc possible
-dans ce cas ; un futur protocole de préparation/validation/abandon est
-nécessaire pour résoudre cette course complètement.
+Si la validation reste incertaine, l'historique navigateur n'est pas effacé.
+Une préparation persistée apparaît comme « Transfert interrompu » dans Rapido :
+double-cliquer permet de la récupérer après confirmation que le téléchargement
+du navigateur est arrêté. Les préparations sont limitées à 128. Aucune récupération
+ambiguë n'est lancée automatiquement. La capture par menu contextuel garde son
+protocole direct, puisqu'elle n'annule pas un téléchargement existant.
+
+Ce protocole traite l'échec d'annulation sans démarrer une capture native.
+Il ne constitue pas une transaction atomique entre deux applications ou une
+preuve contre le remplacement des exécutables ; ces limites restent explicites.

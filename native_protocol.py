@@ -24,3 +24,18 @@ def public_capture(data):
     elif referrer is not None and referrer != "":
         raise ValueError("Invalid referrer")
     return {"url":url, "referrer":safe_referrer, "filename":filename}
+
+
+def handoff_message(data):
+    if not isinstance(data,dict):
+        raise ValueError("Invalid handoff")
+    kind=data.get("type")
+    if kind=="capture_prepare":
+        return kind,public_capture({**data,"type":"capture_public"})
+    if kind not in ("capture_commit","capture_abort") or set(data)!={"type","ticket"}:
+        raise ValueError("Invalid handoff")
+    ticket=data["ticket"]
+    if not isinstance(ticket,str) or len(ticket)!=64 or any(c not in "0123456789abcdef" for c in ticket):
+        raise ValueError("Invalid handoff ticket")
+    return kind,ticket
+
