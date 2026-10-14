@@ -214,6 +214,7 @@ class Download:
     error: str = ""
     description: str = ""
     segments: list[Segment] = field(default_factory=list)
+    handoff_ticket: str = ""    # private capability; never returned by to_public
     headers: dict = field(default_factory=dict)   # cookies / referer envoyes par l'extension
     created: float = field(default_factory=time.time)
     last_try: float = 0
@@ -248,6 +249,7 @@ class Download:
         d = asdict(self)
         d["downloaded"] = self.downloaded
         d.pop("headers", None)
+        d.pop("handoff_ticket", None)
         d["segments"] = [{"start": s.start, "end": s.end, "done": s.done} for s in self.segments]
         eta = -1
         if self.size > 0 and self.speed > 0:
@@ -380,14 +382,15 @@ class Manager:
             except Exception:
                 pass
 
-    def save(self, force: bool = False):
+    def save(self, force: bool = False, protected_record=None):
         now = time.monotonic()
         if not force and now - self._last_save < SAVE_EVERY:
             return
         self._last_save = now
         tmp = self.state_file.with_suffix(".tmp")
         tmp.write_text(
-            json.dumps([d.to_disk() for d in self.downloads.values()], ensure_ascii=False, indent=1),
+            json.dumps([protected_record[1] if protected_record and d.id == protected_record[0]
+                        else d.to_disk() for d in self.downloads.values()], ensure_ascii=False, indent=1),
             "utf-8",
         )
         os.replace(tmp, self.state_file)
@@ -669,6 +672,8 @@ class Manager:
     def redownload(self, dl_id: str):
         """Recommence un telechargement termine ou en erreur depuis zero."""
         dl = self.downloads[dl_id]
+        if dl.status == "handoff":
+            raise ValueError("Recover the interrupted handoff before restarting")
         if dl.path:
             Path(dl.path + ".part").unlink(missing_ok=True)
         dl.segments, dl.path, dl.v_base, dl.v_done = [], "", 0, 0

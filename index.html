@@ -376,6 +376,7 @@ function renderSide(){
 
 function statusCell(d){
   const pct = d.size > 0 ? d.downloaded / d.size * 100 : 0;
+  if(d.status === "handoff") return `<div class="st err"><b>Transfert interrompu</b><small>Double-clique pour récupérer</small></div>`;
   if(d.status === "completed") return `<div class="st"><b>Terminé</b></div>`;
   if(d.status === "error") return `<div class="st err" title="${esc(d.error)}"><b>Erreur</b></div>`;
   const label = d.status === "paused" ? (d.size > 0 ? pct.toFixed(1)+" %" : "En pause")
@@ -486,6 +487,11 @@ function selected(){ return [...sel].map(id => data.find(d => d.id === id)).filt
 async function act(c, list){
   try{
     const one = list[0];
+    if(one?.status === "handoff" && ["progress","redownload","resume"].includes(c)) {
+      if(confirm("Vérifie que ce téléchargement est arrêté dans le navigateur. Récupérer le transfert dans Rapido ?"))
+        await api(`/api/downloads/${one.id}/recover-handoff`, "POST");
+      refresh(); return;
+    }
     if(c === "open") await api(`/api/downloads/${one.id}/open`, "POST");
     if(c === "folder") await api(`/api/downloads/${one.id}/open?folder=true`, "POST");
     if(c === "progress") await openWin("progress", one.id, 520, 480);

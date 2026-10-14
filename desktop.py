@@ -395,6 +395,24 @@ def run_selftest(main_win, open_popup, result: dict):
         reply = native_message({"type":"capture_public","url":BASE_URL+"/favicon.ico",
                                 "referrer":None,"filename":"native-selftest.png"})
         result["native_capture"] = reply == {"type":"capture_result","ok":True}
+        # Actual packaged prepare/abort/commit: durable staging and no duplicate.
+        baseline = len(rapido.manager.downloads)
+        prepared = native_message({"type":"capture_prepare","url":BASE_URL+"/favicon.ico",
+                                   "referrer":None,"filename":"handoff-selftest.png"})
+        ticket = prepared.get("ticket")
+        staged = [value for value in rapido.manager.downloads.values() if value.handoff_ticket == ticket]
+        staged_ok = prepared.get("type") == "capture_prepared" and len(staged) == 1 and staged[0].status == "handoff"
+        aborted = native_message({"type":"capture_abort","ticket":ticket})
+        abort_ok = aborted == {"type":"capture_aborted","ok":True} and len(rapido.manager.downloads) == baseline
+        prepared = native_message({"type":"capture_prepare","url":BASE_URL+"/favicon.ico",
+                                   "referrer":None,"filename":"handoff-selftest.png"})
+        ticket = prepared.get("ticket")
+        first = native_message({"type":"capture_commit","ticket":ticket})
+        second = native_message({"type":"capture_commit","ticket":ticket})
+        result["native_handoff"] = bool(staged_ok and abort_ok and
+            first == {"type":"capture_result","ok":True} and first == second and
+            len(rapido.manager.downloads) == baseline + 1)
+
 
 
         result["ok"] = bool(
@@ -404,7 +422,7 @@ def run_selftest(main_win, open_popup, result: dict):
             and result["settings_desktop"] and result["csp"] and result["guard_ok"]
             and result["dpapi_ok"] and result["motw_ok"] and result["ytdlp_process"]
             and result["webview_auth"] and result["unauthenticated_api"]
-            and result["native_pipe"] and result["native_capture"]
+            and result["native_pipe"] and result["native_capture"] and result["native_handoff"]
         )
     except Exception as e:
         import traceback

@@ -339,11 +339,14 @@ def native_dispatch(role: str, data: dict):
         raise ValueError("Unknown native role")
     if data == {"type":"capabilities"}:
         return {"type":"capabilities", "protocol":1,
-                "features":["ping","capture_public","settings_public"]}
+                "features":["ping","capture_public","settings_public","capture_handoff"]}
     if data == {"type":"settings_public"}:
         return {"type":"settings_public",
                 "capture_exts": list(manager.settings.get("capture_exts", [])),
                 "min_capture_kb": manager.settings.get("min_capture_kb", 512)}
+    if kind in ("capture_prepare","capture_commit","capture_abort"):
+        from native_handoff import dispatch
+        return asyncio.run_coroutine_threadsafe(dispatch(manager,data), manager.loop).result(timeout=4)
     if kind != "capture_public":
         raise ValueError("Unsupported native request")
     value = public_capture(data)
@@ -448,6 +451,15 @@ async def cancel_capture(dl_id: str):
 
 
 # ---------- actions ----------
+@app.post("/api/downloads/{dl_id}/recover-handoff")
+async def recover_handoff(dl_id: str):
+    from native_handoff import activate
+    dl = get_dl(dl_id)
+    if dl.status != "handoff":
+        raise HTTPException(409, "Ce transfert est deja traite")
+    return activate(manager, dl)
+
+
 @app.post("/api/downloads/{dl_id}/pause")
 async def pause(dl_id: str):
     get_dl(dl_id)
