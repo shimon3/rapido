@@ -325,14 +325,15 @@ def test_video_analyse_et_telechargement_sans_figer_rapido(server, tmp_path):
                     break
                 await asyncio.sleep(0.05)
             assert dl.status == "completed", dl.error
-            return dl, max(lags)
+            return dl, max(lags), len(lags), sum(lag >= 0.25 for lag in lags)
         finally:
             tk.cancel()
             await m.stop()
 
-    dl, worst = asyncio.run(main())
+    dl, worst, samples, stalls = asyncio.run(main())
     assert sha_file(dl.path) == SHA
-    assert worst < 0.5, f"Rapido s'est fige {worst:.2f} s"
+    assert worst < 0.5, (f"Rapido s'est fige {worst:.3f} s; "
+                         f"{stalls}/{samples} echantillons >= 0.25 s; seuil strict 0.5 s")
 
 
 def test_video_analyse_lourde_ne_fige_pas_rapido(server, tmp_path, monkeypatch):
