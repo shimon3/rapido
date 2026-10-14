@@ -20,7 +20,12 @@ BROWSERS = {
 
 
 def _same_path(left, right):
-    return os.path.normcase(str(Path(left).resolve())) == os.path.normcase(str(Path(right).resolve()))
+    # A registry owner is the exact manifest pathname, not a path redirected
+    # through a symbolic link. Never adopt or remove a foreign registration.
+    left, right = Path(left), Path(right)
+    if left.is_symlink() or right.is_symlink():
+        return False
+    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
 
 
 def manifests(executable, *, name=HOST):
