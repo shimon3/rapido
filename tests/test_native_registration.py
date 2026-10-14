@@ -86,6 +86,24 @@ class RegistrationTests(unittest.TestCase):
         unregister(first, registry=self.registry)
         self.assertFalse(self.registry.values)
 
+    def test_registry_symlink_alias_cannot_claim_manifest_ownership(self):
+        register(self.exe, registry=self.registry)
+        key, path, value = manifests(self.exe)["edge"]
+        alternate = path.with_name("foreign-alias.json")
+        try:
+            alternate.symlink_to(path)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlink creation not permitted on this runner")
+        location = self.registry.locations(key)[0]
+        self.registry.values[location] = str(alternate)
+        before = dict(self.registry.values)
+        with self.assertRaises(FileExistsError):
+            register(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values, before)
+        unregister(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values, {location: str(alternate)})
+        self.assertTrue(alternate.is_symlink())
+
     def test_uninstall_preserves_replaced_registration_and_modified_manifest(self):
         register(self.exe,registry=self.registry)
         key,path,value=manifests(self.exe)["edge"]
