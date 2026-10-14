@@ -115,6 +115,8 @@ def close_restricted_pipe(handle):
     import os
     if os.name != "nt":
         raise OSError("Windows named pipes require Windows")
+    if not isinstance(handle, int) or isinstance(handle, bool) or handle <= 0:
+        raise ValueError("Invalid named-pipe handle")
     import ctypes
     from ctypes import wintypes
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
