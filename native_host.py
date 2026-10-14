@@ -88,7 +88,7 @@ def handle_message(data):
                 if (response.get("type") == "capabilities" and response.get("protocol") == 1
                         and isinstance(response.get("features"), list)):
                     return {"type":"capabilities","protocol":1,
-                            "features":[f for f in response["features"] if f in ("ping","capture_public","settings_public")]}
+                            "features":[f for f in response["features"] if f in ("ping","capture_public","settings_public","capture_handoff")]}
             elif response.get("type") == "settings_public":
                 return response
         except (OSError, ValueError, TimeoutError, AttributeError):
@@ -96,6 +96,23 @@ def handle_message(data):
         if data["type"] == "capabilities":
             return {"type":"capabilities","protocol":1,"features":["ping"]}
         return {"type":"error","code":"rapido_unavailable"}
+    if data.get("type") in ("capture_prepare","capture_commit","capture_abort"):
+        from native_protocol import handoff_message as validate
+        try:
+            validate(data)
+            response = _native_request(data)
+            if not isinstance(response,dict):
+                raise ValueError("Invalid handoff response")
+            if data["type"] == "capture_prepare":
+                ticket=response.get("ticket")
+                validate({"type":"capture_commit","ticket":ticket})
+                if response.get("type")=="capture_prepared":
+                    return {"type":"capture_prepared","ticket":ticket}
+            elif response.get("type") == ("capture_result" if data["type"]=="capture_commit" else "capture_aborted") and response.get("ok") is True:
+                return {"type":response["type"],"ok":True}
+        except (OSError,ValueError,TypeError,TimeoutError):
+            pass
+        return {"type":"error","code":"handoff_unavailable"}
     if data.get("type") == "capture_public":
         return _safe_public_capture(data)
     return {"type":"error","code":"unsupported_message"}

@@ -12,6 +12,9 @@ async function scenario(mode) {
   let mediaListener;
   let cookieReads = 0;
   let mediaWrites = 0;
+  let nativeCaptures = 0;
+  let commitCalls = 0;
+  const ticket = "a".repeat(64);
   let mediaReads = 0;
   const messageListeners = [];
   const firefox = mode.startsWith("firefox");
@@ -23,10 +26,21 @@ async function scenario(mode) {
         if (message.type === "settings_public") return {type:"settings_public",capture_exts:["zip"],min_capture_kb:512};
         calls.push(message.type);
         if (mode === "missing") throw new Error("No native host");
-        if (mode === "bad-capabilities") return {type:"capabilities",protocol:999,features:["capture_public"]};
-        if (message.type === "capabilities") return {type:"capabilities",protocol:1,features:["capture_public"]};
-        if (mode === "pending") await gate;
-        return mode === "rejected" ? {type:"error"} : {type:"capture_result",ok:true};
+        if (mode === "bad-capabilities") return {type:"capabilities",protocol:999,features:mode === "legacy" ? ["capture_public"] : ["capture_public","capture_handoff"]};
+        if (message.type === "capabilities") return {type:"capabilities",protocol:1,features:mode === "legacy" ? ["capture_public"] : ["capture_public","capture_handoff"]};
+        if (message.type === "capture_prepare") {
+          if (mode === "pending") await gate;
+          return mode === "rejected" ? {type:"error"} : {type:"capture_prepared",ticket};
+        }
+        if (message.type === "capture_abort") return {type:"capture_aborted",ok:true};
+        if (message.type === "capture_commit") {
+          assert.equal(message.ticket,ticket);
+          commitCalls++;
+          if(mode === "commit-unavailable") throw new Error("Commit unavailable");
+          if(nativeCaptures === 0) nativeCaptures++;
+          if(mode === "commit-ack-lost" && commitCalls === 1) throw new Error("Reply lost");
+        }
+        return {type:"capture_result",ok:true};
       }},
     storage: {local:{async get(){return {enabled:true};},async set(){}},
       session:{async get(){mediaReads++;return {};},async set(){mediaWrites++;},async remove(){}}},
@@ -94,7 +108,7 @@ async function scenario(mode) {
   }
   await task;
   assert(!calls.includes("restart"), "original request must never be replaced");
-  if (["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","firefox-container","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie"].includes(mode)) {
+  if (["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","firefox-container","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","legacy"].includes(mode)) {
     assert(!calls.includes("cancel"), mode);
     assert(!calls.includes("erase"), mode);
     if (mode.startsWith("incognito") || ["firefox-container","firefox-private-store","firefox-missing-store","firefox-unknown-store"].includes(mode)) {
@@ -105,15 +119,23 @@ async function scenario(mode) {
     assert.equal(calls.length,0,"finished/interrupted items must not be recaptured");
     assert.equal(cookieReads,0);
   } else if (["cancel-failed","completed-after-native"].includes(mode)) {
-    assert(calls.indexOf("capture_public") < calls.indexOf("cancel"));
+    assert(calls.indexOf("capture_prepare") < calls.indexOf("cancel"));
     assert(!calls.includes("erase"),"failed cancellation must retain browser history");
+    assert(calls.includes("capture_abort"));
+    assert.equal(nativeCaptures,0,"failed cancellation must not start native capture");
+  } else if (mode === "commit-unavailable") {
+    assert.equal(commitCalls,2,"commit retry must be bounded");
+    assert.equal(nativeCaptures,0);
+    assert(!calls.includes("erase"),"uncertain commit must retain browser history");
   } else {
-    assert(calls.indexOf("capture_public") < calls.indexOf("cancel"));
+    assert(calls.indexOf("capture_prepare") < calls.indexOf("cancel"));
     assert(calls.includes("erase"));
+    assert(calls.indexOf("cancel") < calls.indexOf("capture_commit"));
+    assert.equal(nativeCaptures,1,"commit/retry must not duplicate captures");
   }
 }
 (async()=>{
-  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed"]) {
+  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed","legacy","commit-unavailable","commit-ack-lost"]) {
     await scenario(mode);
     console.log("PASS "+mode);
   }

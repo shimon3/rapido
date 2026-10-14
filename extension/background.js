@@ -28,7 +28,7 @@ async function nativeCapabilities(){
     const reply = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {type:"capabilities"});
     if(reply?.type !== "capabilities" || reply.protocol !== 1 ||
        !Array.isArray(reply.features) || reply.features.some(f => typeof f !== "string")) return [];
-    return reply.features.filter(f => f === "ping" || f === "capture_public");
+    return reply.features.filter(f => f === "ping" || f === "capture_public" || f === "capture_handoff");
   } catch { return []; }
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -117,7 +117,7 @@ async function captureViaNative(url, referrer, filename){
   if(!reply || reply.type !== "capture_result" || reply.ok !== true)
     throw new Error("Capture native refusée");
 }
-async function captureFile(url, referrer, filename) {
+async function captureFile(url, referrer, filename, prepare = false) {
   // S3: context-menu captures must obey the same fail-closed session policy
   // as automatic downloads; no browser session details cross native messaging.
   if (await needsBrowserSession(url)) throw new Error("Capture privée laissée à Chrome (S3)");
@@ -131,6 +131,16 @@ async function captureFile(url, referrer, filename) {
         originUrl.username || originUrl.password)
       throw new Error("Referrer non sécurisé (S3)");
     safeReferrer = originUrl.origin + originUrl.pathname;
+  }
+  if (prepare) {
+    const features = await nativeCapabilities();
+    if (!features.includes("capture_handoff")) throw new Error("Transfert préparé indisponible");
+    const reply = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {
+      type:"capture_prepare",url,referrer:safeReferrer,filename:filename || null
+    });
+    if (reply?.type !== "capture_prepared" || !/^[a-f0-9]{64}$/.test(reply.ticket || ""))
+      throw new Error("Préparation refusée");
+    return reply.ticket;
   }
   await captureViaNative(url, safeReferrer, filename);
   flash("✓", "#1f6f5c");
@@ -192,11 +202,12 @@ async function handleDownload(item, ext) {
   handled.add(item.id);
 
   const name = (item.filename || "").split(/[\\/]/).pop();
+  let ticket;
   try {
     // Keep the original browser request intact until Rapido acknowledges capture.
     // In particular, private referrers and missing native hosts must not cause
     // cancel/erase followed by a fresh request that loses browser session state.
-    await captureFile(url, item.referrer, name || undefined);
+    ticket = await captureFile(url, item.referrer, name || undefined, true);
   } catch {
     flash("!", "#b4541a");
     return;
@@ -205,9 +216,19 @@ async function handleDownload(item, ext) {
   catch {
     // A completed download or refused cancellation must retain its browser
     // history. Native acceptance alone is not proof of browser cancellation.
+    try { await chrome.runtime.sendNativeMessage(NATIVE_HOST,{type:"capture_abort",ticket}); } catch {}
     flash("!", "#b4541a");
     return;
   }
+  let committed = false;
+  for (let attempt=0; attempt<2 && !committed; attempt++) {
+    try {
+      const result=await chrome.runtime.sendNativeMessage(NATIVE_HOST,{type:"capture_commit",ticket});
+      committed=result?.type === "capture_result" && result.ok === true;
+    } catch {}
+  }
+  if (!committed) { flash("!", "#b4541a"); return; }
+  flash("✓", "#1f6f5c");
   try { await chrome.downloads.erase({ id: item.id }); } catch {}
 }
 
