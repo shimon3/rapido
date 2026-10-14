@@ -1,8 +1,9 @@
-"""Rapido Chrome Native Messaging protocol prototype (NOT YET REGISTERED).
+"""Rapido Chrome Native Messaging host prototype.
 
-Chrome launches the native host using its authorized extension manifest.
-This minimal host deliberately accepts only a harmless 'ping' message.
-No cookies, filesystem writes or download controls are supported yet.
+Supports ping, capabilities and constrained public-download capture.
+The public capture bridge still targets a legacy unauthenticated loopback API;
+S2 authenticated IPC and protected mutation routes are NOT implemented.
+Never forward browser cookies or other authentication credentials.
 """
 from __future__ import annotations
 
