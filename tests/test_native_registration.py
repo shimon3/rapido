@@ -156,6 +156,45 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(self.registry.values,
                          {self.registry.locations(key)[0]: str(alias / path.name)})
 
+    @unittest.skipUnless(os.name == "nt", "Windows junction detection")
+    def test_junction_install_directory_is_rejected(self):
+        from unittest.mock import patch
+        directory = self.exe.parent
+        original = Path.is_junction
+
+        def simulated_junction(path):
+            return path == directory or original(path)
+
+        with patch.object(Path, "is_junction", autospec=True,
+                          side_effect=simulated_junction):
+            with self.assertRaises(ValueError):
+                manifests(self.exe)
+            self.assertFalse(self.registry.values)
+            with self.assertRaises(ValueError):
+                register(self.exe, registry=self.registry)
+            self.assertFalse(self.registry.values)
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction detection")
+    def test_junction_registry_alias_preserves_foreign_registration(self):
+        from unittest.mock import patch
+        register(self.exe, registry=self.registry)
+        key, path, _ = manifests(self.exe)["edge"]
+        location = self.registry.locations(key)[0]
+        alias_root = path.parent.parent / "junction-alias"
+        foreign = alias_root / path.parent.name / path.name
+        self.registry.values[location] = str(foreign)
+        original = Path.is_junction
+
+        def simulated_junction(candidate):
+            return candidate == alias_root or original(candidate)
+
+        with patch.object(Path, "is_junction", autospec=True,
+                          side_effect=simulated_junction):
+            with self.assertRaises(FileExistsError):
+                register(self.exe, registry=self.registry)
+            unregister(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values, {location: str(foreign)})
+
     def test_linked_host_and_desktop_executables_are_rejected(self):
         target=self.exe.with_name("original-native-host.exe")
         target.touch()
