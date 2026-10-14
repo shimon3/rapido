@@ -76,6 +76,10 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --console
           --name RapidoNativeHost native_host.py
 
+      - name: Bundle native host with the desktop executable
+        shell: pwsh
+        run: Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
+
       - name: Self-test (real window, engine, yt-dlp)
         timeout-minutes: 4
         shell: pwsh

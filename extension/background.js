@@ -4,15 +4,15 @@
 // 3. Menu clic droit "Télécharger avec Rapido"
 // Si le serveur ne répond pas, Chrome reprend la main.
 
-const SERVER = "http://127.0.0.1:9614";
+// All browser data uses verified Native Messaging/Windows IPC; no HTTP fallback.
 const bypass = new Set();        // URLs relancées dans Chrome par nous (à ne pas recapturer)
 let cfg = {                      // copie locale des réglages Rapido (mise à jour au démarrage)
   capture_exts: ["zip","rar","7z","iso","exe","msi","mp4","mkv","avi","mov","mp3","flac","pdf","apk","dmg","gz","tar"],
   min_capture_kb: 512,
 };
 
-/* Native Messaging is optional until S2/S3 is fully migrated.
-   No cookies, downloads or secrets traverse this diagnostic channel. */
+/* Native Messaging is the only browser transport. Cookies and process secrets
+   never traverse extension messages. A ping alone is not capture authorization. */
 const NATIVE_HOST = "com.rapido.bridge";
 async function probeNativeBridge(){
   try {
@@ -46,19 +46,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 /* ---------- réglages ---------- */
+function validCaptureConfig(s) {
+  return Array.isArray(s?.capture_exts) && s.capture_exts.length <= 200 &&
+    s.capture_exts.every(e => typeof e === "string" && /^[a-z0-9]{1,8}$/.test(e)) &&
+    Number.isInteger(s.min_capture_kb) && s.min_capture_kb >= 0 && s.min_capture_kb <= 10000000;
+}
 async function loadCfg() {
   try {
-    const r = await fetch(`${SERVER}/api/settings`);
-    if (r.ok) {
-      const s = await r.json();
-      cfg = { capture_exts: s.capture_exts, min_capture_kb: s.min_capture_kb };
-      await chrome.storage.local.set({ cfg });
-    }
+    const s = await chrome.runtime.sendNativeMessage(NATIVE_HOST, {type:"settings_public"});
+    if (s?.type !== "settings_public" || !validCaptureConfig(s)) throw new Error("Configuration native indisponible");
+    cfg = {capture_exts:s.capture_exts, min_capture_kb:s.min_capture_kb};
+    await chrome.storage.local.set({cfg});
   } catch {
-    const { cfg: saved } = await chrome.storage.local.get("cfg");
-    if (saved) cfg = saved;
+    const {cfg:saved} = await chrome.storage.local.get("cfg");
+    if (validCaptureConfig(saved)) cfg = saved;
   }
 }
+
 loadCfg();
 
 async function isEnabled() {
@@ -90,13 +94,6 @@ async function needsBrowserSession(url) {
   // A login cookie or inaccessible cookie jar means Chrome retains this download.
   try { return (await chrome.cookies.getAll({ url })).length > 0; }
   catch { return true; }
-}
-async function post(path, body) {
-  const r = await fetch(SERVER + path, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`Rapido a répondu ${r.status}`);
-  return r.json();
 }
 // Les fenêtres (capture, progression) sont ouvertes par Rapido lui-même :
 // ce sont de vraies fenêtres Windows, même quand on clique depuis Chrome.

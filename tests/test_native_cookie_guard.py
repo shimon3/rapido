@@ -19,7 +19,7 @@ def test_guard_precedes_cancel_or_erase():
 
 
 def test_cookie_inspection_failure_does_not_intercept():
-    body = SOURCE.split("async function needsBrowserSession(", 1)[1].split("async function post(", 1)[0]
+    body = SOURCE.split("async function needsBrowserSession(", 1)[1].split("// Les fenêtres", 1)[0]
     assert "catch { return true; }" in body
 
 

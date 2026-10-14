@@ -14,6 +14,7 @@ async function scenario(mode) {
     runtime: {id:"rapido", getURL:p=>"chrome-extension://rapido/"+p,
       onMessage:event(), onInstalled:event(), onStartup:event(),
       async sendNativeMessage(host, message) {
+        if (message.type === "settings_public") return {type:"settings_public",capture_exts:["zip"],min_capture_kb:512};
         calls.push(message.type);
         if (mode === "missing") throw new Error("No native host");
         if (mode === "bad-capabilities") return {type:"capabilities",protocol:999,features:["capture_public"]};

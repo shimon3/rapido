@@ -1,7 +1,7 @@
 """S2 migration inventory: explicitly track every mutating HTTP endpoint.
 
-This test does NOT establish that these endpoints are authenticated.
-It prevents silently adding new unauthenticated mutation routes during migration.
+This inventory also probes every mutation without credentials and requires 403.
+It prevents silently adding an unprotected mutation route.
 """
 import os
 import tempfile
@@ -52,5 +52,9 @@ def test_explicit_mutation_inventory_prevents_unreviewed_routes():
     )
 
 
-def test_only_native_capture_is_marked_authenticated():
-    assert AUTHENTICATED_MUTATIONS == {("POST", "/api/native/capture")}
+def test_all_inventory_routes_are_protected_without_token():
+    from fastapi.testclient import TestClient
+    with TestClient(app, base_url="http://127.0.0.1:9614") as client:
+        for method, path in LEGACY_MUTATIONS | AUTHENTICATED_MUTATIONS:
+            path = path.replace("{dl_id}", "abcdef").replace("{action}", "delete")
+            assert client.request(method, path, json={}).status_code == 403

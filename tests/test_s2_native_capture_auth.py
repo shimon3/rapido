@@ -22,7 +22,8 @@ def test_native_capture_rejects_requests_without_process_token():
 
 def test_native_capture_token_is_not_exposed_in_settings():
     with TestClient(app.app) as client:
-        response = client.get("/api/settings", headers={"host": "127.0.0.1:9614"})
+        response = client.get("/api/settings", headers={"host":"127.0.0.1:9614",
+            "Authorization":"Bearer "+app._LOCAL_AUTH.token_for_trusted_transport()})
         assert response.status_code == 200
         data = response.json()
         token = app._LOCAL_AUTH.token_for_trusted_transport()
