@@ -177,18 +177,18 @@ async function handleDownload(item, ext) {
   if (handled.has(item.id)) return;
   handled.add(item.id);
 
-  try { await chrome.downloads.cancel(item.id); } catch {}
-  try { await chrome.downloads.erase({ id: item.id }); } catch {}
-
   const name = (item.filename || "").split(/[\\/]/).pop();
   try {
+    // Keep the original browser request intact until Rapido acknowledges capture.
+    // In particular, private referrers and missing native hosts must not cause
+    // cancel/erase followed by a fresh request that loses browser session state.
     await captureFile(url, item.referrer, name || undefined);
-  } catch (e) {
-    console.warn("Rapido injoignable, téléchargement relancé dans Chrome", e);
-    bypass.add(url);
-    chrome.downloads.download({ url });
+  } catch {
     flash("!", "#b4541a");
+    return;
   }
+  try { await chrome.downloads.cancel(item.id); } catch {}
+  try { await chrome.downloads.erase({ id: item.id }); } catch {}
 }
 
 /* ---------- détection des flux vidéo ---------- */
