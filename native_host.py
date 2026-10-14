@@ -66,6 +66,8 @@ def _safe_public_capture(data):
         return {"type": "error", "code": "invalid_capture"}
     try:
         parsed = urlsplit(url)
+        # Accessing .port rejects malformed/out-of-range explicit ports.
+        parsed.port
         if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
             return {"type": "error", "code": "invalid_capture"}
     except ValueError:
@@ -81,6 +83,7 @@ def _safe_public_capture(data):
     if referrer:
         try:
             parsed_ref = urlsplit(referrer)
+            parsed_ref.port
             if (parsed_ref.scheme not in ("http", "https") or not parsed_ref.hostname or
                     parsed_ref.username or parsed_ref.password):
                 return {"type": "error", "code": "invalid_capture"}
