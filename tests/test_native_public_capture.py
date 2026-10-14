@@ -24,7 +24,7 @@ def test_rejects_invalid_capture_before_http():
         {"type": "capture_public", "url": "https://example.org/a", "referrer": "https://example.org:bad/path", "filename": "ok"},
         {"type": "capture_public", "url": "https://example.org/a", "referrer": "https://[broken/a", "filename": "ok"},
     ]
-    with patch("native_host.urllib.request.urlopen") as network:
+    with patch("native_host._open_loopback") as network:
         for payload in bad:
             assert handle_message(payload)["code"] == "invalid_capture"
         network.assert_not_called()
@@ -40,7 +40,7 @@ def test_valid_public_capture_uses_fixed_loopback_endpoint_without_cookie():
         def __exit__(self, *args): pass
         def read(self, *args): return b'{"id":"abcdef12"}'
 
-    with patch("native_host.urllib.request.urlopen", return_value=Response()) as network:
+    with patch("native_host._open_loopback", return_value=Response()) as network:
         result = handle_message(payload)
     assert result == {"type": "capture_result", "ok": True}
     req = network.call_args.args[0]
@@ -55,7 +55,7 @@ def test_valid_public_capture_uses_fixed_loopback_endpoint_without_cookie():
 def test_local_api_unavailable_returns_error_without_success():
     payload = {"type": "capture_public", "url": "https://example.org/a.zip",
                "referrer": None, "filename": None}
-    with patch("native_host.urllib.request.urlopen", side_effect=OSError("offline")):
+    with patch("native_host._open_loopback", side_effect=OSError("offline")):
         assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
 
 
@@ -63,7 +63,7 @@ def test_local_api_unavailable_returns_error_without_success():
 def test_referrer_credentials_are_rejected_without_http_call():
     payload = {"type": "capture_public", "url": "https://example.org/a.zip",
                "referrer": "https://alice:secret@example.org/path", "filename": None}
-    with patch("native_host.urllib.request.urlopen") as network:
+    with patch("native_host._open_loopback") as network:
         assert handle_message(payload) == {"type": "error", "code": "invalid_capture"}
         network.assert_not_called()
 
@@ -78,7 +78,7 @@ def test_native_host_strips_referrer_query_and_fragment():
         def __exit__(self, *args): pass
         def read(self, *args): return b'{"id":"abcdef12"}'
 
-    with patch("native_host.urllib.request.urlopen", return_value=Response()) as network:
+    with patch("native_host._open_loopback", return_value=Response()) as network:
         assert handle_message(payload) == {"type": "capture_result", "ok": True}
     body = json.loads(network.call_args.args[0].data)
     assert body["headers"]["Referer"] == "https://example.org/page"
@@ -95,7 +95,7 @@ def test_local_api_non_object_reply_fails_closed():
         def __exit__(self, *args): pass
         def read(self, *args): return b'["not", "an", "object"]'
 
-    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+    with patch("native_host._open_loopback", return_value=Response()):
         assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
 
 
@@ -111,7 +111,7 @@ def test_oversized_loopback_reply_is_rejected():
             assert size == 65537
             return b" " * 65537
 
-    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+    with patch("native_host._open_loopback", return_value=Response()):
         assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
 
 
@@ -128,7 +128,7 @@ def test_loopback_reply_at_size_limit_is_accepted():
             assert size == 65537
             return reply
 
-    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+    with patch("native_host._open_loopback", return_value=Response()):
         assert handle_message(payload) == {"type": "capture_result", "ok": True}
 
 
@@ -142,5 +142,5 @@ def test_malformed_loopback_json_fails_closed():
         def __exit__(self, *args): pass
         def read(self, size=-1): return b'{"id":'
 
-    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+    with patch("native_host._open_loopback", return_value=Response()):
         assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}

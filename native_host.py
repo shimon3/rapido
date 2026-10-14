@@ -16,6 +16,26 @@ from urllib.parse import urlsplit
 
 MAX_MESSAGE_BYTES = 64 * 1024
 
+LOCAL_CAPTURE_URL = "http://127.0.0.1:9614/api/capture"
+
+
+class _RejectRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        raise urllib.error.HTTPError(request.full_url, code,
+                                     "Local capture redirects are forbidden", headers, response)
+
+
+def _loopback_opener():
+    # Local IPC must never use environment or Windows registry proxy settings.
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}), _RejectRedirects())
+
+
+def _open_loopback(request, *, timeout):
+    if request.full_url != LOCAL_CAPTURE_URL or request.get_method() != "POST":
+        raise ValueError("Invalid local capture destination")
+    return _loopback_opener().open(request, timeout=timeout)
+
+
 
 def _read_exact(stream, size):
     chunks = []
@@ -94,10 +114,10 @@ def _safe_public_capture(data):
     body = json.dumps({"url": url, "filename": filename, "headers": headers,
                        "open_window": True}).encode("utf-8")
     try:
-        request = urllib.request.Request("http://127.0.0.1:9614/api/capture",
+        request = urllib.request.Request(LOCAL_CAPTURE_URL,
                                          data=body, headers={"Content-Type": "application/json"},
                                          method="POST")
-        with urllib.request.urlopen(request, timeout=6) as response:
+        with _open_loopback(request, timeout=6) as response:
             if response.status != 200:
                 return {"type": "error", "code": "rapido_unavailable"}
             # Bound untrusted loopback responses before decoding JSON.
