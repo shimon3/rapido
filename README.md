@@ -212,3 +212,15 @@ protocole direct, puisqu'elle n'annule pas un téléchargement existant.
 Ce protocole traite l'échec d'annulation sans démarrer une capture native.
 Il ne constitue pas une transaction atomique entre deux applications ou une
 preuve contre le remplacement des exécutables ; ces limites restent explicites.
+
+### Essai Firefox réel en CI
+
+La CI Windows ajoute un essai Firefox headless avec un profil isolé, le véritable
+pont compilé et le background de l'extension distribuée. Des pages de contrôle
+sont ajoutées uniquement à une copie de test hors du bundle distribué.
+
+Les scénarios visent le lancement natif depuis Firefox, la préparation/abandon,
+le transfert automatique d'un fichier public et la conservation du téléchargement
+dans Firefox quand le pont est absent. Ces essais ne valident pas tous les
+conteneurs, fenêtres privées ou navigateurs Chrome/Edge ; les simulations Node
+et les résultats de CI doivent être distingués des tests de navigateur réels.
