@@ -110,3 +110,34 @@ def test_oversized_loopback_reply_is_rejected():
 
     with patch("native_host.urllib.request.urlopen", return_value=Response()):
         assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
+
+
+def test_loopback_reply_at_size_limit_is_accepted():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": None, "filename": None}
+    reply = b'{"id":"ok"}' + b" " * (65536 - len(b'{"id":"ok"}'))
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, size=-1):
+            assert size == 65537
+            return reply
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+        assert handle_message(payload) == {"type": "capture_result", "ok": True}
+
+
+def test_malformed_loopback_json_fails_closed():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": None, "filename": None}
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, size=-1): return b'{"id":'
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+        assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
