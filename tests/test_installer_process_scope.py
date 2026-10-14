@@ -17,5 +17,12 @@ class InstallerProcessScopeTests(unittest.TestCase):
         self.assertIn('--unregister-native-hosts', source)
         self.assertIn('--register-native-hosts', source)
 
+    def test_uninstall_preserves_foreign_autostart_owner(self):
+        source = INSTALLER.read_text(encoding="utf-8-sig")
+        self.assertNotIn("uninsdeletevalue", source.lower())
+        self.assertIn("RegQueryStringValue(", source)
+        self.assertIn("CompareText(CurrentRunValue,", source)
+        self.assertIn("RegDeleteValue(", source)
+
 if __name__ == "__main__":
     unittest.main()
