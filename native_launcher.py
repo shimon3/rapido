@@ -97,7 +97,13 @@ def valid_origin(role, args, executable):
 
 @contextmanager
 def trusted_launcher(executable, args, *, desktop_image=None):
-    desktop = canonical_image(desktop_image or ntpath.join(ntpath.dirname(executable), "Rapido.exe"))
+    # Direct symbolic links must not impersonate trusted executable paths.
+    # This is defense in depth; file replacement/junctions require a protected
+    # installation and an independent trust anchor.
+    desktop_path = desktop_image or ntpath.join(ntpath.dirname(executable), "Rapido.exe")
+    if Path(executable).is_symlink() or Path(desktop_path).is_symlink():
+        raise PermissionError("Linked native executable path is not trusted")
+    desktop = canonical_image(desktop_path)
     helper = canonical_image(executable)
     with ExitStack() as stack:
         child=stack.enter_context(inspect_process(os.getpid()))
