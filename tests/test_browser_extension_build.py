@@ -16,7 +16,7 @@ def test_browser_build_preserves_source_and_uses_browser_manifest(tmp_path, brow
     assert source.read_bytes() == original
     manifest = json.loads((destination / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["manifest_version"] == 3
-    assert "key" not in manifest
+    assert ("key" in manifest) == (browser == "edge")
     assert (destination / "background.js").is_file()
     assert (destination / "content.js").is_file()
     if browser == "firefox":
