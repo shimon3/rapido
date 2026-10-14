@@ -62,6 +62,22 @@ class ApiAuthTests(unittest.TestCase):
                     self.assertEqual(response.status_code, 403)
                     self.assertNotIn(token, response.text)
 
+    def test_valid_token_cannot_override_host_or_origin_policy(self):
+        token = app._LOCAL_AUTH.token_for_trusted_transport()
+        protected = {"Authorization": "Bearer " + token}
+        with TestClient(app.app, base_url="http://127.0.0.1:9614") as client:
+            cases = (
+                {"Host": "attacker.example:9614"},
+                {"Origin": "https://attacker.example"},
+                {"Sec-Fetch-Site": "cross-site"},
+                {"Origin": "http://127.0.0.1:12345", "Sec-Fetch-Site": "same-site"},
+            )
+            for headers in cases:
+                with self.subTest(headers=headers):
+                    response = client.get("/api/settings", headers={**protected, **headers})
+                    self.assertEqual(response.status_code, 403)
+                    self.assertNotIn(token, response.text)
+
     def test_native_rpc_has_no_general_route_or_secret_authority(self):
         for role, request in (("native",{"type":"delete","id":"abcdef"}),
                               ("native",{"type":"auth"}),
