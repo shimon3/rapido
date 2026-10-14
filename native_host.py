@@ -96,7 +96,11 @@ def _safe_public_capture(data):
         with urllib.request.urlopen(request, timeout=6) as response:
             if response.status != 200:
                 return {"type": "error", "code": "rapido_unavailable"}
-            result = json.load(response)
+            # Bound untrusted loopback responses before decoding JSON.
+            raw = response.read(65537)
+            if len(raw) > 65536:
+                return {"type": "error", "code": "rapido_unavailable"}
+            result = json.loads(raw)
         return {"type": "capture_result", "ok": True} if isinstance(result, dict) and isinstance(result.get("id"), str) else {
             "type": "error", "code": "rapido_unavailable"}
     except (OSError, ValueError, urllib.error.URLError):
