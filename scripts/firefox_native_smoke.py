@@ -75,7 +75,7 @@ def wait_until(check,timeout=40):
 
 def result(driver):
     from selenium.webdriver.common.by import By
-    element=wait_until(lambda: driver.find_element(By.ID,"result") if driver.find_element(By.ID,"result").get_attribute("data-done")=="true" else None)
+    element=wait_until(lambda: driver.find_element(By.ID,"result") if driver.find_element(By.ID,"result").get_dom_attribute("data-done")=="true" else None)
     value=json.loads(element.text)
     if value.get("ok") is not True:
         raise RuntimeError(value.get("error","Browser smoke failed"))
