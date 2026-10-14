@@ -28,6 +28,11 @@ def require_windows_identity_policy(*, user_sid: str, process_id: int) -> None:
     """
     if not isinstance(user_sid, str) or not re.fullmatch(r"S-1-5-(?:\d+-){1,14}\d+", user_sid):
         raise ValueError("Invalid Windows user SID")
+    # Reject well-known service/group principals: a caller-supplied SID is
+    # not evidence that it identifies an interactive user.
+    if user_sid in {"S-1-5-18", "S-1-5-19", "S-1-5-20", "S-1-5-11",
+                    "S-1-5-32-544", "S-1-5-32-545"}:
+        raise ValueError("Expected an individual Windows user SID")
     if not isinstance(process_id, int) or isinstance(process_id, bool) or process_id <= 0:
         raise ValueError("Invalid Windows process ID")
 
