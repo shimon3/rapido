@@ -179,3 +179,16 @@ La marque Windows `Zone.Identifier` conserve `ZoneId=3`, mais ses URL source
 et référente ne contiennent plus que l’origine : chemins, identifiants,
 paramètres et fragments peuvent contenir des jetons et ne sont plus recopiés
 dans ces métadonnées. Les builds de développement hors Windows n’ont pas DPAPI.
+
+### Contextes Firefox et état de la revue S2/S3
+
+Les téléchargements et captures des conteneurs Firefox, des fenêtres privées
+et des stores inconnus restent dans le navigateur. Si Firefox ne fournit pas
+un cookieStoreId identifiable, Rapido ne capture pas. Les URLs de médias de ces
+contextes ne sont pas enregistrées dans le cache de session de l'extension.
+
+La [revue S2/S3](docs/s2-s3-review-20261014.md) distingue les protections vérifiées
+des limites ouvertes : un SID/chemin de processus ne garantit pas l'intégrité
+du binaire, et DPAPI ne sépare pas les programmes du même compte Windows.
+La protection complète contre le remplacement du host ou de sa registration
+reste à valider avec une ancre de confiance système et une politique d'exécution.
