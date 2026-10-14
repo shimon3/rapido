@@ -124,7 +124,6 @@ def close_restricted_pipe(handle):
     if (not isinstance(handle, int) or isinstance(handle, bool) or
             handle <= 0 or handle == ctypes.c_void_p(-1).value):
         raise ValueError("Invalid named-pipe handle")
-    import ctypes
     from ctypes import wintypes
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     close = kernel.CloseHandle
