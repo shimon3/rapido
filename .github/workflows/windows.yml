@@ -2,7 +2,7 @@ name: Windows build
 
 on:
   push:
-    branches: [main]
+    branches: [main, fix/installer-no-global-taskkill-20261014]
     tags: ["v*"]
   pull_request:
     branches: [main, security/s2-auth-core, security/native-messaging-prototype, security/s2-auth-enforcement-tests]
