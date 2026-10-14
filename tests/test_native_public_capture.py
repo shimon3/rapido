@@ -75,3 +75,17 @@ def test_native_host_strips_referrer_query_and_fragment():
     body = json.loads(network.call_args.args[0].data)
     assert body["headers"]["Referer"] == "https://example.org/page"
     assert "secret" not in json.dumps(body["headers"])
+
+
+def test_local_api_non_object_reply_fails_closed():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": None, "filename": None}
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, *args): return b'["not", "an", "object"]'
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+        assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
