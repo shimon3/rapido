@@ -212,6 +212,15 @@ jobs:
             if (-not (Test-Path -LiteralPath (Join-Path $second 'Rapido.exe')) -or
                 -not (Test-Path -LiteralPath (Join-Path $second 'RapidoNativeHost.exe'))) { throw "Uninstall harmed portable copy" }
             if ((Test-Path -LiteralPath $key) -and $null -ne (Get-Item -LiteralPath $key).GetValue('')) { throw "Uninstall left registry registration" }
+            # Exercise the actual preserved portable executable, not just its file existence.
+            $portableResult = Join-Path $env:RUNNER_TEMP 'rapido-portable-post-uninstall.json'
+            $env:RAPIDO_DATA = Join-Path $env:RUNNER_TEMP 'rapido-portable-post-uninstall-data'
+            $portable = Start-Process -FilePath (Join-Path $second 'Rapido.exe') -ArgumentList '--selftest','--selftest-out',$portableResult -PassThru -Wait
+            if ($portable.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $portableResult)) {
+              throw "Portable Rapido self-test failed after installed copy uninstall: $($portable.ExitCode)"
+            }
+            $selftest = Get-Content -LiteralPath $portableResult -Raw | ConvertFrom-Json
+            Write-Host "Portable Rapido post-uninstall self-test completed: $($portable.ExitCode)"
           } finally {
             if (Test-Path -LiteralPath (Join-Path $first 'unins000.exe')) {
               $p = Start-Process -FilePath (Join-Path $first 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -PassThru -Wait
