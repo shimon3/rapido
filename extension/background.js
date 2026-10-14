@@ -155,14 +155,17 @@ chrome.downloads.onCreated.addListener((item) => {
   const url = item.finalUrl || item.url;
   let ext = "";
   try { ext = extOf(new URL(url).pathname); } catch {}
-  ext = ext || MIME_EXT[(item.mime || "").split(";")[0]] || "";
-  if (ext) handleDownload(item, ext);
+  ext = ext || extOf((item.filename || "").split(/[\\/]/).pop()) ||
+    MIME_EXT[(item.mime || "").split(";")[0]] || "";
+  if (ext) return handleDownload(item, ext);
 });
 // …2e essai quand Chrome connaît le vrai nom du fichier (liens du type /download?id=123)
-chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
-  suggest();
-  handleDownload(item, extOf((item.filename || "").split(/[\\/]/).pop()));
-});
+if (chrome.downloads.onDeterminingFilename?.addListener) {
+  chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
+    suggest();
+    handleDownload(item, extOf((item.filename || "").split(/[\\/]/).pop()));
+  });
+}
 
 async function handleDownload(item, ext) {
   // Never export private-window URLs or consult the regular cookie jar for them.

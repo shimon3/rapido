@@ -8,6 +8,7 @@ async function scenario(mode) {
   const calls = [];
   let release;
   let menuClick;
+  let createdListener;
   const gate = new Promise(resolve => {release = resolve;});
   const chrome = {
     runtime: {id:"rapido", getURL:p=>"chrome-extension://rapido/"+p,
@@ -27,7 +28,8 @@ async function scenario(mode) {
       if (mode === "cookie-error") throw new Error("Denied");
       return mode === "private-target" || (mode === "private-referrer" && url.includes("private")) ? [{}] : [];
     }},
-    downloads:{onCreated:event(),onDeterminingFilename:event(),
+    downloads:{onCreated:{addListener(fn){createdListener=fn;}},
+      onDeterminingFilename:mode.startsWith("firefox") ? undefined : event(),
       async cancel(){calls.push("cancel");},async erase(){calls.push("erase");},
       async download(){calls.push("restart");}},
     webRequest:{onHeadersReceived:event()}, tabs:{onRemoved:event(),onUpdated:event()},
@@ -36,9 +38,10 @@ async function scenario(mode) {
   const context = vm.createContext({chrome, URL, navigator:{userAgent:"test"},
     async fetch(){return {ok:false};},setTimeout(){},console});
   vm.runInContext(source+"\nglobalThis.runDownload = handleDownload;", context);
-  const item = {id:1,incognito:mode === "incognito",url:"https://example.org/a.zip",
+  const item = {id:1,incognito:mode === "incognito",url:mode === "firefox-filename" ? "https://example.org/download" : "https://example.org/a.zip",
     referrer:"https://private.example/page",filename:"a.zip",totalBytes:1048576};
-  const task = mode === "incognito-menu" ? menuClick({menuItemId:"rapido-link",linkUrl:item.url,pageUrl:item.referrer},{incognito:true,url:item.referrer}) : context.runDownload(item, "zip");
+  assert.equal(typeof createdListener, "function");
+  const task = mode.startsWith("firefox") ? createdListener(item) : mode === "incognito-menu" ? menuClick({menuItemId:"rapido-link",linkUrl:item.url,pageUrl:item.referrer},{incognito:true,url:item.referrer}) : context.runDownload(item, "zip");
   if (mode === "pending") {
     for(let n=0;n<20;n++) await Promise.resolve();
     assert(!calls.includes("cancel"), "must not cancel before acknowledgement");
@@ -57,7 +60,7 @@ async function scenario(mode) {
   }
 }
 (async()=>{
-  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success"]) {
+  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename"]) {
     await scenario(mode);
     console.log("PASS "+mode);
   }
