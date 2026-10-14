@@ -192,3 +192,17 @@ des limites ouvertes : un SID/chemin de processus ne garantit pas l'intégrité
 du binaire, et DPAPI ne sépare pas les programmes du même compte Windows.
 La protection complète contre le remplacement du host ou de sa registration
 reste à valider avec une ancre de confiance système et une politique d'exécution.
+
+### Annulation du téléchargement original
+
+Après acceptation native, Rapido ne supprime l'entrée du navigateur que si
+l'annulation réussit. Si le navigateur refuse l'annulation (par exemple parce
+que le fichier est déjà terminé), l'entrée reste visible et aucune requête
+de remplacement n'est lancée. Les événements déjà complets ou interrompus
+ne déclenchent pas une nouvelle capture.
+
+Le transfert entre deux applications n'est pas encore transactionnel :
+une capture native déjà acceptée ne peut pas être retirée par ce protocole
+si l'annulation navigateur échoue. Une double capture reste donc possible
+dans ce cas ; un futur protocole de préparation/validation/abandon est
+nécessaire pour résoudre cette course complètement.

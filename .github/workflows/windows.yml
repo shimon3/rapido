@@ -2,7 +2,7 @@ name: Windows build
 
 on:
   push:
-    branches: [main, staging/pr-20-restack-20261014, staging/pr-21-restack-20261014, staging/pr-22-restack-20261014]
+    branches: [main, staging/pr-20-restack-20261014, staging/pr-21-restack-20261014, staging/pr-22-restack-20261014, staging/pr-23-restack-20261014]
     tags: ["v*"]
   pull_request:
     branches: [main, security/s2-auth-core, security/native-messaging-prototype, security/s2-auth-enforcement-tests]
