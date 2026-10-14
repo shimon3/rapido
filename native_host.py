@@ -61,7 +61,7 @@ def _safe_public_capture(data):
     url = data.get("url")
     referrer = data.get("referrer")
     filename = data.get("filename")
-    if not isinstance(url, str) or len(url) > 4096:
+    if not isinstance(url, str) or not url or len(url) > 4096 or any(ord(ch) < 32 or ord(ch) == 127 for ch in url):
         return {"type": "error", "code": "invalid_capture"}
     try:
         parsed = urlsplit(url)
@@ -69,7 +69,8 @@ def _safe_public_capture(data):
             return {"type": "error", "code": "invalid_capture"}
     except ValueError:
         return {"type": "error", "code": "invalid_capture"}
-    if referrer is not None and (not isinstance(referrer, str) or len(referrer) > 4096):
+    if referrer is not None and (not isinstance(referrer, str) or len(referrer) > 4096 or
+                                 any(ord(ch) < 32 or ord(ch) == 127 for ch in referrer)):
         return {"type": "error", "code": "invalid_capture"}
     if filename is not None and (not isinstance(filename, str) or len(filename) > 255 or
                                  any(ch in filename for ch in "/\\\\\r\n")):
