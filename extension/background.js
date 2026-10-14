@@ -90,9 +90,20 @@ async function buildHeaders(url, referrer) {
   h["User-Agent"] = navigator.userAgent;
   return h;
 }
+function isFirefox() {
+  return chrome.runtime.getURL("").startsWith("moz-extension://");
+}
+function browserOwnedContext(item) {
+  if (item?.incognito) return true;
+  const store = item?.cookieStoreId;
+  // Only the ordinary Firefox jar is supported. Unknown/missing Firefox
+  // context must not be mistaken for a cookie-free ordinary download.
+  if (store !== undefined) return store !== "firefox-default";
+  return isFirefox();
+}
 async function needsBrowserSession(url) {
   // A login cookie or inaccessible cookie jar means Chrome retains this download.
-  try { return (await chrome.cookies.getAll({ url })).length > 0; }
+  try { return (await chrome.cookies.getAll(isFirefox() ? {url, storeId:"firefox-default"} : {url})).length > 0; }
   catch { return true; }
 }
 // Les fenêtres (capture, progression) sont ouvertes par Rapido lui-même :
@@ -166,7 +177,7 @@ if (chrome.downloads.onDeterminingFilename?.addListener) {
 
 async function handleDownload(item, ext) {
   // Never export private-window URLs or consult the regular cookie jar for them.
-  if (item.incognito) return;
+  if (browserOwnedContext(item)) return;
   if (handled.has(item.id)) return;
   const url = item.finalUrl || item.url;
   if (!/^https?:/i.test(url)) return;                 // blob:, data: -> Chrome s'en charge
@@ -204,7 +215,7 @@ async function mediaFor(tabId) {
 }
 
 chrome.webRequest.onHeadersReceived.addListener(async (d) => {
-  if (d.tabId < 0) return;
+  if (d.tabId < 0 || browserOwnedContext(d)) return;
   const ct = (d.responseHeaders || []).find(h => h.name.toLowerCase() === "content-type")?.value || "";
   if (!MEDIA_CT.test(ct) && !MEDIA_URL.test(d.url)) return;
   if (/\.(ts|m4s|aac)(\?|$)/i.test(d.url) || /seg-?\d+|chunk|range=/i.test(d.url)) return;  // morceaux d'un flux
@@ -234,6 +245,10 @@ async function grabVideo(tab, frameUrl, src) {
 /* bouton "Télécharger cette vidéo" (content.js) */
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === "grab-video" && sender.tab) {
+    if (browserOwnedContext(sender.tab)) {
+      reply({ok:false,error:"Capture laissée au navigateur dans ce contexte privé."});
+      return false;
+    }
     grabVideo(sender.tab, sender.url, msg.src)
       .then(() => reply({ ok: true }))
       .catch(e => reply({ ok: false, error: String(e) }));
@@ -250,7 +265,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(() => { updateBadge(); loadCfg(); });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (tab?.incognito) return;
+  if (browserOwnedContext(tab)) return;
   try {
     if (info.menuItemId === "rapido-link") {
       const url = info.linkUrl || info.srcUrl;
