@@ -94,3 +94,19 @@ def test_local_api_non_object_reply_fails_closed():
 
     with patch("native_host.urllib.request.urlopen", return_value=Response()):
         assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
+
+
+def test_oversized_loopback_reply_is_rejected():
+    payload = {"type": "capture_public", "url": "https://example.org/a.zip",
+               "referrer": None, "filename": None}
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, size=-1):
+            assert size == 65537
+            return b" " * 65537
+
+    with patch("native_host.urllib.request.urlopen", return_value=Response()):
+        assert handle_message(payload) == {"type": "error", "code": "rapido_unavailable"}
