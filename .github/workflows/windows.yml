@@ -160,8 +160,23 @@ jobs:
           foreach ($folder in @('extension','extension-edge','extension-firefox')) {
             if (-not (Test-Path -LiteralPath (Join-Path $target ($folder + '\manifest.json')))) { throw "Missing browser folder: $folder" }
           }
-          $process = Start-Process -FilePath (Join-Path $target 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WindowStyle Hidden -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw "Uninstaller failed: $($process.ExitCode)" }
+          # Regression: another, unrelated process named Rapido.exe must survive
+          # uninstall. Use a harmless copied PowerShell binary in an isolated directory.
+          $otherDir = Join-Path $env:RUNNER_TEMP 'rapido-other-instance'
+          New-Item -ItemType Directory -Path $otherDir -Force | Out-Null
+          $otherImage = Join-Path $otherDir 'Rapido.exe'
+          Copy-Item -LiteralPath (Join-Path $PSHOME 'pwsh.exe') -Destination $otherImage
+          $other = Start-Process -FilePath $otherImage -ArgumentList '-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 60' -WindowStyle Hidden -PassThru
+          try {
+            Start-Sleep -Seconds 2
+            if ($other.HasExited) { throw "Unrelated test process failed to stay running" }
+            $process = Start-Process -FilePath (Join-Path $target 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WindowStyle Hidden -Wait -PassThru
+            if ($process.ExitCode -ne 0) { throw "Uninstaller failed: $($process.ExitCode)" }
+            $other.Refresh()
+            if ($other.HasExited) { throw "Uninstaller terminated an unrelated Rapido.exe process" }
+          } finally {
+            if (-not $other.HasExited) { Stop-Process -Id $other.Id -Force }
+          }
           foreach ($key in $keys) {
             if ((Test-Path -LiteralPath $key) -and $null -ne (Get-Item -LiteralPath $key).GetValue('')) { throw "Native registration survived uninstall: $key" }
           }
