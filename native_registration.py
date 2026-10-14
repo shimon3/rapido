@@ -20,7 +20,7 @@ BROWSERS = {
 
 
 def _same_path(left, right):
-    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
+    return os.path.normcase(str(Path(left).resolve())) == os.path.normcase(str(Path(right).resolve()))
 
 
 def manifests(executable, *, name=HOST):

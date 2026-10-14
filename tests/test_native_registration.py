@@ -23,7 +23,7 @@ class FakeRegistry:
 def prepare(test):
     temp=tempfile.TemporaryDirectory()
     test.addCleanup(temp.cleanup)
-    exe=Path(temp.name)/"RapidoNativeHost.exe"
+    exe=Path(temp.name).resolve()/"RapidoNativeHost.exe"
     exe.touch()
     exe.with_name("Rapido.exe").touch()
     return exe
