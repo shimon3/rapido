@@ -73,7 +73,8 @@ def _safe_public_capture(data):
                                  any(ord(ch) < 32 or ord(ch) == 127 for ch in referrer)):
         return {"type": "error", "code": "invalid_capture"}
     if filename is not None and (not isinstance(filename, str) or len(filename) > 255 or
-                                 any(ch in filename for ch in "/\\\\\r\n")):
+                                 any(ch in filename for ch in "/\\\\\r\n") or
+                                 any(ord(ch) < 32 or ord(ch) == 127 for ch in filename)):
         return {"type": "error", "code": "invalid_capture"}
     headers = {}
     if referrer:
