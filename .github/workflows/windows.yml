@@ -161,12 +161,12 @@ jobs:
             if (-not (Test-Path -LiteralPath (Join-Path $target ($folder + '\manifest.json')))) { throw "Missing browser folder: $folder" }
           }
           # Regression: another, unrelated process named Rapido.exe must survive
-          # uninstall. Use a harmless copied PowerShell binary in an isolated directory.
+          # uninstall. Use a harmless copied Windows ping binary in an isolated directory.
           $otherDir = Join-Path $env:RUNNER_TEMP 'rapido-other-instance'
           New-Item -ItemType Directory -Path $otherDir -Force | Out-Null
           $otherImage = Join-Path $otherDir 'Rapido.exe'
-          Copy-Item -LiteralPath (Join-Path $PSHOME 'pwsh.exe') -Destination $otherImage
-          $other = Start-Process -FilePath $otherImage -ArgumentList '-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 60' -WindowStyle Hidden -PassThru
+          Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\ping.exe') -Destination $otherImage
+          $other = Start-Process -FilePath $otherImage -ArgumentList '127.0.0.1','-n','60' -WindowStyle Hidden -PassThru
           try {
             Start-Sleep -Seconds 2
             if ($other.HasExited) { throw "Unrelated test process failed to stay running" }
