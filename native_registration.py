@@ -20,9 +20,15 @@ BROWSERS = {
 
 
 def _has_linked_component(path):
-    """Reject a direct symlink or symlinked ancestor without resolving ownership."""
+    """Reject symlink/junction components before accepting manifest ownership.
+
+    This is a best-effort path check, not a race-free filesystem trust anchor.
+    """
     candidate = Path(os.path.abspath(path))
-    return any(part.is_symlink() for part in (candidate, *candidate.parents))
+    for part in (candidate, *candidate.parents):
+        if part.is_symlink() or (os.name == "nt" and part.is_junction()):
+            return True
+    return False
 
 
 def _same_path(left, right):
