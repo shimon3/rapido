@@ -93,14 +93,8 @@ begin
       RaiseException('Cannot register native bridge for Chrome, Edge and Firefox. Another Rapido installation may own it.');
 end;
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-var
-  ResultCode: Integer;
-begin
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im Rapido.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(500);
-  Result := '';
-end;
+// Inno Setup Restart Manager handles files held by this installation.
+// Do not terminate every process called Rapido.exe on the machine.
 
 // Retire le demarrage automatique meme s'il a ete active depuis les Options de Rapido
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
