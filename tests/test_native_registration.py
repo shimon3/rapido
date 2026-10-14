@@ -137,6 +137,25 @@ class RegistrationTests(unittest.TestCase):
         self.assertTrue(path.is_symlink())
         self.assertEqual(json.loads(target.read_text()),value)
 
+    def test_symlinked_install_directory_is_rejected(self):
+        target = self.exe.parent
+        alias = target.parent / ("rapido-link-" + uuid.uuid4().hex)
+        try:
+            alias.symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Directory symlink creation not permitted")
+        self.addCleanup(lambda: alias.unlink(missing_ok=True))
+        with self.assertRaises(ValueError):
+            manifests(alias / "RapidoNativeHost.exe")
+        register(self.exe, registry=self.registry)
+        key, path, _ = manifests(self.exe)["edge"]
+        self.registry.values[self.registry.locations(key)[0]] = str(alias / path.name)
+        with self.assertRaises(FileExistsError):
+            register(self.exe, registry=self.registry)
+        unregister(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values,
+                         {self.registry.locations(key)[0]: str(alias / path.name)})
+
     def test_linked_host_and_desktop_executables_are_rejected(self):
         target=self.exe.with_name("original-native-host.exe")
         target.touch()
