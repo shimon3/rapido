@@ -85,6 +85,42 @@ class RegistrationTests(unittest.TestCase):
         unregister(self.exe,registry=self.registry)
         self.assertFalse(path.exists())
 
+    def test_linked_manifest_is_not_adopted_or_deleted(self):
+        _,path,value=manifests(self.exe)["chrome"]
+        target=path.with_name("external-manifest.json")
+        target.write_text(json.dumps(value))
+        try:
+            path.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlink creation not permitted on this runner")
+        with self.assertRaises(FileExistsError):
+            register(self.exe,registry=self.registry)
+        self.assertFalse(self.registry.values)
+        unregister(self.exe,registry=self.registry)
+        self.assertTrue(path.is_symlink())
+        self.assertEqual(json.loads(target.read_text()),value)
+
+    def test_linked_host_and_desktop_executables_are_rejected(self):
+        target=self.exe.with_name("original-native-host.exe")
+        target.touch()
+        try:
+            link=self.exe.with_name("linked-host.exe")
+            link.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlink creation not permitted on this runner")
+        # Exercise the exact packaged filename by replacing the fixture.
+        self.exe.unlink()
+        self.exe.symlink_to(target)
+        with self.assertRaises(ValueError):
+            manifests(self.exe)
+        self.exe.unlink()
+        self.exe.touch()
+        desktop=self.exe.with_name("Rapido.exe")
+        desktop.unlink()
+        desktop.symlink_to(target)
+        with self.assertRaises(ValueError):
+            manifests(self.exe)
+
     def test_missing_desktop_and_foreign_manifest_are_refused(self):
         self.exe.with_name("Rapido.exe").unlink()
         with self.assertRaises(ValueError):

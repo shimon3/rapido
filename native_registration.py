@@ -26,9 +26,14 @@ def _same_path(left, right):
 def manifests(executable, *, name=HOST):
     if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)+", name):
         raise ValueError("Invalid native host name")
-    executable = Path(executable).resolve()
+    executable = Path(executable)
+    if executable.is_symlink():
+        raise ValueError("Native host executable must not be a symbolic link")
+    executable = executable.resolve()
     if executable.name != "RapidoNativeHost.exe" or not executable.is_file():
         raise ValueError("Missing packaged native host")
+    if executable.with_name("Rapido.exe").is_symlink():
+        raise ValueError("Desktop executable must not be a symbolic link")
     if not executable.with_name("Rapido.exe").is_file():
         raise ValueError("Missing adjacent Rapido executable")
     result = {}
@@ -80,6 +85,9 @@ class WindowsRegistry:
 
 
 def _owned_manifest(path, value):
+    # Never follow an attacker-controlled manifest link when checking ownership.
+    if path.is_symlink():
+        return False
     try:
         existing = json.loads(path.read_text(encoding="utf-8"))
         expected = dict(value)

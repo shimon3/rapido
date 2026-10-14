@@ -83,6 +83,10 @@ def valid_origin(role, args, executable):
         if len(args)!=2 or args[1]!=FIREFOX_ID:
             return False
         try:
+            # Refuse an explicitly linked manifest even if its lexical path matches.
+            # This is defense-in-depth, not a solution for writable installation files.
+            if Path(args[0]).is_symlink():
+                return False
             manifest=canonical_image(args[0])
             expected=canonical_image(ntpath.join(ntpath.dirname(executable), "rapido-native-firefox.json"))
             return manifest==expected
