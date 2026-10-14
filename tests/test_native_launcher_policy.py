@@ -30,6 +30,17 @@ class LauncherPolicyTests(unittest.TestCase):
         with patch("native_launcher.Path.is_symlink", return_value=True):
             self.assertFalse(valid_origin("firefox", [r"C:\Rapido\rapido-native-firefox.json", FIREFOX_ID], EXE))
 
+    def test_rejects_linked_native_helper_or_desktop_path(self):
+        parent = ProcessIdentity(200, SID, r"c:\rapido\rapido.exe", 100)
+        for linked in (EXE, APP):
+            original = os.path.normcase(linked)
+            def linked_path(path):
+                return os.path.normcase(str(path)) == original
+            with patch("native_launcher.Path.is_symlink", autospec=True,
+                       side_effect=linked_path):
+                with self.assertRaises(PermissionError):
+                    self.run_chain(parent)
+
     def run_chain(self, parent, args=None):
         child=ProcessIdentity(100,SID,r"c:\rapido\rapidonativehost.exe",200)
         @contextmanager

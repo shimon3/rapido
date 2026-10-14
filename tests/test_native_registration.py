@@ -67,6 +67,43 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(self.registry.values,before)
         self.assertFalse(any(path.exists() for _,path,_ in specs.values()))
 
+    def test_separate_install_cannot_replace_or_unregister_owned_browser_hosts(self):
+        first = self.exe
+        second = prepare(self)
+        self.assertNotEqual(first.parent, second.parent)
+        register(first, registry=self.registry)
+        expected = dict(self.registry.values)
+        first_manifests = manifests(first)
+        second_manifests = manifests(second)
+        with self.assertRaises(FileExistsError):
+            register(second, registry=self.registry)
+        self.assertEqual(self.registry.values, expected)
+        self.assertTrue(all(path.is_file() for _, path, _ in first_manifests.values()))
+        self.assertFalse(any(path.exists() for _, path, _ in second_manifests.values()))
+        unregister(second, registry=self.registry)
+        self.assertEqual(self.registry.values, expected)
+        self.assertTrue(all(path.is_file() for _, path, _ in first_manifests.values()))
+        unregister(first, registry=self.registry)
+        self.assertFalse(self.registry.values)
+
+    def test_registry_symlink_alias_cannot_claim_manifest_ownership(self):
+        register(self.exe, registry=self.registry)
+        key, path, value = manifests(self.exe)["edge"]
+        alternate = path.with_name("foreign-alias.json")
+        try:
+            alternate.symlink_to(path)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlink creation not permitted on this runner")
+        location = self.registry.locations(key)[0]
+        self.registry.values[location] = str(alternate)
+        before = dict(self.registry.values)
+        with self.assertRaises(FileExistsError):
+            register(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values, before)
+        unregister(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values, {location: str(alternate)})
+        self.assertTrue(alternate.is_symlink())
+
     def test_uninstall_preserves_replaced_registration_and_modified_manifest(self):
         register(self.exe,registry=self.registry)
         key,path,value=manifests(self.exe)["edge"]
@@ -99,6 +136,90 @@ class RegistrationTests(unittest.TestCase):
         unregister(self.exe,registry=self.registry)
         self.assertTrue(path.is_symlink())
         self.assertEqual(json.loads(target.read_text()),value)
+
+    def test_symlinked_install_directory_is_rejected(self):
+        target = self.exe.parent
+        alias = target.parent / ("rapido-link-" + uuid.uuid4().hex)
+        try:
+            alias.symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Directory symlink creation not permitted")
+        self.addCleanup(lambda: alias.unlink(missing_ok=True))
+        with self.assertRaises(ValueError):
+            manifests(alias / "RapidoNativeHost.exe")
+        register(self.exe, registry=self.registry)
+        key, path, _ = manifests(self.exe)["edge"]
+        self.registry.values[self.registry.locations(key)[0]] = str(alias / path.name)
+        with self.assertRaises(FileExistsError):
+            register(self.exe, registry=self.registry)
+        unregister(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values,
+                         {self.registry.locations(key)[0]: str(alias / path.name)})
+
+    @unittest.skipUnless(os.name == "nt", "Real Windows junction")
+    def test_real_junction_registration_rejected_without_registry_change(self):
+        import subprocess
+        target = self.exe.parent
+        alias = target.parent / ("rapido-junction-" + uuid.uuid4().hex)
+        created = subprocess.run(
+            ["cmd", "/d", "/c", "mklink", "/J", str(alias), str(target)],
+            capture_output=True, text=True, check=True,
+        )
+        self.assertTrue(alias.is_junction(), created.stdout)
+        self.addCleanup(alias.rmdir)
+        with self.assertRaises(ValueError):
+            register(alias / "RapidoNativeHost.exe", registry=self.registry)
+        self.assertFalse(self.registry.values)
+
+        register(self.exe, registry=self.registry)
+        key, path, _ = manifests(self.exe)["firefox"]
+        location = self.registry.locations(key)[0]
+        foreign_path = alias / path.name
+        self.registry.values[location] = str(foreign_path)
+        with self.assertRaises(FileExistsError):
+            register(self.exe, registry=self.registry)
+        unregister(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values, {location: str(foreign_path)})
+        self.assertTrue(alias.is_junction())
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction detection")
+    def test_junction_install_directory_is_rejected(self):
+        from unittest.mock import patch
+        directory = self.exe.parent
+        original = Path.is_junction
+
+        def simulated_junction(path):
+            return path == directory or original(path)
+
+        with patch.object(Path, "is_junction", autospec=True,
+                          side_effect=simulated_junction):
+            with self.assertRaises(ValueError):
+                manifests(self.exe)
+            self.assertFalse(self.registry.values)
+            with self.assertRaises(ValueError):
+                register(self.exe, registry=self.registry)
+            self.assertFalse(self.registry.values)
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction detection")
+    def test_junction_registry_alias_preserves_foreign_registration(self):
+        from unittest.mock import patch
+        register(self.exe, registry=self.registry)
+        key, path, _ = manifests(self.exe)["edge"]
+        location = self.registry.locations(key)[0]
+        alias_root = path.parent.parent / "junction-alias"
+        foreign = alias_root / path.parent.name / path.name
+        self.registry.values[location] = str(foreign)
+        original = Path.is_junction
+
+        def simulated_junction(candidate):
+            return candidate == alias_root or original(candidate)
+
+        with patch.object(Path, "is_junction", autospec=True,
+                          side_effect=simulated_junction):
+            with self.assertRaises(FileExistsError):
+                register(self.exe, registry=self.registry)
+            unregister(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values, {location: str(foreign)})
 
     def test_linked_host_and_desktop_executables_are_rejected(self):
         target=self.exe.with_name("original-native-host.exe")
