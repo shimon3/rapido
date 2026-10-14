@@ -239,7 +239,8 @@ def api():
     import app as rapido
     rapido.manager.settings["monitor_clipboard"] = False
     rapido.manager.open_window = lambda *a, **k: None
-    with TestClient(rapido.app, base_url="http://127.0.0.1:9614") as c:
+    with TestClient(rapido.app, base_url="http://127.0.0.1:9614",
+                    headers={"Authorization":"Bearer "+rapido._LOCAL_AUTH.token_for_trusted_transport()}) as c:
         yield c, rapido
 
 

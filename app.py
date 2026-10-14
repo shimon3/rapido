@@ -50,8 +50,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Rapido", lifespan=lifespan)
 
-# Staged S2 gate. No token is exposed by an HTTP endpoint or embedded in HTML.
-# The new native-only endpoint is inaccessible until a trusted Windows IPC handoff exists.
+# S2: all API data and mutations require this process-local authorization.
+# Native WebView2 request interception and in-process dispatch supply it; never HTML.
 from local_auth import LocalAuth
 _LOCAL_AUTH = LocalAuth()
 
@@ -101,10 +101,13 @@ async def guard(request: Request, call_next):
     fetch_site = request.headers.get("sec-fetch-site")
     if fetch_site and fetch_site not in ("same-origin", "none") and origin != EXTENSION_ORIGIN:
         return _deny(403, "Requete venant d'un autre site refusee")
-    if request.method in ("POST", "PUT", "DELETE"):
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
         ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
         if ctype != "application/json":
             return _deny(415, "Content-Type application/json requis")
+    if (request.url.path.startswith("/api/") and request.url.path != "/api/ping" and
+            not _LOCAL_AUTH.header_is_authorized(request.headers.get("authorization"))):
+        return _deny(403, "Authentification native requise : utilise l'application Rapido")
     response = await call_next(request)
     for k, v in SECURITY_HEADERS.items():
         response.headers.setdefault(k, v)
@@ -318,6 +321,39 @@ async def one(dl_id: str, watch: bool = False):
     return dl.to_public()
 
 
+
+
+def native_dispatch(role: str, data: dict):
+    """Called only after the named-pipe transport verifies the actual OS peer.
+
+    Native host authority is deliberately smaller than the desktop API:
+    no arbitrary routes, headers, file operations or bearer retrieval.
+    """
+    from native_protocol import public_capture
+    kind = data.get("type")
+    if role == "desktop" and data == {"type":"show"}:
+        if UI["show_main"]:
+            UI["show_main"]()
+        return {"ok": bool(UI["desktop"])}
+    if role != "native":
+        raise ValueError("Unknown native role")
+    if data == {"type":"capabilities"}:
+        return {"type":"capabilities", "protocol":1,
+                "features":["ping","capture_public","settings_public"]}
+    if data == {"type":"settings_public"}:
+        return {"type":"settings_public",
+                "capture_exts": list(manager.settings.get("capture_exts", [])),
+                "min_capture_kb": manager.settings.get("min_capture_kb", 512)}
+    if kind != "capture_public":
+        raise ValueError("Unsupported native request")
+    value = public_capture(data)
+    headers = {"Referer":value["referrer"]} if value["referrer"] else {}
+    request = CaptureRequest(url=value["url"], filename=value["filename"],
+                             headers=headers, open_window=True)
+    result = asyncio.run_coroutine_threadsafe(capture(request), manager.loop).result(timeout=4)
+    return {"type":"capture_result","ok": isinstance(result,dict) and isinstance(result.get("id"),str)}
+
+
 # ---------- ajout / capture ----------
 @app.post("/api/downloads")
 async def add_download(req: AddRequest):
@@ -335,11 +371,7 @@ async def add_download(req: AddRequest):
 
 @app.post("/api/native/capture")
 async def capture_native(req: CaptureRequest, request: Request):
-    """Opt-in native-only capture route. Legacy route remains unchanged until migration.
-
-    A trusted IPC integration must supply this process-local secret securely.
-    Do not retrieve it from HTML, /api/settings, extension storage, or logs.
-    """
+    """Authenticated native-only entrypoint; legacy routes are guarded too."""
     # Native-only entrypoint: reject browser-originated requests even when a token is supplied.
     # These headers alone are not an authentication mechanism; the bearer secret is required.
     if (request.headers.get("origin") is not None or

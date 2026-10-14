@@ -27,6 +27,8 @@ from pathlib import Path
 
 PORT = 9614
 BASE_URL = f"http://127.0.0.1:{PORT}"
+_rapido = None
+
 WEBVIEW2_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 
 
@@ -48,7 +50,12 @@ def message_box(text: str, error: bool = False):
 
 
 def api(path: str, body: dict | None = None, timeout: float = 3):
-    data = None if body is None else json.dumps(body).encode()
+    if _rapido is not None:
+        from trusted_api import call
+        return call(_rapido, path, body, timeout=timeout)
+    if path != "/api/ping" or body is not None:
+        raise RuntimeError("Internal API unavailable before startup")
+    data = None
     req = urllib.request.Request(BASE_URL + path, data=data, method="GET" if body is None else "POST",
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -77,6 +84,7 @@ def setup_logging(data_dir: Path):
 
 
 def main() -> int:
+    global _rapido
     args = parse_args()
     if args.selftest and not os.environ.get("RAPIDO_DATA"):
         os.environ["RAPIDO_DATA"] = tempfile.mkdtemp(prefix="rapido-selftest-")
@@ -91,17 +99,26 @@ def main() -> int:
             return 2
         if not args.tray:
             try:
-                api("/api/show", {})
+                from native_pipe import request
+                result = request({"type":"show"}, server_images=[sys.executable], timeout=2)
+                if result.get("ok") is not True:
+                    raise RuntimeError("Native instance refused")
             except Exception:
-                pass
+                message_box("L'instance locale n'a pas pu etre verifiee. Ferme l'ancienne instance puis relance Rapido.", True)
+                return 1
         return 0
     if state == "other":
         message_box(f"Le port {PORT} est deja utilise par un autre programme.\nRapido ne peut pas demarrer.", True)
         return 1
 
+    # WebView authorization must reach our owned listener directly, never a proxy.
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--no-proxy-server"
+    os.environ.pop("WEBVIEW2_PIPE_FOR_SCRIPT_DEBUGGER", None)
     import uvicorn
     import webview
     import app as rapido
+    from webview_auth import attach
+    _rapido = rapido
 
     if args.selftest:
         rapido.manager.settings["download_dir"] = str(data_dir / "Downloads")
@@ -110,7 +127,20 @@ def main() -> int:
     # ----- serveur en arriere-plan -----
     server = uvicorn.Server(uvicorn.Config(rapido.app, host="127.0.0.1", port=PORT,
                                            log_level="warning", access_log=False))
-    server_thread = threading.Thread(target=server.run, name="rapido-server", daemon=True)
+    # Claim the port exclusively before any window can add authorization headers.
+    import socket
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if os.name == "nt":
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    try:
+        listener.bind(("127.0.0.1", PORT))
+        listener.listen(128)
+    except OSError:
+        listener.close()
+        message_box("Le port local n'a pas pu etre reserve exclusivement.", True)
+        return 1
+    server_thread = threading.Thread(target=lambda: server.run(sockets=[listener]),
+                                     name="rapido-server", daemon=True)
     server_thread.start()
     for _ in range(200):
         if server.started:
@@ -119,6 +149,8 @@ def main() -> int:
             break
         time.sleep(0.1)
     if not server.started:
+        listener.close()
+        _rapido = None
         message_box("Le serveur de Rapido n'a pas pu demarrer.\n"
                     f"Details dans : {data_dir / 'rapido.log'}", True)
         return 1
@@ -146,6 +178,7 @@ def main() -> int:
                 pass
         return False
 
+    attach(main_win, BASE_URL + "/", rapido._LOCAL_AUTH)
     main_win.events.closing += on_main_closing
 
     def show_main():
@@ -176,6 +209,7 @@ def main() -> int:
             "Rapido", f"{BASE_URL}{path}&w={token}", width=width, height=height, min_size=(420, 300),
             on_top=True, background_color="#F3F4F1",
         )
+        attach(win, f"{BASE_URL}{path}&w={token}", rapido._LOCAL_AUTH)
         popups[token] = win
 
         def unpin():
@@ -209,6 +243,14 @@ def main() -> int:
     rapido.manager.open_window = open_popup
     rapido.manager.on_exit = quit_all          # action "Quitter Rapido" a la fin de la file d'attente
 
+    native_server = None
+    if os.name == "nt" and getattr(sys, "frozen", False):
+        from native_pipe import PipeServer
+        native_server = PipeServer(rapido.native_dispatch, clients={
+            str(Path(sys.executable).with_name("RapidoNativeHost.exe")):"native",
+            sys.executable:"desktop",
+        }).start()
+
     if not args.selftest:
         tray = rapido.run_tray(show_main, quit_all)
 
@@ -235,8 +277,12 @@ def main() -> int:
                 tray.stop()
             except Exception:
                 pass
+        if native_server is not None:
+            native_server.stop()
         server.should_exit = True
         server_thread.join(timeout=10)
+        listener.close()
+        _rapido = None
 
     if args.selftest:
         out = args.selftest_out or str(Path(tempfile.gettempdir()) / "rapido-selftest.json")
@@ -314,12 +360,51 @@ def run_selftest(main_win, open_popup, result: dict):
         result["motw_ok"] = b"ZoneId=3\r\n" in raw and b"\r\r" not in raw
         result["settings_desktop"] = api("/api/settings").get("desktop")
 
+        # Exercise native WebView2 header authentication without an exposed JS token.
+        main_win.evaluate_js("api('/api/settings').then(s=>window._nativeAuthProbe=s.desktop).catch(()=>window._nativeAuthProbe=false); true")
+        for _ in range(30):
+            if main_win.evaluate_js("window._nativeAuthProbe === true"):
+                break
+            time.sleep(.1)
+        result["webview_auth"] = main_win.evaluate_js("window._nativeAuthProbe === true")
+        # An arbitrary local client cannot read private state or mutate the API.
+        result["unauthenticated_api"] = True
+        for path, body in (("/api/settings",None), ("/api/state",None), ("/api/capture",{"url":BASE_URL+"/favicon.ico"})):
+            req = urllib.request.Request(BASE_URL+path, data=None if body is None else json.dumps(body).encode(),
+                method="GET" if body is None else "POST", headers={"Content-Type":"application/json"})
+            try:
+                urllib.request.urlopen(req, timeout=2)
+                result["unauthenticated_api"] = False
+            except urllib.error.HTTPError as error:
+                result["unauthenticated_api"] &= error.code == 403
+        # The actual packaged native host must authenticate the actual desktop pipe.
+        import subprocess, struct
+        def native_message(value):
+            payload = json.dumps(value).encode()
+            process = subprocess.run([str(Path(sys.executable).with_name("RapidoNativeHost.exe"))],
+                input=struct.pack("<I",len(payload))+payload, capture_output=True, timeout=8,
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            if process.returncode != 0 or len(process.stdout) < 4:
+                raise RuntimeError("Packaged native host failed")
+            size = struct.unpack("<I",process.stdout[:4])[0]
+            if size > 65536 or len(process.stdout) != size+4:
+                raise RuntimeError("Invalid packaged native reply")
+            return json.loads(process.stdout[4:])
+        capabilities = native_message({"type":"capabilities"})
+        result["native_pipe"] = capabilities.get("protocol") == 1 and "capture_public" in capabilities.get("features",[])
+        reply = native_message({"type":"capture_public","url":BASE_URL+"/favicon.ico",
+                                "referrer":None,"filename":"native-selftest.png"})
+        result["native_capture"] = reply == {"type":"capture_result","ok":True}
+
+
         result["ok"] = bool(
             result["renderer"] == "edgechromium" and result["main_loaded"]
             and result["main_title"] == "Rapido" and status == "completed" and result["download_file_ok"]
             and result["popup_loaded"] and result["popup_token"] and result["popup_resized"]
             and result["settings_desktop"] and result["csp"] and result["guard_ok"]
             and result["dpapi_ok"] and result["motw_ok"] and result["ytdlp_process"]
+            and result["webview_auth"] and result["unauthenticated_api"]
+            and result["native_pipe"] and result["native_capture"]
         )
     except Exception as e:
         import traceback

@@ -16,7 +16,7 @@ Built with **Python (FastAPI + asyncio + httpx)**, a single-file HTML interface,
 - **Dynamic segmentation**: when a connection finishes early, the largest remaining segment is split in two and a new connection picks up the second half.
 - **Robust resume**: per-segment progress is persisted to disk. Pause, network drops, crashes or a reboot all resume where they stopped. Retries use exponential backoff and are not counted as failures when the connection made progress.
 - **Video grabber** (yt-dlp runs in a separate process so heavy extraction never freezes the app; sites are queried without your browser cookies first, which are used only if a video requires them): a "Download this video" button appears over videos in Chrome. Streams (HLS `.m3u8`, DASH `.mpd`, direct MP4) are detected by the extension and resolved with [yt-dlp](https://github.com/yt-dlp/yt-dlp), with a choice of quality (1080p, 720p, audio only…).
-- **Browser integration**: the extension intercepts downloads matching your file types, forwards cookies and referrer (so logged-in downloads work), and falls back to Chrome if Rapido isn't running. Right-click menu included.
+- **Browser integration**: registered Native Messaging uses a Windows named pipe with explicit ACL and kernel-verified user/executable identities. Cookie-dependent and private-window downloads remain in the browser. Referrer query/fragment data is removed, and missing/refused native capture leaves the original browser request intact. No HTTP fallback or browser-cookie export.
 - **Capture → progress → done windows**: a file-info dialog before each download, a live progress window with per-connection details, and a completion dialog with "Open" / "Open folder".
 - **Queue & scheduler**: "Download later", start/stop times, days of the week, then shut down, sleep or exit when the queue is finished (with a 60-second cancel window).
 - **Clipboard monitoring**: copying a link to a file opens the capture dialog.
@@ -25,7 +25,7 @@ Built with **Python (FastAPI + asyncio + httpx)**, a single-file HTML interface,
 ## How it works
 
 ```
-Chrome extension ──(JSON over localhost)──► FastAPI (127.0.0.1:9614) ──► engine.py
+Chrome extension ──Native Messaging──► verified Windows named pipe ──► engine.py
   · intercepts downloads                     · REST API                    · asyncio + httpx segment workers
   · sniffs media requests                    · serves the UI & dialogs     · yt-dlp in a worker thread
   · video overlay button                                                  · scheduler loop, clipboard thread
@@ -41,7 +41,7 @@ Chrome extension ──(JSON over localhost)──► FastAPI (127.0.0.1:9614) �
 | `extension/` | Chrome extension (Manifest V3) |
 | `packaging/` | Icon, Windows version info, Inno Setup installer script |
 
-The API only listens on `127.0.0.1`, accepts cross-origin calls only from Chrome extensions, and requires `application/json` on every write, so a random website can't trigger downloads through a simple form post.
+Every `/api/` route except the non-sensitive `/api/ping` requires a per-process bearer. The desktop exclusively owns the loopback socket and injects authorization from native WebView2 request interception into its own local pages only. The bearer is never put in JavaScript, HTML, cookies, browser storage or a URL. Internal calls use in-process ASGI dispatch. The extension receives no bearer: its native host has only public-capture and public-settings authority through verified Windows IPC.
 
 ## Download
 
@@ -68,7 +68,7 @@ A portable `.zip` is also attached to each release: unzip it and run `Rapido.exe
 ```bash
 pip install -r requirements.txt pyinstaller
 python desktop.py            # run the desktop app
-python app.py                # or: server only, UI at http://localhost:9614
+python app.py                # protected server only: ordinary browser UI cannot authenticate
 ```
 
 Windows builds are produced by [GitHub Actions](.github/workflows/windows.yml) on `windows-latest`:
@@ -99,7 +99,8 @@ Rapido runs a local API that can write files to disk and launch programs, so it 
 |---|---|
 | A website calls the local API (CSRF) | Every write must be `application/json` (strict media-type check), which forces a CORS preflight. CORS only allows Rapido's extension, and any other `Origin` is rejected with 403. Any request or page load that the browser marks as coming from another site (`Sec-Fetch-Site: cross-site` or `same-site`, even from another port on 127.0.0.1) is refused. The popup page only accepts a hexadecimal download id, and bulk actions never default to "everything". |
 | DNS rebinding (`evil.com` resolving to 127.0.0.1) | The `Host` header must be `127.0.0.1:9614` or `localhost:9614`. |
-| Another Chrome extension calls the API | The extension has a fixed ID (public `key` in the manifest), and only that ID is allowed. |
+| Arbitrary local HTTP client reads state or mutates the API | Every API route except ping requires the process bearer; forged Origin/Host headers do not supply authorization. |
+| Another extension or a fake native/loopback server | Browser registration restricts extension IDs. Native IPC verifies the actual Windows SID and executable of the connected peer before transferring URLs; no unauthenticated HTTP fallback. |
 | HTML or script injection through file names, video titles or error messages | All remote text is HTML-escaped. A strict Content-Security-Policy only allows Rapido's scripts (SHA-256 hashes), with no `eval`, `connect-src 'self'` and `frame-ancestors 'none'`. |
 | Clickjacking | `X-Frame-Options: DENY` and `frame-ancestors 'none'`. |
 | Session cookies leaking to other sites | Cookies only go to the site they belong to. For videos they go through a cookie jar scoped to the page's host, deleted right after. HTTP redirects drop them. |
@@ -110,7 +111,7 @@ Rapido runs a local API that can write files to disk and launch programs, so it 
 | Non-HTTP links (`file://`, `javascript:`) | Only `http(s)` URLs with a host are accepted, including video streams detected by the extension. All inputs have size limits. |
 | Build supply chain | GitHub Actions are pinned to commit SHAs, the workflow has read-only permissions by default, and every build runs a self-test on Windows (security checks included) before an installer is published. |
 
-**Not covered:** the executable isn't code-signed yet, so SmartScreen shows a warning on first launch. Malware already running under your Windows account could read Rapido's files, as it could any other application's.
+**Not covered:** executable path/SID checks are not Authenticode verification and cannot protect against injection or replacement of trusted executables by a compromised account. The executable is not code-signed yet. Source-mode native hosts deliberately cannot claim packaged executable identity. Real Chrome/Edge/Firefox installation, private-session behavior and upgrade/uninstall still require manual verification before distribution. Video capture from the extension remains disabled; private downloads stay in the browser.
 
 ## Limitations
 
@@ -123,6 +124,7 @@ Rapido runs a local API that can write files to disk and launch programs, so it 
 
 ```bash
 pip install pytest
+# Node.js is also required for the browser behavior tests.
 python -m pytest -q tests
 ```
 

@@ -1,7 +1,7 @@
 """S2 migration inventory: explicitly track every mutating HTTP endpoint.
 
-This test does NOT establish that these endpoints are authenticated.
-It prevents silently adding new unauthenticated mutation routes during migration.
+This inventory also probes every mutation without credentials and requires 403.
+It prevents silently adding an unprotected mutation route.
 """
 import os
 import tempfile
@@ -52,5 +52,30 @@ def test_explicit_mutation_inventory_prevents_unreviewed_routes():
     )
 
 
-def test_only_native_capture_is_marked_authenticated():
-    assert AUTHENTICATED_MUTATIONS == {("POST", "/api/native/capture")}
+def test_all_inventory_routes_are_protected_without_token():
+    from fastapi.testclient import TestClient
+    with TestClient(app, base_url="http://127.0.0.1:9614") as client:
+        for method, path in LEGACY_MUTATIONS | AUTHENTICATED_MUTATIONS:
+            path = path.replace("{dl_id}", "abcdef").replace("{action}", "delete")
+            assert client.request(method, path, json={}).status_code == 403
+
+
+def test_all_private_read_routes_reject_anonymous_access():
+    """Every new API GET route must remain covered by the central auth guard."""
+    from fastapi.testclient import TestClient
+    paths = {
+        route.path
+        for route in app.routes
+        if "GET" in (route.methods or ())
+        and route.path.startswith("/api/")
+        and route.path != "/api/ping"
+    }
+    assert paths, "Expected private API read routes"
+    with TestClient(app, base_url="http://127.0.0.1:9614") as client:
+        for path in sorted(paths):
+            # Check auth first, even on non-existent resource IDs.
+            candidate = (path.replace("{dl_id}", "abcdef")
+                             .replace("{action}", "delete")
+                             .replace("{id}", "abcdef"))
+            response = client.get(candidate)
+            assert response.status_code == 403, (candidate, response.status_code)

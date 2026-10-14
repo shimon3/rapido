@@ -2,10 +2,10 @@ name: Windows build
 
 on:
   push:
-    branches: [main]
+    branches: [main, security/s2-api-native-migration-20261014]
     tags: ["v*"]
+  # Validate stacked PRs too: their base branch changes during security review.
   pull_request:
-    branches: [main, security/s2-auth-core, security/native-messaging-prototype, security/s2-auth-enforcement-tests]
   workflow_dispatch:
 
 # Droits minimum par defaut ; seul le job de compilation peut publier une release.
@@ -75,6 +75,10 @@ jobs:
         run: >
           pyinstaller --noconfirm --clean --onefile --console
           --name RapidoNativeHost native_host.py
+
+      - name: Bundle native host with the desktop executable
+        shell: pwsh
+        run: Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
 
       - name: Self-test (real window, engine, yt-dlp)
         timeout-minutes: 4

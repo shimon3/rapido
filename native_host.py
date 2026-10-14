@@ -1,41 +1,18 @@
-"""Rapido Chrome Native Messaging host prototype.
+"""Rapido Native Messaging host: kernel-verified Windows IPC only.
 
-Supports ping, capabilities and constrained public-download capture.
-The public capture bridge still targets a legacy unauthenticated loopback API;
-S2 authenticated IPC and protected mutation routes are NOT implemented.
-Never forward browser cookies or other authentication credentials.
+Public capture never falls back to HTTP, and never forwards browser cookies
+or authorization headers. The pipe server is verified before any URL is sent.
 """
 from __future__ import annotations
 
 import json
 import struct
 import sys
-import urllib.request
-import urllib.error
-from urllib.parse import urlsplit
+from pathlib import Path
+from native_protocol import public_capture
+from native_pipe import _pairs
 
 MAX_MESSAGE_BYTES = 64 * 1024
-
-LOCAL_CAPTURE_URL = "http://127.0.0.1:9614/api/capture"
-
-
-class _RejectRedirects(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, request, response, code, message, headers, new_url):
-        raise urllib.error.HTTPError(request.full_url, code,
-                                     "Local capture redirects are forbidden", headers, response)
-
-
-def _loopback_opener():
-    # Local IPC must never use environment or Windows registry proxy settings.
-    return urllib.request.build_opener(urllib.request.ProxyHandler({}), _RejectRedirects())
-
-
-def _open_loopback(request, *, timeout):
-    if request.full_url != LOCAL_CAPTURE_URL or request.get_method() != "POST":
-        raise ValueError("Invalid local capture destination")
-    return _loopback_opener().open(request, timeout=timeout)
-
-
 
 def _read_exact(stream, size):
     chunks = []
@@ -58,7 +35,8 @@ def read_message(stream):
     if size < 1 or size > MAX_MESSAGE_BYTES:
         raise ValueError("Invalid native messaging message length")
     payload = _read_exact(stream, size)
-    data = json.loads(payload.decode("utf-8"))
+    data = json.loads(payload.decode("utf-8"), object_pairs_hook=_pairs,
+                      parse_constant=lambda _: (_ for _ in ()).throw(ValueError("Invalid JSON number")))
     if not isinstance(data, dict):
         raise ValueError("Expected object")
     if len(data) > 8 or any(not isinstance(key, str) for key in data):
@@ -75,70 +53,52 @@ def write_message(stream, data):
     stream.flush()
 
 
+def _native_request(data):
+    if not getattr(sys, "frozen", False):
+        raise OSError("Native IPC capture requires the packaged Windows host")
+    from native_pipe import request
+    from native_launcher import trusted_launcher
+    with trusted_launcher(sys.executable, sys.argv[1:]):
+        return request(data, server_images=[str(Path(sys.executable).with_name("Rapido.exe"))],
+                       timeout=5)
+
+
 def _safe_public_capture(data):
-    """Constrained Chrome->native->local API bridge; API S2 still needs authentication."""
-    if set(data) != {"type", "url", "referrer", "filename"}:
-        return {"type": "error", "code": "invalid_capture"}
-    url = data.get("url")
-    referrer = data.get("referrer")
-    filename = data.get("filename")
-    if not isinstance(url, str) or not url or len(url) > 4096 or any(ord(ch) < 32 or ord(ch) == 127 for ch in url):
-        return {"type": "error", "code": "invalid_capture"}
     try:
-        parsed = urlsplit(url)
-        # Accessing .port rejects malformed/out-of-range explicit ports.
-        parsed.port
-        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
-            return {"type": "error", "code": "invalid_capture"}
-    except ValueError:
-        return {"type": "error", "code": "invalid_capture"}
-    if referrer is not None and (not isinstance(referrer, str) or len(referrer) > 4096 or
-                                 any(ord(ch) < 32 or ord(ch) == 127 for ch in referrer)):
-        return {"type": "error", "code": "invalid_capture"}
-    if filename is not None and (not isinstance(filename, str) or len(filename) > 255 or
-                                 any(ch in filename for ch in "/\\\\\r\n") or
-                                 any(ord(ch) < 32 or ord(ch) == 127 for ch in filename)):
-        return {"type": "error", "code": "invalid_capture"}
-    headers = {}
-    if referrer:
-        try:
-            parsed_ref = urlsplit(referrer)
-            parsed_ref.port
-            if (parsed_ref.scheme not in ("http", "https") or not parsed_ref.hostname or
-                    parsed_ref.username or parsed_ref.password):
-                return {"type": "error", "code": "invalid_capture"}
-        except ValueError:
-            return {"type": "error", "code": "invalid_capture"}
-        # Defense in depth: no referrer query or fragment may cross loopback.
-        headers["Referer"] = parsed_ref._replace(query="", fragment="").geturl()
-    body = json.dumps({"url": url, "filename": filename, "headers": headers,
-                       "open_window": True}).encode("utf-8")
+        value = public_capture(data)
+    except (ValueError, TypeError):
+        return {"type":"error","code":"invalid_capture"}
     try:
-        request = urllib.request.Request(LOCAL_CAPTURE_URL,
-                                         data=body, headers={"Content-Type": "application/json"},
-                                         method="POST")
-        with _open_loopback(request, timeout=6) as response:
-            if response.status != 200:
-                return {"type": "error", "code": "rapido_unavailable"}
-            # Bound untrusted loopback responses before decoding JSON.
-            raw = response.read(65537)
-            if len(raw) > 65536:
-                return {"type": "error", "code": "rapido_unavailable"}
-            result = json.loads(raw)
-        return {"type": "capture_result", "ok": True} if isinstance(result, dict) and isinstance(result.get("id"), str) else {
-            "type": "error", "code": "rapido_unavailable"}
-    except (OSError, ValueError, urllib.error.URLError):
-        return {"type": "error", "code": "rapido_unavailable"}
+        response = _native_request({"type":"capture_public", **value})
+        if (isinstance(response, dict) and response.get("type") == "capture_result"
+                and response.get("ok") is True):
+            return {"type":"capture_result","ok":True}
+    except (OSError, ValueError, TimeoutError):
+        pass
+    return {"type":"error","code":"rapido_unavailable"}
 
 
 def handle_message(data):
     if data.get("type") == "ping" and set(data) == {"type"}:
-        return {"type": "pong", "protocol": 1}
-    if data.get("type") == "capabilities" and set(data) == {"type"}:
-        return {"type": "capabilities", "protocol": 1, "features": ["ping", "capture_public"]}
+        return {"type":"pong","protocol":1}
+    if data.get("type") in ("capabilities","settings_public") and set(data) == {"type"}:
+        try:
+            response = _native_request(data)
+            if data["type"] == "capabilities":
+                if (response.get("type") == "capabilities" and response.get("protocol") == 1
+                        and isinstance(response.get("features"), list)):
+                    return {"type":"capabilities","protocol":1,
+                            "features":[f for f in response["features"] if f in ("ping","capture_public","settings_public")]}
+            elif response.get("type") == "settings_public":
+                return response
+        except (OSError, ValueError, TimeoutError, AttributeError):
+            pass
+        if data["type"] == "capabilities":
+            return {"type":"capabilities","protocol":1,"features":["ping"]}
+        return {"type":"error","code":"rapido_unavailable"}
     if data.get("type") == "capture_public":
         return _safe_public_capture(data)
-    return {"type": "error", "code": "unsupported_message"}
+    return {"type":"error","code":"unsupported_message"}
 
 
 def main():

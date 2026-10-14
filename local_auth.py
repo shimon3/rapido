@@ -1,8 +1,7 @@
-"""Authentication primitives for Rapido's future trusted local transport.
+"""Per-process authentication for the protected desktop API.
 
-NOT wired into FastAPI yet: existing Windows WebView and Chrome capture must
-be migrated together before protecting mutation routes. This module alone
-does not fix S2 or S3.
+The secret remains in native Python memory. WebView2 adds it natively only to
+owned local requests; browser extensions use scoped Windows IPC without it.
 """
 from __future__ import annotations
 
@@ -17,7 +16,8 @@ class LocalAuth:
         self._token = secrets.token_urlsafe(32)
 
     def verify(self, candidate: str | None) -> bool:
-        if not isinstance(candidate, str):
+        if (not isinstance(candidate, str) or not candidate.isascii() or
+                len(candidate) != len(self._token)):
             return False
         return hmac.compare_digest(self._token, candidate)
 
