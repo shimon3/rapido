@@ -71,7 +71,6 @@ Name: "{group}\{cm:Uninstall}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Rapido"; Filename: "{app}\Rapido.exe"; Tasks: desktopicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\Google\Chrome\NativeMessagingHosts\com.rapido.bridge"; ValueType: string; ValueName: ""; ValueData: "{app}\rapido-native-host.json"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Rapido"; \
   ValueData: """{app}\Rapido.exe"" --tray"; Flags: uninsdeletevalue; Tasks: autostart
 
@@ -79,26 +78,19 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 Filename: "{app}\Rapido.exe"; Description: "{cm:LaunchProgram,Rapido}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
+Filename: "{app}\RapidoNativeHost.exe"; Parameters: "--unregister-native-hosts"; Flags: runhidden waituntilterminated; RunOnceId: "UnregisterNativeHosts"
 Filename: "{sys}\taskkill.exe"; Parameters: "/f /im Rapido.exe"; Flags: runhidden; RunOnceId: "StopRapido"
 
 [Code]
 // Ferme Rapido s'il tourne (mise a jour par-dessus une version deja installee)
-// Diagnostic host : seule l'extension Chrome Rapido est autorisee.
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  HostPath, ManifestPath, Json: String;
+  ResultCode: Integer;
 begin
   if CurStep = ssPostInstall then
-  begin
-    HostPath := ExpandConstant('{app}\RapidoNativeHost.exe');
-    ManifestPath := ExpandConstant('{app}\rapido-native-host.json');
-    StringChangeEx(HostPath, '\', '\\', True);
-    Json := '{"name":"com.rapido.bridge","description":"Rapido native messaging diagnostics",' +
-      '"path":"' + HostPath + '","type":"stdio",' +
-      '"allowed_origins":["chrome-extension://hlpkfnodjoglfdiekijebbppfgkjkbmp/"]}';
-    if not SaveStringToFile(ManifestPath, Json, False) then
-      RaiseException('Cannot register Rapido Native Messaging host');
-  end;
+    if not Exec(ExpandConstant('{app}\RapidoNativeHost.exe'), '--register-native-hosts',
+                '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+      RaiseException('Cannot register native bridge for Chrome, Edge and Firefox. Another Rapido installation may own it.');
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
