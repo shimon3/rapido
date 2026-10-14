@@ -72,7 +72,7 @@ Name: "{autodesktop}\Rapido"; Filename: "{app}\Rapido.exe"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Rapido"; \
-  ValueData: """{app}\Rapido.exe"" --tray"; Flags: uninsdeletevalue; Tasks: autostart
+  ValueData: """{app}\Rapido.exe"" --tray"; Tasks: autostart
 
 [Run]
 Filename: "{app}\Rapido.exe"; Description: "{cm:LaunchProgram,Rapido}"; Flags: nowait postinstall skipifsilent
@@ -97,7 +97,19 @@ end;
 
 // Retire le demarrage automatique meme s'il a ete active depuis les Options de Rapido
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  CurrentRunValue: String;
 begin
   if CurUninstallStep = usPostUninstall then
-    RegDeleteValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Rapido');
+  begin
+    // Only remove the Run value if it still points to this installation.
+    // A portable or newer installation may have taken ownership.
+    if RegQueryStringValue(HKEY_CURRENT_USER,
+         'Software\Microsoft\Windows\CurrentVersion\Run',
+         'Rapido', CurrentRunValue) and
+       (CompareText(CurrentRunValue,
+         '"' + ExpandConstant('{app}\Rapido.exe') + '" --tray') = 0) then
+      RegDeleteValue(HKEY_CURRENT_USER,
+        'Software\Microsoft\Windows\CurrentVersion\Run', 'Rapido');
+  end;
 end;
