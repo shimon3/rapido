@@ -171,7 +171,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install selenium==4.51.0
-          python scripts/firefox_native_smoke.py --bundle dist/Rapido --data "$env:RUNNER_TEMP/rapido-firefox-data" --probe "$env:RUNNER_TEMP/rapido-firefox-probe"
+          python -m scripts.firefox_native_smoke --bundle dist/Rapido --data "$env:RUNNER_TEMP/rapido-firefox-data" --probe "$env:RUNNER_TEMP/rapido-firefox-probe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Portable zip

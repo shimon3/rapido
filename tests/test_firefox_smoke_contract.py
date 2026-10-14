@@ -1,5 +1,7 @@
 import json
 import tempfile
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 from scripts.firefox_native_smoke import prepare_probe
@@ -15,6 +17,13 @@ class FirefoxProbeTests(unittest.TestCase):
             "browser_specific_settings":{"gecko":{"id":"rapido-capture@rapido.local"}}}
         (self.source/"manifest.json").write_text(json.dumps(self.manifest))
         (self.source/"background.js").write_text("original-background")
+    def test_module_entrypoint_has_project_root_import_context(self):
+        root=Path(__file__).resolve().parents[1]
+        reply=subprocess.run([sys.executable,"-m","scripts.firefox_native_smoke","--help"],cwd=root,
+                             capture_output=True,text=True,timeout=10)
+        self.assertEqual(reply.returncode,0,reply.stderr)
+        self.assertIn("--bundle",reply.stdout)
+
     def test_probe_preserves_shipped_manifest_and_background(self):
         target=prepare_probe(self.source,self.root/"probe","http://127.0.0.1:8765")
         self.assertEqual(json.loads((target/"manifest.json").read_text()),self.manifest)
