@@ -165,6 +165,8 @@ chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
 });
 
 async function handleDownload(item, ext) {
+  // Never export private-window URLs or consult the regular cookie jar for them.
+  if (item.incognito) return;
   if (handled.has(item.id)) return;
   const url = item.finalUrl || item.url;
   if (!/^https?:/i.test(url)) return;                 // blob:, data: -> Chrome s'en charge
@@ -248,6 +250,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(() => { updateBadge(); loadCfg(); });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (tab?.incognito) return;
   try {
     if (info.menuItemId === "rapido-link") {
       const url = info.linkUrl || info.srcUrl;

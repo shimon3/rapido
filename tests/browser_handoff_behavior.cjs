@@ -7,6 +7,7 @@ const event = () => ({addListener() {}});
 async function scenario(mode) {
   const calls = [];
   let release;
+  let menuClick;
   const gate = new Promise(resolve => {release = resolve;});
   const chrome = {
     runtime: {id:"rapido", getURL:p=>"chrome-extension://rapido/"+p,
@@ -30,13 +31,14 @@ async function scenario(mode) {
       async cancel(){calls.push("cancel");},async erase(){calls.push("erase");},
       async download(){calls.push("restart");}},
     webRequest:{onHeadersReceived:event()}, tabs:{onRemoved:event(),onUpdated:event()},
-    contextMenus:{onClicked:event(),create(){}}
+    contextMenus:{onClicked:{addListener(fn){menuClick=fn;}},create(){}}
   };
   const context = vm.createContext({chrome, URL, navigator:{userAgent:"test"},
     async fetch(){return {ok:false};},setTimeout(){},console});
   vm.runInContext(source+"\nglobalThis.runDownload = handleDownload;", context);
-  const task = context.runDownload({id:1,url:"https://example.org/a.zip",
-    referrer:"https://private.example/page",filename:"a.zip",totalBytes:1048576}, "zip");
+  const item = {id:1,incognito:mode === "incognito",url:"https://example.org/a.zip",
+    referrer:"https://private.example/page",filename:"a.zip",totalBytes:1048576};
+  const task = mode === "incognito-menu" ? menuClick({menuItemId:"rapido-link",linkUrl:item.url,pageUrl:item.referrer},{incognito:true,url:item.referrer}) : context.runDownload(item, "zip");
   if (mode === "pending") {
     for(let n=0;n<20;n++) await Promise.resolve();
     assert(!calls.includes("cancel"), "must not cancel before acknowledgement");
@@ -45,16 +47,17 @@ async function scenario(mode) {
   }
   await task;
   assert(!calls.includes("restart"), "original request must never be replaced");
-  if (["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities"].includes(mode)) {
+  if (["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu"].includes(mode)) {
     assert(!calls.includes("cancel"), mode);
     assert(!calls.includes("erase"), mode);
+    if (mode.startsWith("incognito")) assert.equal(calls.length, 0);
   } else {
     assert(calls.indexOf("capture_public") < calls.indexOf("cancel"));
     assert(calls.includes("erase"));
   }
 }
 (async()=>{
-  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","pending","success"]) {
+  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success"]) {
     await scenario(mode);
     console.log("PASS "+mode);
   }
