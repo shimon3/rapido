@@ -102,6 +102,16 @@ def handle_message(data):
 
 
 def main():
+    if sys.argv[1:] in (["--register-native-hosts"], ["--unregister-native-hosts"]):
+        if not getattr(sys, "frozen", False) or sys.platform != "win32":
+            return 2
+        from native_registration import register, unregister
+        operation = register if sys.argv[1] == "--register-native-hosts" else unregister
+        try:
+            operation(sys.executable)
+        except (OSError, ValueError):
+            return 1
+        return 0
     while True:
         try:
             request = read_message(sys.stdin.buffer)

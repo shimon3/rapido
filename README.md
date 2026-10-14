@@ -133,3 +133,30 @@ The regression tests reproduce the issues found by the October 2026 audit (CSRF,
 ## License
 
 MIT. Downloading videos may be restricted by a site's terms of service: use it for content you are allowed to save.
+
+### Chrome, Edge et Firefox : installation de développement
+
+L’installateur Windows enregistre `com.rapido.bridge` pour les trois navigateurs
+dans HKCU, avec les vues 32/64 bits. Firefox utilise son propre manifeste
+`rapido-native-firefox.json` et l’identifiant `rapido-capture@rapido.local`.
+Chrome et Edge utilisent l’identité stable du paquet non empaqueté
+`hlpkfnodjoglfdiekijebbppfgkjkbmp`. Cette identité Edge de développement ne
+remplace pas un identifiant attribué par Edge Add-ons.
+
+- Chrome : charger le dossier `extension` dans `chrome://extensions`.
+- Edge : charger le dossier `extension-edge` dans `edge://extensions`.
+- Firefox : dans `about:debugging#/runtime/this-firefox`, charger temporairement
+  `extension-firefox/manifest.json`. Firefox supprime ce chargement temporaire
+  au redémarrage ; une installation durable nécessite un paquet signé.
+
+La version portable inclut les trois dossiers et le pont compilé. Depuis son
+dossier, exécuter `RapidoNativeHost.exe --register-native-hosts` pour enregistrer
+le pont, puis `RapidoNativeHost.exe --unregister-native-hosts` avant de déplacer
+ou supprimer ce dossier. Un autre chemin déjà enregistré est conservé : retirer
+l’ancienne installation avant d’enregistrer la nouvelle.
+
+Les contrôles automatisés couvrent les manifestes, l’identité de développement,
+le registre Windows réel et l’installation/désinstallation compilée. Ils ne
+remplacent pas les essais manuels dans les trois navigateurs : capture, navigation
+privée, hôte absent, redémarrage et installation durable. Aucun paquet n’est publié
+sur les boutiques par cette procédure.

@@ -2,10 +2,10 @@ name: Windows build
 
 on:
   push:
-    branches: [main, security/s2-api-native-migration-20261014]
+    branches: [main, staging/pr-20-restack-20261014]
     tags: ["v*"]
-  # Validate stacked PRs too: their base branch changes during security review.
   pull_request:
+    branches: [main, security/s2-auth-core, security/native-messaging-prototype, security/s2-auth-enforcement-tests]
   workflow_dispatch:
 
 # Droits minimum par defaut ; seul le job de compilation peut publier une release.
@@ -76,6 +76,11 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --console
           --name RapidoNativeHost native_host.py
 
+      - name: Build Edge and Firefox development extension folders
+        run: |
+          python scripts/build_browser_extension.py edge dist/Rapido/extension-edge
+          python scripts/build_browser_extension.py firefox dist/Rapido/extension-firefox
+
       - name: Bundle native host with the desktop executable
         shell: pwsh
         run: Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
@@ -131,6 +136,35 @@ jobs:
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
           & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" packaging\rapido.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install and uninstall browser native-host registrations
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'rapido-install-check'
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          $target = (Get-Item -LiteralPath $target).FullName
+          $setup = (Get-ChildItem -LiteralPath dist -Filter 'Rapido-Setup-*.exe' | Select-Object -First 1).FullName
+          $process = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',("/DIR=" + $target) -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          $keys = @(
+            'HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.rapido.bridge',
+            'HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.rapido.bridge',
+            'HKCU:\Software\Mozilla\NativeMessagingHosts\com.rapido.bridge'
+          )
+          foreach ($key in $keys) {
+            $manifest = (Get-Item -LiteralPath $key).GetValue('')
+            if (-not (Test-Path -LiteralPath $manifest)) { throw "Missing native manifest: $key" }
+            $data = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+            if ($data.name -ne 'com.rapido.bridge' -or $data.path -ne (Join-Path $target 'RapidoNativeHost.exe')) { throw "Invalid manifest: $key" }
+          }
+          foreach ($folder in @('extension','extension-edge','extension-firefox')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $target ($folder + '\manifest.json')))) { throw "Missing browser folder: $folder" }
+          }
+          $process = Start-Process -FilePath (Join-Path $target 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Uninstaller failed: $($process.ExitCode)" }
+          foreach ($key in $keys) {
+            if ((Test-Path -LiteralPath $key) -and $null -ne (Get-Item -LiteralPath $key).GetValue('')) { throw "Native registration survived uninstall: $key" }
+          }
 
       - name: Portable zip
         shell: pwsh
