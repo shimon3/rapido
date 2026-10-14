@@ -106,7 +106,8 @@ def test_close_restricted_pipe_rejects_invalid_handle():
 def test_reject_well_known_service_and_group_sids():
     from windows_ipc import pipe_security_sddl
     for sid in ("S-1-5-18", "S-1-5-19", "S-1-5-20", "S-1-5-11",
-                "S-1-5-32-544", "S-1-5-32-545"):
+                "S-1-5-32-544", "S-1-5-32-545", "S-1-5-32-551",
+                "S-1-5-32-99999"):
         with pytest.raises(ValueError):
             require_windows_identity_policy(user_sid=sid, process_id=1234)
         with pytest.raises(ValueError):
