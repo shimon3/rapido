@@ -67,6 +67,25 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(self.registry.values,before)
         self.assertFalse(any(path.exists() for _,path,_ in specs.values()))
 
+    def test_separate_install_cannot_replace_or_unregister_owned_browser_hosts(self):
+        first = self.exe
+        second = prepare(self)
+        self.assertNotEqual(first.parent, second.parent)
+        register(first, registry=self.registry)
+        expected = dict(self.registry.values)
+        first_manifests = manifests(first)
+        second_manifests = manifests(second)
+        with self.assertRaises(FileExistsError):
+            register(second, registry=self.registry)
+        self.assertEqual(self.registry.values, expected)
+        self.assertTrue(all(path.is_file() for _, path, _ in first_manifests.values()))
+        self.assertFalse(any(path.exists() for _, path, _ in second_manifests.values()))
+        unregister(second, registry=self.registry)
+        self.assertEqual(self.registry.values, expected)
+        self.assertTrue(all(path.is_file() for _, path, _ in first_manifests.values()))
+        unregister(first, registry=self.registry)
+        self.assertFalse(self.registry.values)
+
     def test_uninstall_preserves_replaced_registration_and_modified_manifest(self):
         register(self.exe,registry=self.registry)
         key,path,value=manifests(self.exe)["edge"]
