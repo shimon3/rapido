@@ -35,10 +35,8 @@ def build(browser: str, destination: Path) -> None:
         manifest["browser_specific_settings"] = {
             "gecko": {"id": "rapido-capture@rapido.local"}
         }
-    shutil.copytree(source, dest)
-    (dest / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    # Stage a complete validated manifest before creating the destination.
+    serialized = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"\n    shutil.copytree(source, dest)\n    (dest / "manifest.json").write_text(serialized, encoding="utf-8")
 
 
 def main() -> None:
