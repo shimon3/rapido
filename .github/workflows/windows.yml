@@ -2,10 +2,9 @@ name: Windows build
 
 on:
   push:
-    branches: [main, staging/pr-25-restack-20261014, staging/pr-27-restack-20261014]
+    branches: [main, staging/pr-29-restack-20261014]
     tags: ["v*"]
   pull_request:
-    branches: [main, security/s2-auth-core, security/native-messaging-prototype, security/s2-auth-enforcement-tests]
   workflow_dispatch:
 
 # Droits minimum par defaut ; seul le job de compilation peut publier une release.
@@ -160,10 +159,80 @@ jobs:
           foreach ($folder in @('extension','extension-edge','extension-firefox')) {
             if (-not (Test-Path -LiteralPath (Join-Path $target ($folder + '\manifest.json')))) { throw "Missing browser folder: $folder" }
           }
+          # Regression: another, unrelated process named Rapido.exe must survive
+          # uninstall. Use a harmless copied Windows ping binary in an isolated directory.
+          $otherDir = Join-Path $env:RUNNER_TEMP 'rapido-other-instance'
+          New-Item -ItemType Directory -Path $otherDir -Force | Out-Null
+          $otherImage = Join-Path $otherDir 'Rapido.exe'
+          Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\ping.exe') -Destination $otherImage
+          $other = Start-Process -FilePath $otherImage -ArgumentList '127.0.0.1','-n','60' -WindowStyle Hidden -PassThru
+          try {
+            Start-Sleep -Seconds 2
+            if ($other.HasExited) { throw "Unrelated test process failed to stay running" }
+            # Simulate a newer/other installation owning the Run value.
+          $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+          $foreignRun = '"C:\ForeignRapido\Rapido.exe" --tray'
+          New-Item -Path $runKey -Force | Out-Null
+          Set-ItemProperty -LiteralPath $runKey -Name Rapido -Value $foreignRun
           $process = Start-Process -FilePath (Join-Path $target 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WindowStyle Hidden -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw "Uninstaller failed: $($process.ExitCode)" }
+          if ((Get-ItemPropertyValue -LiteralPath $runKey -Name Rapido) -ne $foreignRun) { throw "Uninstaller deleted another installation's autostart value" }
+          Remove-ItemProperty -LiteralPath $runKey -Name Rapido
+            if ($process.ExitCode -ne 0) { throw "Uninstaller failed: $($process.ExitCode)" }
+            $other.Refresh()
+            if ($other.HasExited) { throw "Uninstaller terminated an unrelated Rapido.exe process" }
+          } finally {
+            if (-not $other.HasExited) { Stop-Process -Id $other.Id -Force }
+          }
           foreach ($key in $keys) {
             if ((Test-Path -LiteralPath $key) -and $null -ne (Get-Item -LiteralPath $key).GetValue('')) { throw "Native registration survived uninstall: $key" }
+          }
+
+      - name: Installed and portable copies coexist across uninstall
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $setup = (Get-ChildItem -LiteralPath dist -Filter 'Rapido-Setup-*.exe' | Select-Object -First 1).FullName
+          $first = Join-Path $env:RUNNER_TEMP 'rapido-ci-owner'
+          $second = Join-Path $env:RUNNER_TEMP 'rapido-ci-other'
+          $args1 = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',("/DIR=" + $first))
+          $p1 = Start-Process -FilePath $setup -ArgumentList $args1 -PassThru -Wait
+          if ($p1.ExitCode -ne 0) { throw "First installer failed: $($p1.ExitCode)" }
+          $host1 = Join-Path $first 'RapidoNativeHost.exe'
+          $key = 'HKCU:\Software\Mozilla\NativeMessagingHosts\com.rapido.bridge'
+          $manifest1 = Join-Path $first 'rapido-native-firefox.json'
+          try {
+            if (-not (Test-Path -LiteralPath $host1) -or -not (Test-Path -LiteralPath $manifest1)) { throw "First installation missing files" }
+            $registered1 = (Get-Item -LiteralPath $key).GetValue('')
+            if ($registered1 -ne $manifest1) { throw "First installation does not own registration" }
+            # Same Inno AppId deliberately identifies one installed product.
+            # Do not run a second installer with identical AppId: it would
+            # upgrade/move the first install, not create an independent product.
+            # Exercise coexistence using a full second *portable* application.
+            Copy-Item -LiteralPath 'dist/Rapido' -Destination $second -Recurse
+            if (-not (Test-Path -LiteralPath (Join-Path $second 'Rapido.exe')) -or
+                -not (Test-Path -LiteralPath (Join-Path $second 'RapidoNativeHost.exe'))) { throw "Second portable app is incomplete" }
+            $registered2 = (Get-Item -LiteralPath $key).GetValue('')
+            if ($registered2 -ne $registered1) { throw "Portable copy changed registry owner" }
+            $p = Start-Process -FilePath (Join-Path $first 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -PassThru -Wait
+            if ($p.ExitCode -ne 0) { throw "First uninstall failed: $($p.ExitCode)" }
+            if (-not (Test-Path -LiteralPath (Join-Path $second 'Rapido.exe')) -or
+                -not (Test-Path -LiteralPath (Join-Path $second 'RapidoNativeHost.exe'))) { throw "Uninstall harmed portable copy" }
+            if ((Test-Path -LiteralPath $key) -and $null -ne (Get-Item -LiteralPath $key).GetValue('')) { throw "Uninstall left registry registration" }
+            # Exercise the actual preserved portable executable, not just its file existence.
+            $portableResult = Join-Path $env:RUNNER_TEMP 'rapido-portable-post-uninstall.json'
+            $env:RAPIDO_DATA = Join-Path $env:RUNNER_TEMP 'rapido-portable-post-uninstall-data'
+            $portable = Start-Process -FilePath (Join-Path $second 'Rapido.exe') -ArgumentList '--selftest','--selftest-out',$portableResult -PassThru -Wait
+            if ($portable.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $portableResult)) {
+              throw "Portable Rapido self-test failed after installed copy uninstall: $($portable.ExitCode)"
+            }
+            $selftest = Get-Content -LiteralPath $portableResult -Raw | ConvertFrom-Json
+            Write-Host "Portable Rapido post-uninstall self-test completed: $($portable.ExitCode)"
+          } finally {
+            if (Test-Path -LiteralPath (Join-Path $first 'unins000.exe')) {
+              $p = Start-Process -FilePath (Join-Path $first 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -PassThru -Wait
+              if ($p.ExitCode -ne 0) { Write-Warning "Cleanup uninstall exited $($p.ExitCode)" }
+            }
+            if (Test-Path -LiteralPath $second) { Remove-Item -LiteralPath $second -Recurse -Force }
           }
 
       - name: Real Firefox native bridge and browser handoff

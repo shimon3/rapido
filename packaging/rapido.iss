@@ -72,14 +72,13 @@ Name: "{autodesktop}\Rapido"; Filename: "{app}\Rapido.exe"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Rapido"; \
-  ValueData: """{app}\Rapido.exe"" --tray"; Flags: uninsdeletevalue; Tasks: autostart
+  ValueData: """{app}\Rapido.exe"" --tray"; Tasks: autostart
 
 [Run]
 Filename: "{app}\Rapido.exe"; Description: "{cm:LaunchProgram,Rapido}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "{app}\RapidoNativeHost.exe"; Parameters: "--unregister-native-hosts"; Flags: runhidden waituntilterminated; RunOnceId: "UnregisterNativeHosts"
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im Rapido.exe"; Flags: runhidden; RunOnceId: "StopRapido"
 
 [Code]
 // Ferme Rapido s'il tourne (mise a jour par-dessus une version deja installee)
@@ -93,18 +92,24 @@ begin
       RaiseException('Cannot register native bridge for Chrome, Edge and Firefox. Another Rapido installation may own it.');
 end;
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-var
-  ResultCode: Integer;
-begin
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im Rapido.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(500);
-  Result := '';
-end;
+// Inno Setup Restart Manager handles files held by this installation.
+// Do not terminate every process called Rapido.exe on the machine.
 
 // Retire le demarrage automatique meme s'il a ete active depuis les Options de Rapido
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  CurrentRunValue: String;
 begin
   if CurUninstallStep = usPostUninstall then
-    RegDeleteValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Rapido');
+  begin
+    // Only remove the Run value if it still points to this installation.
+    // A portable or newer installation may have taken ownership.
+    if RegQueryStringValue(HKEY_CURRENT_USER,
+         'Software\Microsoft\Windows\CurrentVersion\Run',
+         'Rapido', CurrentRunValue) and
+       (CompareText(CurrentRunValue,
+         '"' + ExpandConstant('{app}\Rapido.exe') + '" --tray') = 0) then
+      RegDeleteValue(HKEY_CURRENT_USER,
+        'Software\Microsoft\Windows\CurrentVersion\Run', 'Rapido');
+  end;
 end;

@@ -19,20 +19,37 @@ BROWSERS = {
 }
 
 
+def _has_linked_component(path):
+    """Reject symlink/junction components before accepting manifest ownership.
+
+    This is a best-effort path check, not a race-free filesystem trust anchor.
+    """
+    candidate = Path(os.path.abspath(path))
+    for part in (candidate, *candidate.parents):
+        if part.is_symlink() or (os.name == "nt" and part.is_junction()):
+            return True
+    return False
+
+
 def _same_path(left, right):
-    return os.path.normcase(str(Path(left).resolve())) == os.path.normcase(str(Path(right).resolve()))
+    # A registry owner is the exact manifest pathname, not a path redirected
+    # through a symbolic link. Never adopt or remove a foreign registration.
+    left, right = Path(left), Path(right)
+    if _has_linked_component(left) or _has_linked_component(right):
+        return False
+    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
 
 
 def manifests(executable, *, name=HOST):
     if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)+", name):
         raise ValueError("Invalid native host name")
     executable = Path(executable)
-    if executable.is_symlink():
+    if _has_linked_component(executable):
         raise ValueError("Native host executable must not be a symbolic link")
     executable = executable.resolve()
     if executable.name != "RapidoNativeHost.exe" or not executable.is_file():
         raise ValueError("Missing packaged native host")
-    if executable.with_name("Rapido.exe").is_symlink():
+    if _has_linked_component(executable.with_name("Rapido.exe")):
         raise ValueError("Desktop executable must not be a symbolic link")
     if not executable.with_name("Rapido.exe").is_file():
         raise ValueError("Missing adjacent Rapido executable")
@@ -86,7 +103,7 @@ class WindowsRegistry:
 
 def _owned_manifest(path, value):
     # Never follow an attacker-controlled manifest link when checking ownership.
-    if path.is_symlink():
+    if _has_linked_component(path):
         return False
     try:
         existing = json.loads(path.read_text(encoding="utf-8"))
