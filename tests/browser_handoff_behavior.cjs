@@ -14,6 +14,7 @@ async function scenario(mode) {
       async sendNativeMessage(host, message) {
         calls.push(message.type);
         if (mode === "missing") throw new Error("No native host");
+        if (mode === "bad-capabilities") return {type:"capabilities",protocol:999,features:["capture_public"]};
         if (message.type === "capabilities") return {type:"capabilities",protocol:1,features:["capture_public"]};
         if (mode === "pending") await gate;
         return mode === "rejected" ? {type:"error"} : {type:"capture_result",ok:true};
@@ -23,7 +24,7 @@ async function scenario(mode) {
     action:{setBadgeText(){},setBadgeBackgroundColor(){},setTitle(){},onClicked:event()},
     cookies:{async getAll({url}) {
       if (mode === "cookie-error") throw new Error("Denied");
-      return mode === "private-referrer" && url.includes("private") ? [{}] : [];
+      return mode === "private-target" || (mode === "private-referrer" && url.includes("private")) ? [{}] : [];
     }},
     downloads:{onCreated:event(),onDeterminingFilename:event(),
       async cancel(){calls.push("cancel");},async erase(){calls.push("erase");},
@@ -44,7 +45,7 @@ async function scenario(mode) {
   }
   await task;
   assert(!calls.includes("restart"), "original request must never be replaced");
-  if (["missing","rejected","private-referrer","cookie-error"].includes(mode)) {
+  if (["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities"].includes(mode)) {
     assert(!calls.includes("cancel"), mode);
     assert(!calls.includes("erase"), mode);
   } else {
@@ -53,7 +54,7 @@ async function scenario(mode) {
   }
 }
 (async()=>{
-  for (const mode of ["missing","rejected","private-referrer","cookie-error","pending","success"]) {
+  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","pending","success"]) {
     await scenario(mode);
     console.log("PASS "+mode);
   }
