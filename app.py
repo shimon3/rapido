@@ -101,7 +101,7 @@ async def guard(request: Request, call_next):
     fetch_site = request.headers.get("sec-fetch-site")
     if fetch_site and fetch_site not in ("same-origin", "none") and origin != EXTENSION_ORIGIN:
         return _deny(403, "Requete venant d'un autre site refusee")
-    if request.method in ("POST", "PUT", "DELETE"):
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
         ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
         if ctype != "application/json":
             return _deny(415, "Content-Type application/json requis")
