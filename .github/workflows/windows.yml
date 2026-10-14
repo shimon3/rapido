@@ -181,6 +181,46 @@ jobs:
             if ((Test-Path -LiteralPath $key) -and $null -ne (Get-Item -LiteralPath $key).GetValue('')) { throw "Native registration survived uninstall: $key" }
           }
 
+      - name: Two full installs preserve first registration after second install attempt
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $setup = (Get-ChildItem -LiteralPath dist -Filter 'Rapido-Setup-*.exe' | Select-Object -First 1).FullName
+          $first = Join-Path $env:RUNNER_TEMP 'rapido-ci-owner'
+          $second = Join-Path $env:RUNNER_TEMP 'rapido-ci-other'
+          $args1 = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',("/DIR=" + $first))
+          $args2 = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',("/DIR=" + $second))
+          $p1 = Start-Process -FilePath $setup -ArgumentList $args1 -PassThru -Wait
+          if ($p1.ExitCode -ne 0) { throw "First installer failed: $($p1.ExitCode)" }
+          $host1 = Join-Path $first 'RapidoNativeHost.exe'
+          $key = 'HKCU:\Software\Mozilla\NativeMessagingHosts\com.rapido.bridge'
+          $manifest1 = Join-Path $first 'rapido-native-firefox.json'
+          try {
+            if (-not (Test-Path -LiteralPath $host1) -or -not (Test-Path -LiteralPath $manifest1)) { throw "First installation missing files" }
+            $registered1 = (Get-Item -LiteralPath $key).GetValue('')
+            if ($registered1 -ne $manifest1) { throw "First installation does not own registration" }
+            # Same Inno AppId deliberately identifies one installed product.
+            # Do not run a second installer with identical AppId: it would
+            # upgrade/move the first install, not create an independent product.
+            # Exercise coexistence using a full second *portable* application.
+            Copy-Item -LiteralPath 'dist/Rapido' -Destination $second -Recurse
+            if (-not (Test-Path -LiteralPath (Join-Path $second 'Rapido.exe')) -or
+                -not (Test-Path -LiteralPath (Join-Path $second 'RapidoNativeHost.exe'))) { throw "Second portable app is incomplete" }
+            $registered2 = (Get-Item -LiteralPath $key).GetValue('')
+            if ($registered2 -ne $registered1) { throw "Portable copy changed registry owner" }
+            $p = Start-Process -FilePath (Join-Path $first 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -PassThru -Wait
+            if ($p.ExitCode -ne 0) { throw "First uninstall failed: $($p.ExitCode)" }
+            if (-not (Test-Path -LiteralPath (Join-Path $second 'Rapido.exe')) -or
+                -not (Test-Path -LiteralPath (Join-Path $second 'RapidoNativeHost.exe'))) { throw "Uninstall harmed portable copy" }
+            if ((Test-Path -LiteralPath $key) -and $null -ne (Get-Item -LiteralPath $key).GetValue('')) { throw "Uninstall left registry registration" }
+          } finally {
+            if (Test-Path -LiteralPath (Join-Path $first 'unins000.exe')) {
+              $p = Start-Process -FilePath (Join-Path $first 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -PassThru -Wait
+              if ($p.ExitCode -ne 0) { Write-Warning "Cleanup uninstall exited $($p.ExitCode)" }
+            }
+            if (Test-Path -LiteralPath $second) { Remove-Item -LiteralPath $second -Recurse -Force }
+          }
+
       - name: Real Firefox native bridge and browser handoff
         timeout-minutes: 6
         shell: pwsh
