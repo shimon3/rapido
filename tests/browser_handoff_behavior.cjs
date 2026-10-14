@@ -40,7 +40,8 @@ async function scenario(mode) {
     }},
     downloads:{onCreated:{addListener(fn){createdListener=fn;}},
       onDeterminingFilename:mode.startsWith("firefox") ? undefined : event(),
-      async cancel(){calls.push("cancel");},async erase(){calls.push("erase");},
+      async cancel(){calls.push("cancel");if (["cancel-failed","completed-after-native"].includes(mode)) throw new Error("Cannot cancel");},
+      async erase(){calls.push("erase");if (mode === "erase-failed") throw new Error("Cannot erase");},
       async download(){calls.push("restart");}},
     webRequest:{onHeadersReceived:{addListener(fn){mediaListener=fn;}}}, tabs:{onRemoved:event(),onUpdated:event()},
     contextMenus:{onClicked:{addListener(fn){menuClick=fn;}},create(){}}
@@ -54,6 +55,7 @@ async function scenario(mode) {
     mode.includes("container") ? "firefox-container-2" :
     mode === "firefox-private-store" ? "firefox-private" :
     mode === "firefox-unknown-store" ? "future-isolated-store" : "firefox-default";
+  if (["completed","interrupted"].includes(mode)) item.state = mode === "completed" ? "complete" : "interrupted";
   assert.equal(typeof createdListener, "function");
   if (mode.endsWith("video")) {
     let reply;
@@ -99,13 +101,19 @@ async function scenario(mode) {
       assert.equal(calls.length,0);
       assert.equal(cookieReads,0);
     }
+  } else if (["completed","interrupted"].includes(mode)) {
+    assert.equal(calls.length,0,"finished/interrupted items must not be recaptured");
+    assert.equal(cookieReads,0);
+  } else if (["cancel-failed","completed-after-native"].includes(mode)) {
+    assert(calls.indexOf("capture_public") < calls.indexOf("cancel"));
+    assert(!calls.includes("erase"),"failed cancellation must retain browser history");
   } else {
     assert(calls.indexOf("capture_public") < calls.indexOf("cancel"));
     assert(calls.includes("erase"));
   }
 }
 (async()=>{
-  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media"]) {
+  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed"]) {
     await scenario(mode);
     console.log("PASS "+mode);
   }

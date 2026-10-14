@@ -178,6 +178,7 @@ if (chrome.downloads.onDeterminingFilename?.addListener) {
 async function handleDownload(item, ext) {
   // Never export private-window URLs or consult the regular cookie jar for them.
   if (browserOwnedContext(item)) return;
+  if (item.state === "complete" || item.state === "interrupted") return;
   if (handled.has(item.id)) return;
   const url = item.finalUrl || item.url;
   if (!/^https?:/i.test(url)) return;                 // blob:, data: -> Chrome s'en charge
@@ -200,7 +201,13 @@ async function handleDownload(item, ext) {
     flash("!", "#b4541a");
     return;
   }
-  try { await chrome.downloads.cancel(item.id); } catch {}
+  try { await chrome.downloads.cancel(item.id); }
+  catch {
+    // A completed download or refused cancellation must retain its browser
+    // history. Native acceptance alone is not proof of browser cancellation.
+    flash("!", "#b4541a");
+    return;
+  }
   try { await chrome.downloads.erase({ id: item.id }); } catch {}
 }
 
