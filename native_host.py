@@ -95,7 +95,7 @@ def _safe_public_capture(data):
             if response.status != 200:
                 return {"type": "error", "code": "rapido_unavailable"}
             result = json.load(response)
-        return {"type": "capture_result", "ok": True} if isinstance(result.get("id"), str) else {
+        return {"type": "capture_result", "ok": True} if isinstance(result, dict) and isinstance(result.get("id"), str) else {
             "type": "error", "code": "rapido_unavailable"}
     except (OSError, ValueError, urllib.error.URLError):
         return {"type": "error", "code": "rapido_unavailable"}
