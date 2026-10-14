@@ -52,6 +52,16 @@ def prepare_probe(source,destination,base):
     (destination/"smoke.html").write_text('<!doctype html><meta charset="utf-8"><button id="start">Start</button><button id="fallback">Fallback</button><pre id="result" data-done="false"></pre><script src="smoke.js"></script>',encoding="utf-8")
     script=Path(__file__).with_name("firefox_native_probe.js").read_text(encoding="utf-8-sig")
     (destination/"smoke.js").write_text(script.replace("__BASE__",base),encoding="utf-8")
+    # Firefox Marionette forbids direct WebDriver navigation to moz-extension:// pages.
+    # Open the test page from the extension itself, in a separate CI-only copy.
+    background=manifest.get("background",{})
+    if background.get("scripts")!=["background.js"]:
+        raise ValueError("Unexpected Firefox background configuration")
+    manifest["background"]={"scripts":["background.js","smoke_bootstrap.js"]}
+    (destination/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
+    (destination/"smoke_bootstrap.js").write_text(
+        'chrome.runtime.onInstalled.addListener(() => { chrome.tabs.create({url: chrome.runtime.getURL("smoke.html")}); });\n',
+        encoding="utf-8")
     return destination
 
 def wait_until(check,timeout=40):
@@ -120,7 +130,14 @@ def run(bundle,data_dir,probe_dir):
         identity=driver.install_addon(str(probe),temporary=True)
         if identity!=FIREFOX_ID:
             raise RuntimeError("Unexpected installed add-on identity")
-        driver.get(f"moz-extension://{internal_uuid}/smoke.html")
+        expected=f"moz-extension://{internal_uuid}/smoke.html"
+        def probe_tab():
+            for handle in driver.window_handles:
+                driver.switch_to.window(handle)
+                if driver.current_url==expected:
+                    return True
+            return False
+        wait_until(probe_tab)
         driver.find_element(By.ID,"start").click()
         summary=result(driver)
         # The actual background transfer must produce exactly one durable desktop record.
