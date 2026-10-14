@@ -1,7 +1,7 @@
 """Build experimental browser-specific Rapido extension directories.
 
-Chrome remains the source of truth. Edge/Firefox builds are development
-artifacts only: native-host registration and S2 authentication are incomplete.
+Chrome remains the source of truth. Edge/Firefox builds are unpacked development
+artifacts; publication/signing and real-browser validation are separate steps.
 """
 from __future__ import annotations
 
@@ -27,8 +27,9 @@ def build(browser: str, destination: Path) -> None:
     if manifest.get("manifest_version") != 3:
         raise ValueError("Expected Manifest V3 source")
     if browser == "edge":
-        # The Chrome signing key is not an Edge store identity.
-        manifest.pop("key", None)
+        # Retain the public key for a stable UNPACKED development identity.
+        # An Edge Add-ons publication will require its separately assigned ID.
+        pass
     else:
         manifest.pop("key", None)
         manifest["background"] = {"scripts": ["background.js"]}
