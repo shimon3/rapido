@@ -8,7 +8,7 @@ from scripts.build_browser_extension import build
 
 
 @pytest.mark.parametrize("browser", ["edge", "firefox"])
-def test_browser_build_preserves_source_and_uses_browser_manifest(tmp_path):
+def test_browser_build_preserves_source_and_uses_browser_manifest(tmp_path, browser):
     source = Path(__file__).resolve().parents[1] / "extension" / "manifest.json"
     original = source.read_bytes()
     destination = tmp_path / browser
