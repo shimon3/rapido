@@ -89,3 +89,15 @@ def test_connected_client_must_match_expected_pid(monkeypatch):
     for invalid in (0, -1, None, True, "1234"):
         with pytest.raises(ValueError):
             windows_ipc.connected_client_matches_pid(99, invalid)
+
+
+def test_close_restricted_pipe_rejects_invalid_handle():
+    import os
+    from windows_ipc import close_restricted_pipe
+    if os.name != "nt":
+        with pytest.raises(OSError):
+            close_restricted_pipe(1)
+        return
+    for bad in (None, False, True, 0, -1, "handle"):
+        with pytest.raises(ValueError):
+            close_restricted_pipe(bad)
