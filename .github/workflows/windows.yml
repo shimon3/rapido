@@ -33,11 +33,7 @@ jobs:
           cache: pip
 
       - name: Verify reviewed Python and OpenSSL build baseline
-        run: >
-          python -c "import json, ssl, sys;
-          print(json.dumps({'python': sys.version.split()[0], 'openssl': ssl.OPENSSL_VERSION}));
-          assert sys.version_info[:3] == (3, 13, 16), 'Unexpected Python baseline';
-          assert ssl.OPENSSL_VERSION_INFO[:3] >= (3, 5, 9), 'Outdated OpenSSL baseline'"
+        run: python scripts/check_build_runtime.py
 
       - name: Install dependencies
         run: |
