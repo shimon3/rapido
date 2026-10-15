@@ -1,6 +1,6 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: 1c07ac2, CI #203. Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-15 (Claude). Latest validated code: 08fa540, CI #204. Start here; do not repeat repository overview or completed PR reconciliation.
 
 ## Goal and authority
 
@@ -10,7 +10,7 @@ Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again befor
 
 ## Owner decision — beta without full #26 (2026-10-15)
 
-Owner chose: beta 1.3.0-beta.1 ships without full #26; #26 stays open. Added `docs/beta-release-notes.md` (draft, unpublished: limits incl. same-user compromise, unsigned exe/SmartScreen, DPAPI history not readable by older versions, Server 2025-only automated tests, dev extensions). Release body (still tag-only) prepends a beta warning when prerelease. Readiness table and threat model record the decision. A personal #26 preparation document for the owner was created as a Claude Doc (decisions, purchases, steps 1-9, VM access options, resolution criteria, checklist). Next #26 steps doable without purchase (await owner go): CI browser-policy test, signing inventory, unsigned-build marking, verifier refusal rules.
+Owner chose: beta 1.3.0-beta.1 ships without full #26; #26 stays open. Added `docs/beta-release-notes.md` (draft, unpublished: limits incl. same-user compromise, unsigned exe/SmartScreen, DPAPI history not readable by older versions, Server 2025-only automated tests, dev extensions). Release body (still tag-only) prepends a beta warning when prerelease. Readiness table and threat model record the decision. A personal #26 preparation document for the owner was created as a Claude Doc (decisions, purchases, steps 1-9, VM access options, resolution criteria, checklist). [CI #204](https://github.com/shimon3/rapido/actions/runs/38724218566) SUCCESS on 08fa540: 236 passed /5 skipped /126 subtests; release skipped. Observation: the self-test step (passed, `ok: true`) logged an asyncio proactor `ConnectionResetError` [WinError 10054] traceback for the first time; absent from #197–#203; #204 changed only docs, tests and the tag-only release text, so cause not identified (possibly remote/network). Watch on next runs. Next #26 steps doable without purchase (await owner go): CI browser-policy test, signing inventory, unsigned-build marking, verifier refusal rules.
 
 ## Completed focus — distinct beta version 1.3.0-beta.1 (Claude, 1c07ac2)
 
