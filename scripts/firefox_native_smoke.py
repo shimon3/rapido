@@ -145,7 +145,7 @@ def result(state, phase):
         raise RuntimeError(f"{value.get('stage', phase)}: {value.get('error', 'Browser smoke failed')}")
     return value
 
-def run(bundle,data_dir,probe_dir):
+def run(bundle,data_dir,probe_dir,*,firefox=None,expected_browser_version=None):
     if os.name!="nt":
         raise OSError("Real native browser smoke requires Windows")
     from selenium import webdriver
@@ -183,6 +183,8 @@ def run(bundle,data_dir,probe_dir):
         wait_until(ready)
         (data_dir/"browser-downloads").mkdir()
         options=Options()
+        if firefox is not None:
+            options.binary_location = str(Path(firefox).resolve(strict=True))
         options.add_argument("-headless")
         options.set_preference("browser.download.folderList",2)
         options.set_preference("browser.download.dir",str(data_dir/"browser-downloads"))
@@ -190,6 +192,8 @@ def run(bundle,data_dir,probe_dir):
         options.set_preference("browser.download.alwaysOpenPanel",False)
         driver=webdriver.Firefox(options=options,service=Service(log_output=str(data_dir/"webdriver.log")))
         print(json.dumps({"browser_version": driver.capabilities.get("browserVersion")}),flush=True)
+        if expected_browser_version is not None and driver.capabilities.get("browserVersion") != expected_browser_version:
+            raise RuntimeError("Unexpected Firefox browser version")
         driver.set_page_load_timeout(30)
         identity=driver.install_addon(str(probe),temporary=True)
         if identity!=FIREFOX_ID:
@@ -248,8 +252,10 @@ def main():
     parser.add_argument("--bundle",type=Path,required=True)
     parser.add_argument("--data",type=Path,required=True)
     parser.add_argument("--probe",type=Path,required=True)
+    parser.add_argument("--firefox",type=Path)
+    parser.add_argument("--expected-browser-version")
     args=parser.parse_args()
-    run(args.bundle,args.data,args.probe)
+    run(args.bundle,args.data,args.probe,firefox=args.firefox,expected_browser_version=args.expected_browser_version)
 
 if __name__=="__main__":
     main()
