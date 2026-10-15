@@ -11,6 +11,9 @@ from native_launcher import trusted_launcher, valid_origin, CHROMIUM_ORIGIN, FIR
 EXE=r"C:\Rapido\RapidoNativeHost.exe"
 APP=r"C:\Rapido\Rapido.exe"
 SID="S-1-5-21-111-222-333-1001"
+CMD=r"c:\windows\system32\cmd.exe"
+EDGE=r"c:\program files (x86)\microsoft\edge\application\msedge.exe"
+FIREFOX=r"c:\program files\mozilla firefox\firefox.exe"
 
 
 class LauncherPolicyTests(unittest.TestCase):
@@ -147,6 +150,83 @@ class LauncherPolicyTests(unittest.TestCase):
                                        desktop_image=str(target / "Rapido.exe"))
             finally:
                 alias.rmdir()
+
+    def run_ancestry(self, ancestors, args, images=None):
+        # ancestors: identities from the helper's parent upward (pid 200, 300, ...).
+        chain=[ProcessIdentity(100,SID,r"c:\rapido\rapidonativehost.exe",500)]+list(ancestors)
+        by_pid={item.pid:item for item in chain}
+        @contextmanager
+        def inspect(pid):
+            yield chain[0] if pid==os.getpid() else by_pid[pid]
+        def parent(pid):
+            pid=chain[0].pid if pid==os.getpid() else pid
+            index=[item.pid for item in chain].index(pid)
+            if index+1>=len(chain):
+                raise PermissionError("Launcher process disappeared")
+            return chain[index+1].pid
+        images=images or {EDGE:"chromium",FIREFOX:"firefox"}
+        with patch("native_launcher.inspect_process",inspect),patch("native_launcher.parent_pid",parent), \
+                patch("native_launcher.browser_images",return_value=images), \
+                patch("native_launcher.command_shell_image",return_value=CMD):
+            with trusted_launcher(EXE,args) as role:
+                return role
+
+    def test_chromium_cmd_relay_from_recognized_browser_is_admitted(self):
+        # Observed on Windows 10 22H2 with Edge 155: msedge -> cmd /d /s /c -> bootloader -> helper.
+        chain=[ProcessIdentity(200,SID,r"c:\rapido\rapidonativehost.exe",400),
+               ProcessIdentity(300,SID,CMD,300),
+               ProcessIdentity(400,SID,EDGE,100)]
+        self.assertEqual(self.run_ancestry(chain,[CHROMIUM_ORIGIN,"--parent-window=0"]),"chromium")
+        self.assertEqual(self.run_ancestry(chain[1:],[CHROMIUM_ORIGIN]),"chromium")
+
+    def test_cmd_relay_is_rejected_outside_the_exact_chromium_shape(self):
+        helper=ProcessIdentity(200,SID,r"c:\rapido\rapidonativehost.exe",400)
+        shell=ProcessIdentity(300,SID,CMD,300)
+        cases={
+            "explorer above cmd":[helper,shell,ProcessIdentity(400,SID,r"c:\windows\explorer.exe",100)],
+            "firefox above cmd":[helper,shell,ProcessIdentity(400,SID,FIREFOX,100)],
+            "copied cmd":[helper,ProcessIdentity(300,SID,r"c:\users\fixture\cmd.exe",300),ProcessIdentity(400,SID,EDGE,100)],
+            "two cmd relays":[helper,shell,ProcessIdentity(350,SID,CMD,200),ProcessIdentity(400,SID,EDGE,100)],
+            "desktop above cmd":[helper,shell,ProcessIdentity(400,SID,r"c:\rapido\rapido.exe",100)],
+            "helper above cmd":[helper,shell,ProcessIdentity(400,SID,r"c:\rapido\rapidonativehost.exe",100)],
+            "other user cmd":[helper,ProcessIdentity(300,"S-1-5-21-1-2-3-1002",CMD,300),ProcessIdentity(400,SID,EDGE,100)],
+            "cmd newer than child":[helper,ProcessIdentity(300,SID,CMD,450),ProcessIdentity(400,SID,EDGE,100)],
+            "browser newer than cmd":[helper,shell,ProcessIdentity(400,SID,EDGE,350)],
+            "cmd without browser":[helper,shell],
+        }
+        for name,chain in cases.items():
+            with self.subTest(name), self.assertRaises(PermissionError):
+                self.run_ancestry(chain,[CHROMIUM_ORIGIN])
+        with self.assertRaises(PermissionError):
+            self.run_ancestry([helper,shell,ProcessIdentity(400,SID,EDGE,100)],["chrome-extension://wrong/"])
+        with self.assertRaises(PermissionError):
+            self.run_ancestry([helper,shell,ProcessIdentity(400,SID,FIREFOX,100)],
+                              [r"C:\Rapido\rapido-native-firefox.json",FIREFOX_ID])
+
+    def test_unknown_command_shell_location_fails_closed(self):
+        chain=[ProcessIdentity(300,SID,CMD,300),ProcessIdentity(400,SID,EDGE,100)]
+        with patch("native_launcher.command_shell_image",side_effect=OSError("unavailable")):
+            with self.assertRaises(PermissionError):
+                child=ProcessIdentity(100,SID,r"c:\rapido\rapidonativehost.exe",500)
+                by_pid={300:chain[0],400:chain[1]}
+                @contextmanager
+                def inspect(pid):
+                    yield child if pid==os.getpid() else by_pid[pid]
+                with patch("native_launcher.inspect_process",inspect), \
+                        patch("native_launcher.parent_pid",side_effect=lambda pid: 300 if pid==100 else 400), \
+                        patch("native_launcher.browser_images",return_value={EDGE:"chromium"}):
+                    with trusted_launcher(EXE,[CHROMIUM_ORIGIN]):
+                        self.fail("relay admitted without a known System32 path")
+
+    @unittest.skipUnless(os.name == "nt", "Actual Windows System32 known folder")
+    def test_real_command_shell_is_system32_cmd(self):
+        import ntpath
+        from native_launcher import command_shell_image
+        shell = command_shell_image()
+        self.assertTrue(ntpath.isabs(shell))
+        self.assertEqual(ntpath.basename(shell), "cmd.exe")
+        self.assertEqual(ntpath.basename(ntpath.dirname(shell)), "system32")
+        self.assertTrue(os.path.isfile(shell))
 
     @unittest.skipUnless(os.name=="nt","Actual Windows parent PID")
     def test_parent_pid_is_kernel_derived(self):

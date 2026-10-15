@@ -74,6 +74,14 @@ def browser_images():
     return result
 
 
+def command_shell_image():
+    # Chrome and Edge start native hosts through "cmd.exe /d /s /c" by default.
+    # Use the actual System32 known folder, never %ComSpec% or PATH.
+    if os.name != "nt":
+        raise OSError("Windows known folder unavailable")
+    return canonical_image(str(_folder(0x25)/"cmd.exe"))
+
+
 def valid_origin(role, args, executable):
     if role=="desktop":
         return args==[]
@@ -108,10 +116,15 @@ def trusted_launcher(executable, args, *, desktop_image=None):
     helper = canonical_image(executable)
     with ExitStack() as stack:
         child=stack.enter_context(inspect_process(os.getpid()))
-        for _ in range(3):  # one-file PyInstaller may insert a helper bootloader parent
+        via_shell=False
+        # The one-file PyInstaller bootloader may sit above the helper, and
+        # Chromium may relay through exactly one System32 cmd.exe.
+        for _ in range(4):
             parent=stack.enter_context(inspect_process(parent_pid(child.pid)))
             if parent.user_sid!=child.user_sid or parent.creation_time>child.creation_time:
                 raise PermissionError("Invalid launcher identity/creation order")
+            if parent.image_path in (desktop, helper) and via_shell:
+                raise PermissionError("Unexpected process above the command shell relay")
             if parent.image_path==desktop:
                 role="desktop"
                 break
@@ -120,7 +133,19 @@ def trusted_launcher(executable, args, *, desktop_image=None):
                 continue
             role=browser_images().get(parent.image_path)
             if role is None:
-                raise PermissionError("Untrusted Native Messaging launcher")
+                try:
+                    shell=command_shell_image()
+                except OSError:
+                    shell=None
+                if via_shell or parent.image_path!=shell:
+                    raise PermissionError("Untrusted Native Messaging launcher")
+                if has_linked_component(parent.image_path):
+                    raise PermissionError("Linked command shell path is not trusted")
+                via_shell=True
+                child=parent
+                continue
+            if via_shell and role!="chromium":
+                raise PermissionError("Command shell relay is only expected from Chromium")
             if has_linked_component(parent.image_path):
                 raise PermissionError("Linked browser executable path is not trusted")
             break

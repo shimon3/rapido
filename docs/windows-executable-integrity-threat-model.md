@@ -23,6 +23,14 @@ Firefox manifest reject symlinks/junctions at the leaf or an ancestor. This does
 not authenticate file contents, prove protected ACLs, prevent later path swaps,
 or provide the independently protected trust anchor required below.
 
+Chrome and Edge start native hosts through `cmd.exe /d /s /c` by default (observed on
+Windows 10 22H2 with Edge 155). Admission accepts exactly one System32 `cmd.exe`
+(resolved from the System known folder, not `%ComSpec%`) between the helper and a
+recognized Chromium browser, with the same SID and creation-order checks; any other
+shell position, a second relay or a Firefox/desktop parent above it is refused. The
+shell's command line is not inspected, so this adds no protection against a
+same-user process that starts `cmd.exe` itself (#26 residual risk).
+
 Registration ownership checks accept only an unambiguous JSON object from a
 regular manifest of at most 16 KiB. Corrupt/ambiguous files are preserved during
 cleanup. All staged manifests and registry owners are rechecked before registry
