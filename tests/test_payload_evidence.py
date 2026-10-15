@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import unittest
 import zipfile
 
-from scripts.collect_payload_evidence import collect, module_name, safe_relative
+from scripts.collect_payload_evidence import collect, module_name, safe_relative, reject_forbidden_modules
 from tests.test_license_evidence import Distribution
 
 
@@ -27,6 +27,14 @@ class Archive:
 
 
 class PayloadEvidenceTests(unittest.TestCase):
+    def test_forbidden_build_modules_use_package_boundaries(self):
+        def report(names):
+            return {'archives': [{'modules': [{'name': name} for name in names]}]}
+        reject_forbidden_modules(report(['pytest_plugin', 'demo']), ['pytest', '_pytest'])
+        for name in ('pytest', '_pytest', '_pytest.outcomes', 'pytest.internal'):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'Forbidden build/test'):
+                reject_forbidden_modules(report([name]), ['pytest', '_pytest'])
+
     def fixture(self, root):
         bundle = root / 'bundle'
         bundle.mkdir()

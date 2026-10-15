@@ -178,14 +178,23 @@ def collect(bundle, *, distributions=None, archive_factory=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bundle', type=Path, required=True)
+    parser.add_argument('--forbid-module', action='append', default=[])
     args = parser.parse_args()
     report = collect(args.bundle)
+    reject_forbidden_modules(report, args.forbid_module)
     target = args.bundle / 'third-party/payload.json'
     # Existing output would hide a stale or duplicated build step.
     with target.open('x', encoding='utf-8') as stream:
         json.dump(report, stream, indent=2, ensure_ascii=False)
         stream.write('\n')
     print(f"Payload evidence: {len(report['files'])} files, {len(report['archives'])} archives; compliance review remains required.")
+
+
+def reject_forbidden_modules(report, roots):
+    forbidden = sorted({m['name'] for a in report['archives'] for m in a['modules']
+                        if any(m['name'] == root or m['name'].startswith(root + '.') for root in roots)})
+    if forbidden:
+        raise ValueError('Forbidden build/test modules in payload: ' + ', '.join(forbidden))
 
 
 if __name__ == '__main__':

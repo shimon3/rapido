@@ -75,6 +75,7 @@ jobs:
           --collect-submodules uvicorn
           --hidden-import pystray._win32
           --hidden-import ytworker
+          --exclude-module pytest --exclude-module _pytest
           desktop.py
 
       - name: Build native messaging host (console)
@@ -98,7 +99,7 @@ jobs:
         run: python scripts/collect_license_evidence.py --output dist/Rapido/third-party
 
       - name: Inspect bundled modules and native library evidence
-        run: python scripts/collect_payload_evidence.py --bundle dist/Rapido
+        run: python scripts/collect_payload_evidence.py --bundle dist/Rapido --forbid-module pytest --forbid-module _pytest
 
       - name: Self-test (real window, engine, yt-dlp)
         timeout-minutes: 4
