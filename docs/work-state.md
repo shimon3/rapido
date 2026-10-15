@@ -1,12 +1,18 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: e890163, CI #198. Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-15 (Claude). Latest validated code: c4b6442, CI #199. Start here; do not repeat repository overview or completed PR reconciliation.
 
 ## Goal and authority
 
 First stable Windows beta, essential corrections only. Branch `work/beta-engine-guards-20261015`, draft PR #33 targets draft PR #32's `work/security-26-followup-20261015` (dependent on #29).
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
+
+## Completed focus — native runtime notices (Claude, c4b6442)
+
+Artifact #198 (`11963273495`, ZIP SHA-256 40280d25…a369 matches GitHub) downloaded as data and inspected without execution: pystray/certifi notices present. Native inventory = 71 CPython Windows-build files + 19 package natives. Python 3.13.16 LICENSE.txt covers PSF, Microsoft Distributable Code, bzip2, libffi, OpenSSL, Tcl/Tk only. Added `packaging/licenses/cpython-3.13.16-windows/`: verbatim `Doc/license.rst` (expat, libmpdec, zlib, mimalloc…) and HACL* MIT header from commit cbc944f4 (tag v3.13.16), plus external versions from `PCbuild/get_externals.bat` and verified cpython-source-deps tag SHAs; SQLite/xz liblzma public domain noted. Copied to `third-party/python/…` only when interpreter == 3.13.16, else build stops. Pillow 12.3.0: 7 shipped `.pyd` byte-identical to the official PyPI cp313 win_amd64 wheel; notice + FreeType FTL credit (1996-2026, from VER-2-14-3 freetype.h) shipped and added to README. [CI #199](https://github.com/shimon3/rapido/actions/runs/38719557821) SUCCESS on c4b6442: 229 passed (227 + 2 new tests) /5 skipped /120 subtests /1 warning; signatures 15 passed; collector OK; release skipped. Artifact #199 not independently inspected.
+
+Still open: Rust crates statically linked in pydantic_core (no notice), Microsoft VC runtime/UCRT/api-ms-win redistribution terms, cffi's static libffi (only covered indirectly by Python's notice), WebBrowserInterop.dll provenance, proxy_tools MIT/BSD, Tuil/Bentouza ownership, LGPL relinking adequacy. No compliance verdict.
 
 ## Completed focus — LGPL/MPL source notices (Claude, e890163)
 
