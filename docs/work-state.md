@@ -8,6 +8,14 @@ First stable Windows beta, essential corrections only. Branch `work/beta-engine-
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
 
+## Current focus — native registration ownership
+
+Reproduced: non-object manifest JSON raised AttributeError/TypeError during ownership checks; duplicate keys/non-JSON numbers/oversized descriptions could be accepted; a foreign manifest or registry owner introduced after preflight could be adopted/overwritten. `native_registration.py` now reads regular manifests with a 16-KiB bound, rejects invalid/ambiguous/non-object/deep/invalid-UTF8 JSON and preserves such files during uninstall while continuing other cleanup.
+
+Registration stages all manifest files, then revalidates all manifests and registry owners before its first registry write. Tests inject foreign changes after preflight and assert rejection without registry writes. This is best-effort revalidation, NOT an atomic transaction or a same-user trust anchor: changes after the final check and partial registry-write failures remain outside this guarantee. Own newly staged files can remain after failure for repair/uninstall; no risky rollback deletes potentially replaced files.
+
+Local focused: 28 passed /7 Windows-fixture skips /18 subtests; full Linux 194 passed /36 Windows-fixture skips /116 subtests /1 existing warning. Real Windows registry test now also corrupts a Chrome manifest with JSON null, preserves it, completes Firefox cleanup and preserves a foreign Edge owner under a unique test-only host name. Windows CI pending; #196 below validates previous code. Workflow reviewed unchanged: one workflow, PR build read-only, release requires explicit tag push, no deployment. Main SHA checked unchanged.
+
 ## Completed focus — native launcher paths and Firefox
 
 Shared `native_paths.has_linked_component` now applies registration's best-effort symlink/junction policy to launcher admission: helper, desktop, recognized browser image and Firefox manifest, including ancestors. Capture refusal occurs before pipe transfer. Actual Windows junction fixtures and real known-folder discovery pass. No runtime attestation, independent policy or race-free guarantee; #26 stays open.

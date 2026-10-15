@@ -23,6 +23,12 @@ Firefox manifest reject symlinks/junctions at the leaf or an ancestor. This does
 not authenticate file contents, prove protected ACLs, prevent later path swaps,
 or provide the independently protected trust anchor required below.
 
+Registration ownership checks accept only an unambiguous JSON object from a
+regular manifest of at most 16 KiB. Corrupt/ambiguous files are preserved during
+cleanup. All staged manifests and registry owners are rechecked before registry
+updates. This is not an atomic filesystem/registry transaction: later changes,
+partial registry-write failures and a same-user attacker remain residual risks.
+
 **Non-goals:** DPAPI, SID/path matching, hashes placed beside the EXE, and direct symlink checks alone do not authenticate a publisher. Authenticating disk image does not prevent process injection, nor protect the process throughout its lifetime.
 
 ## Proposed trust policy — not yet approved or implemented
