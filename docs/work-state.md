@@ -48,6 +48,14 @@ Full module/native payload manifest is `third-party/payload.json` inside #187's 
 
 Sources: https://openssl-library.org/news/vulnerabilities-3.0/ ; https://www.python.org/downloads/release/python-31211/ ; https://www.python.org/downloads/release/python-31316/ .
 
+## Current task — critical confirmation dialogs
+
+Selective follow-up to PR #2, without its version bump or old publishing workflow: custom async confirmations for redownload, delete/deletefile, handoff recovery and progress cancellation. Cancellation is default focus; Escape/cancel and external close refuse; re-entry cannot steal a resolver. Action items are copied before waiting and a busy guard prevents duplicate requests. Delete/Ctrl+A shortcuts do not act while editing fields. Pause/resume/cancellation errors stay visible; failed pause does not close the popup.
+
+16 targeted dialog/release-policy/WebView auth/API auth tests and 50 subtests passed locally (1 existing warning); both generated self-test JS variants parse. New self-test drives the actual DOM and action handlers in WebView2 with destructive POSTs intercepted. Synthetic cancel events cover the Escape handler, not a physical keyboard certification. Windows CI is pending for these new changes; #187 validates only the previous code.
+
+Code review also found `engine.redownload()` clears the part file/state without awaiting cancellation of an active transfer. Next focused task: reproduce and fix this backend race after UI validation; do not declare restart handling complete yet.
+
 ## Remaining gates and next task
 
 - Review exact runtime/native attribution, embedded library notices, LGPL/MPL/source/replacement requirements and proxy_tools MIT/BSD discrepancy. Inventory collection is done; compliance is not established. Dependency vulnerability review must cover exact observed versions/native components, not only pip names. Python pin is a reviewed baseline requiring future maintenance, not perpetual security assurance.

@@ -299,6 +299,88 @@ def _quiet(fn):
         pass
 
 
+def check_confirmation_ui(window, fixture_id, *, popup=False):
+    """Exercise actual DOM dialogs/handlers in WebView2; intercept destructive POSTs."""
+    script = r'''
+    window._confirmationCheck = null;
+    (async () => {
+      const check = (value, message) => { if(!value) throw Error(message); };
+      const dialog = document.querySelector('#confirmDialog');
+      const no = () => document.querySelector('#confirmNo').click();
+      const yes = () => document.querySelector('#confirmYes').click();
+      const escape = () => dialog.dispatchEvent(new Event('cancel', {cancelable:true}));
+      const calls = [];
+      let closes = 0, failPause = false;
+      const savedApi = api;
+      const savedClose = typeof closeWin === 'function' ? closeWin : null;
+      try {
+        let pending = askConfirm('<img src=x onerror=alert(1)>');
+        check(dialog.open && document.activeElement.id === 'confirmNo', 'default refusal focus');
+        check(!document.querySelector('#confirmMessage img'), 'message must remain text');
+        check(await askConfirm('re-entry') === false, 're-entry must refuse');
+        no(); check(await pending === false, 'cancel must refuse');
+        pending = askConfirm('Escape'); escape(); check(await pending === false, 'cancel event must refuse');
+        pending = askConfirm('external close'); dialog.close('confirmed'); check(await pending === false, 'external close must refuse');
+        pending = askConfirm('explicit approval'); yes(); check(await pending === true, 'explicit approval');
+        api = async (path, method='GET', body) => {
+          if(method === 'POST') {
+            calls.push({path, body});
+            if(failPause && path.endsWith('/pause')) throw Error('simulated pause failure');
+            return {};
+          }
+          return savedApi(path, method, body);
+        };
+        if(__POPUP__) {
+          clearInterval(timer);
+          dl = {...dl, status:'paused'};
+          renderProgress();
+          closeWin = () => { closes++; };
+          for(const refuse of [no, escape, () => dialog.close()]) {
+            pending = document.querySelector('#cancel').onclick();
+            refuse(); await pending;
+            check(calls.length === 0 && closes === 0, 'refusal must not pause or close');
+          }
+          pending = document.querySelector('#cancel').onclick();
+          await document.querySelector('#cancel').onclick();
+          yes(); await pending;
+          check(calls.length === 1 && closes === 1, 'approval must pause and close once');
+          failPause = true;
+          pending = document.querySelector('#cancel').onclick(); yes(); await pending;
+          check(closes === 1 && !document.querySelector('#actionError').hidden, 'pause failure must stay visible');
+        } else {
+          for(const action of ['redownload','delete','deletefile']) {
+            const before = calls.length;
+            const item = {id:__FIXTURE__, filename:'dialog fixture', status:'completed'};
+            pending = act(action, [item]); no(); await pending;
+            check(calls.length === before, 'main refusal must not mutate');
+            pending = act(action, [item]);
+            item.id = 'changed-after-dialog';
+            await act(action, [{id:'second-click'}]);
+            yes(); await pending;
+            check(calls.length === before + 1, 'approval must submit exactly once');
+            const request = calls[calls.length-1];
+            check(action === 'redownload' ? request.path === '/api/downloads/' + __FIXTURE__ + '/redownload' : request.body.ids[0] === __FIXTURE__, 'confirmed identity must stay frozen');
+          }
+        }
+        window._confirmationCheck = {ok:true, interceptedPosts:calls.length};
+      } catch(error) {
+        window._confirmationCheck = {ok:false, error:String(error)};
+      } finally {
+        api = savedApi;
+        if(savedClose) closeWin = savedClose;
+      }
+    })(); true
+    '''
+    script = script.replace('__POPUP__', 'true' if popup else 'false').replace('__FIXTURE__', json.dumps(fixture_id))
+    window.evaluate_js(script)
+    for _ in range(100):
+        outcome = window.evaluate_js('window._confirmationCheck')
+        if outcome is not None:
+            return outcome
+        time.sleep(.1)
+    return {"ok": False, "error": "Dialog UI self-test timed out"}
+
+
 def run_selftest(main_win, open_popup, result: dict):
     """Verifie la fenetre, le moteur de telechargement, yt-dlp et les petites fenetres."""
     import webview
@@ -333,6 +415,8 @@ def run_selftest(main_win, open_popup, result: dict):
         popup.evaluate_js("resize(600, 400)")
         time.sleep(1.5)
         result["popup_resized"] = abs(popup.width - 600) <= 20
+        result["main_confirmations"] = check_confirmation_ui(main_win, dl['id'])
+        result["popup_confirmations"] = check_confirmation_ui(popup, dl['id'], popup=True)
         result["csp"] = "script-src 'sha256-" in urllib.request.urlopen(BASE_URL + "/").headers.get(
             "Content-Security-Policy", "")
         # securite : un site web ne doit pas pouvoir piloter Rapido
@@ -423,6 +507,7 @@ def run_selftest(main_win, open_popup, result: dict):
             and result["dpapi_ok"] and result["motw_ok"] and result["ytdlp_process"]
             and result["webview_auth"] and result["unauthenticated_api"]
             and result["native_pipe"] and result["native_capture"] and result["native_handoff"]
+            and result["main_confirmations"].get("ok") and result["popup_confirmations"].get("ok")
         )
     except Exception as e:
         import traceback
