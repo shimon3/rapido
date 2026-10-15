@@ -30,6 +30,39 @@ WEBVIEW2_SDK_TEXTS = {'LICENSE.txt': '0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd
  'NOTICE.txt': '106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90'}
 WEBVIEW2_SDK_SOURCE = 'https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.3856.49/microsoft.web.webview2.1.0.3856.49.nupkg'
 
+# Copyleft packages whose exact installed source files were compared with the
+# upstream tagged commit. Notices are copied only for that identity (LF hashes).
+SOURCE_NOTICES = {
+    ("pystray", "0.19.5"): {
+        "folder": "pystray-0.19.5",
+        "texts": {"SOURCE.md": None},
+        "files": {'pystray/__init__.py': 'c8e2b76aef6862992334eca1cc88b319b70db64dc9a391ea41c55a675c1fc20d',
+                  'pystray/_appindicator.py': '538439ba1f43967845690a6d50941407a9d19bee3915664a5e552fbcab755f36',
+                  'pystray/_base.py': 'd964e3ae1f62238cdc96411491ad8b2844690523f1ac9ef68bfa2d3376f22b7e',
+                  'pystray/_darwin.py': 'fdc51dfe2bbdce148dc4d111644f3b7c0a437f5ffcfb77fb5acadc36b86bea3a',
+                  'pystray/_dummy.py': '61cf5fc0f443692d9e29a6368d4b320757fb4a6a0601be5f46bcb9d06ca20f0c',
+                  'pystray/_gtk.py': 'a38d619ad380bfd0dfe35ed4dcf946e2de2fe09264617fddca8088f2c5426060',
+                  'pystray/_info.py': 'c7974beafe3d59822362f2b71f18d336d4a580826936e6382f2997198de32200',
+                  'pystray/_util/__init__.py': '441f5b187d0ce1a6fc1f25f26cf384835688c3763f4dfa2e1753d65737ff84c6',
+                  'pystray/_util/gtk.py': 'eeaba1b86131fe48a10f1ac1af8fcf29fb57fd49ab65fb1f42ac1c8e45e359b2',
+                  'pystray/_util/notify_dbus.py': '7df75ffbc11ba85c372670501154f98c9a8a1c207d938009e3654553982f4835',
+                  'pystray/_util/win32.py': '4a3c2d0c81040632f2fb1777644ba8214d58eec1861343a8ce2ca205366d3dff',
+                  'pystray/_win32.py': 'de4a968ac1cd519291fde5b13716446a8e5bd8805ab4d9e428ea2e3d66f37fb5',
+                  'pystray/_xorg.py': '01d5a1e99a9611986aa91add5dce60a30adddd01210d7bbdc4741764a1b74dda'},
+    },
+    ("certifi", "2026.7.22"): {
+        "folder": "certifi-2026.7.22",
+        "texts": {"SOURCE.md": None,
+                  "MPL-2.0.txt": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"},
+        "files": {'certifi/__init__.py': '7a52e5f4205f9b3d12a31898ceaa7e3f6837d19cc230700bcae1a9d91d1486c1',
+                  'certifi/__main__.py': 'c410688fdd394d45812d118034e71fee88ba7beddd30fe1c1281bd3b232cd758',
+                  'certifi/cacert.pem': '9cc2a774b5198dcff14d9be1e66091f538975d867ce029a96bce15a55dfd730f',
+                  'certifi/core.py': '5c55f2727746e697f7edac9e17c377d8752e0da7ecca191531b3b80403d61dad',
+                  'certifi/py.typed': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'},
+    },
+}
+SOURCE_NOTICE_PACKAGES = {"pystray", "certifi"}
+
 
 def _supplement_known_missing_text(dist, root, output, item):
     # The published 0.1.0 sdist omits LICENSE. Its module says BSD while its
@@ -99,6 +132,43 @@ def _supplement_webview2_sdk(dist, root, output, item):
         "matched_installed_files": [{"path": p, "sha256": h} for p, h in WEBVIEW2_SDK_FILES.items()]}]
 
 
+def _supplement_source_notice(dist, root, output, item):
+    canonical = re.sub(r"[-_.]+", "-", item["name"]).lower()
+    if canonical not in SOURCE_NOTICE_PACKAGES:
+        return
+    # A different version or modified source needs a new upstream comparison.
+    reviewed = SOURCE_NOTICES.get((canonical, item["version"]))
+    try:
+        if reviewed is None:
+            raise ValueError("Unreviewed copyleft package version")
+        for relative, expected in reviewed["files"].items():
+            source = Path(dist.locate_file(relative))
+            source.resolve().relative_to(root)
+            with source.open("rb") as stream:
+                data = stream.read(MAX_LICENSE_BYTES + 1)
+            if hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest() != expected:
+                raise ValueError("Different installed source identity")
+        originals = Path(__file__).resolve().parents[1] / "packaging/licenses" / reviewed["folder"]
+        texts = {}
+        for name, expected in reviewed["texts"].items():
+            data = (originals / name).read_bytes().replace(b"\r\n", b"\n")
+            if not data or (expected is not None and hashlib.sha256(data).hexdigest() != expected):
+                raise ValueError("Different notice text identity")
+            texts[name] = data
+    except (OSError, ValueError):
+        item["problems"].append("source-notice-identity-unverified")
+        return
+    for name, data in texts.items():
+        target = f"packages/{canonical}/{reviewed['folder']}/{name}"
+        destination = output / target
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+        item["files"].append({"path": target, "sha256": hashlib.sha256(data).hexdigest(),
+                              "kind": "source-notice"})
+    item["source_notice"] = {"matched_installed_files": len(reviewed["files"]),
+                             "complete_legal_review": False}
+
+
 def _license_path(record):
     parts = PurePosixPath(str(record).replace("\\", "/")).parts
     if not parts:
@@ -157,6 +227,7 @@ def collect(output, *, distributions=None, python_license=None):
         if not item["files"]:
             item["problems"].append("license-text-not-collected")
         _supplement_webview2_sdk(dist, root, output, item)
+        _supplement_source_notice(dist, root, output, item)
         packages.append(item)
 
     python_license = Path(python_license) if python_license is not None else Path(sys.base_prefix) / "LICENSE.txt"
@@ -193,6 +264,8 @@ def main():
     print(f"License evidence collected for {len(report['packages'])} installed distributions; compliance review remains required.")
     if any("webview2-sdk-notice-identity-unverified" in p["problems"] for p in report["packages"]):
         raise SystemExit("WebView2 SDK notices unverified: review carrier/version/binary/text identity before building")
+    if any("source-notice-identity-unverified" in p["problems"] for p in report["packages"]):
+        raise SystemExit("LGPL/MPL source notices unverified: compare the installed version with upstream before building")
     if not report["python"]["license_collected"]:
         raise SystemExit("Python interpreter license missing: refusing an incomplete evidence bundle")
 

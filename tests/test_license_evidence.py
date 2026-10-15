@@ -59,6 +59,48 @@ class LicenseEvidenceTests(unittest.TestCase):
                 self.assertEqual(len(rejected["packages"][0]["files"]), 1)
                 self.assertIn("webview2-sdk-notice-identity-unverified", rejected["packages"][0]["problems"])
 
+    def test_copyleft_source_notices_require_exact_installed_source_identity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            module = root / "certifi/core.py"
+            module.parent.mkdir()
+            module.write_bytes(b"# synthetic module\r\n")
+            dist = Distribution(root, "certifi", [])
+            dist.version = "2026.7.22"
+            reviewed = dict(evidence.SOURCE_NOTICES[("certifi", "2026.7.22")])
+            reviewed["files"] = {"certifi/core.py": hashlib.sha256(b"# synthetic module\n").hexdigest()}
+            with patch.dict(evidence.SOURCE_NOTICES, {("certifi", "2026.7.22"): reviewed}):
+                report = collect(root / "accepted", distributions=[dist], python_license=root / "missing")
+                item = report["packages"][0]
+                notices = {f["path"].rsplit("/", 1)[1]: f for f in item["files"] if f.get("kind") == "source-notice"}
+                self.assertEqual(set(notices), {"SOURCE.md", "MPL-2.0.txt"})
+                self.assertEqual(notices["MPL-2.0.txt"]["sha256"], reviewed["texts"]["MPL-2.0.txt"])
+                self.assertIn(b"5379b709be8a8595803a7bd907f87e302fc6ae1d",
+                              (root / "accepted" / notices["SOURCE.md"]["path"]).read_bytes())
+                self.assertFalse(item["source_notice"]["complete_legal_review"])
+                self.assertNotIn("source-notice-identity-unverified", item["problems"])
+                module.write_bytes(b"# modified module\n")
+                rejected = collect(root / "modified", distributions=[dist], python_license=root / "missing")
+                self.assertIn("source-notice-identity-unverified", rejected["packages"][0]["problems"])
+                self.assertFalse([f for f in rejected["packages"][0]["files"] if f.get("kind")])
+            dist.version = "2027.1.1"
+            rejected = collect(root / "unreviewed", distributions=[dist], python_license=root / "missing")
+            self.assertIn("source-notice-identity-unverified", rejected["packages"][0]["problems"])
+            other = Distribution(root, "demo", [])
+            unaffected = collect(root / "other", distributions=[other], python_license=root / "missing")
+            self.assertNotIn("source-notice-identity-unverified", unaffected["packages"][0]["problems"])
+
+    def test_reviewed_source_notice_texts_are_present_and_reference_exact_upstream(self):
+        base = Path(evidence.__file__).resolve().parents[1] / "packaging/licenses"
+        expected_commits = {"pystray": b"1907f8681d6d421517c63d94f425f9cdd74d0034",
+                            "certifi": b"5379b709be8a8595803a7bd907f87e302fc6ae1d"}
+        for (name, _version), reviewed in evidence.SOURCE_NOTICES.items():
+            for text, digest in reviewed["texts"].items():
+                data = (base / reviewed["folder"] / text).read_bytes().replace(b"\r\n", b"\n")
+                if digest is not None:
+                    self.assertEqual(hashlib.sha256(data).hexdigest(), digest)
+            self.assertIn(expected_commits[name], (base / reviewed["folder"] / "SOURCE.md").read_bytes())
+
     def test_supplement_requires_exact_module_identity_and_keeps_conflict_visible(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
