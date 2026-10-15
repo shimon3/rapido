@@ -1,35 +1,35 @@
 {
-  "archive_sha256": "33a9a9a2534fea8e025aab3bb0292688ef077337c46489b922c753584d89fed9",
+  "archive_sha256": "d5eb35976f535c69f2c28011048043f44e3402e8d97b0d22c724c8a30fb441f7",
   "assets": {
     "Rapido-1.2.2-portable.zip": {
-      "size": 42249979,
-      "sha256": "11bce903cb7b0715c3480f8b7d79902db5087983cb56ff611a2356a3f2be8628"
+      "size": 43243403,
+      "sha256": "22f0d2b282f29012ff592ac8c851ef7d415d0ddfff11078496009c8f4fe38aa1"
     },
     "Rapido-Setup-1.2.2.exe": {
-      "size": 44794003,
-      "sha256": "000d157ef48f096f224facc7a511aabf261de7cad4341e94311276bb1d8f9939"
+      "size": 46091275,
+      "sha256": "a0f9337f21b769ddea2c52cdcacd1b3e589be48d4219f12c0400ff4025f8a182"
     }
   },
   "files_verified": 154,
   "archives": [
     {
       "path": "_internal/base_library.zip",
-      "modules": 155,
+      "modules": 154,
       "embedded_native": 0
     },
     {
       "path": "Rapido.exe",
-      "modules": 2383,
+      "modules": 2411,
       "embedded_native": 0
     },
     {
       "path": "RapidoNativeHost.exe!/base_library.zip",
-      "modules": 155,
+      "modules": 154,
       "embedded_native": 0
     },
     {
       "path": "RapidoNativeHost.exe",
-      "modules": 124,
+      "modules": 131,
       "embedded_native": 55
     }
   ],
@@ -56,7 +56,6 @@
     "pydantic": 105,
     "pydantic_core": 2,
     "pystray": 13,
-    "pytest": 3,
     "pythonnet": 2,
     "pywebview": 42,
     "setuptools": 127,
@@ -138,7 +137,7 @@
     "_internal/libffi-8.dll",
     "_internal/libssl-3.dll",
     "_internal/pyexpat.pyd",
-    "_internal/python312.dll",
+    "_internal/python313.dll",
     "_internal/select.pyd",
     "_internal/sqlite3.dll",
     "_internal/ucrtbase.dll",
@@ -148,11 +147,15 @@
     "Rapido.exe",
     "RapidoNativeHost.exe"
   ],
-  "license_distributions": 46,
-  "license_texts": 121,
+  "license_distributions": 41,
+  "license_texts": 115,
   "compliance_verified": false,
-  "code_sha": "862c79dddf302f0311fdc5fe8b58454bbbc80235",
-  "ci_run": 38690191066,
-  "ci_number": 184,
-  "artifact_id": 11951143877
+  "embedded_native_hashes_verified": 55,
+  "code_sha": "6ba9c229b3cfae3d106b71687553abe18c81a00f",
+  "ci_run": 38691471314,
+  "ci_number": 187,
+  "artifact_id": 11952756207,
+  "python_license_hash_verified": true,
+  "project_license_matches_normalized_text": true,
+  "forbidden_module_names_present": []
 }

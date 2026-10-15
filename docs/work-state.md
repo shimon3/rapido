@@ -1,68 +1,69 @@
-# Rapido — Work restart checkpoint
+# Rapido — restart checkpoint
 
-Updated 2026-10-15. Start here; do not repeat the repository overview or completed stack reconciliation.
+Updated 2026-10-15. Start here; do not repeat the repository overview or completed PR reconciliation.
 
-## Goal and authority
+## Goal, branches and authority
 
-First stable Windows beta; essential corrections only. Working branch `work/beta-engine-guards-20261015`, draft PR #33 targeting `work/security-26-followup-20261015` (draft PR #32, itself dependent on #29).
+First stable Windows beta; essential corrections only. Branch `work/beta-engine-guards-20261015`, draft PR #33 targets draft PR #32's `work/security-26-followup-20261015` (dependent on #29).
 
-Allowed: ordinary dedicated-branch pushes, draft PR creation/updates and nonpublishing Actions. Forbidden: direct main changes, force-push, merges, publication tags/releases/deployments, tests on the user's PC. Verify workflow triggers before every push. Work on one focused task, targeted tests first; no security reductions to save quota.
+Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: direct main changes, force-push, merges, publication tags/releases/deployments, tests on the user's PC. Check workflows before each push. One targeted task at a time; targeted tests first; preserve security checks.
 
-Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; verify again before changes. #30 reconciliation is complete. #3/#26/#28 remain open because fixes are unmerged or acceptance gates unresolved.
+Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`. #30 reconciliation is complete. #3/#26/#28 remain open because fixes are unmerged or acceptance gates unresolved.
 
-## Latest validated code and evidence
+## Latest validated code — CI #187 SUCCESS
 
-**Code `c33041ab36a68632625734f9824bb297b206217c`, CI #183 SUCCESS**:
-https://github.com/shimon3/rapido/actions/runs/38685767705
+Code `6ba9c229b3cfae3d106b71687553abe18c81a00f`:
+https://github.com/shimon3/rapido/actions/runs/38691471314
 
-- Full regression: 179 passed, 5 signed-fixture skips after dedicated execution, 88 subtests, 1 warning.
-- Dedicated real Authenticode fixtures: 15 passed, no skips. Includes NTFS junction/symlink and independent-process replacement tests.
-- Desktop/native builds, real-window self-test, installer lifecycle/portable coexistence, real Firefox, packaging and artifact upload passed.
-- Actual build token Contents:read; release job skipped. Runner is Windows Server 2025, not proof of Windows 10/11 desktop validation.
-- Artifact `11949821998` was downloaded and inspected: 394 portable entries, 46 installed-distribution records, 121 package license texts plus Python 3.12.10 LICENSE and project LICENSE. All referenced license hashes match. The archive SHA-256 matches GitHub metadata.
-- `docs/beta-build-inventory-20261015.json` preserves complete observed versions/license evidence; `docs/beta-artifact-verification-20261015.json` preserves artifact hashes/inspection results. No full compliance verdict is claimed.
+- 190 general regression tests passed, 5 signed-fixture skips after separate execution, 105 subtests, 1 warning.
+- Dedicated signature run: 15 passed, no skips — 9 policy/unit tests, 1 real unsigned-file test and 5 real signed-PE fixture tests. Previous wording implying all 15 were real signed fixtures was inaccurate; PR #32 and current report are corrected. The two executions overlap, do not sum them as unique tests.
+- Desktop/native compilation, real-window self-test, installer/uninstaller, installed/portable coexistence and real Firefox all passed. Build token Contents:read; release skipped.
+- Runner Windows Server 2025 is not Windows 10/11 validation.
+- Python is pinned to 3.13.16; build TLS reports OpenSSL 3.5.9. Actual DLL VERSIONINFO resources in downloaded ZIP report the same. Resource strings are not publisher verification.
 
-Documentation checkpoint `a83859e` follows this code with [skip ci]. Runtime code/tests/workflow remain identical to the validated SHA. Do not claim the documentation HEAD itself ran CI; exact-head/integration checks remain required before any future authorized merge/release.
+Final documentation-only checkpoint follows this SHA with [skip ci]. No runtime/build/test/workflow changes after validated code. Do not claim documentation HEAD itself ran CI; future authorized integration requires exact-head/integration checks.
 
-## Completed during this session
+## Actual artifact inspection
 
-1. #26/PR #32: held-file verifier rejects non-disk/reparse/directory input or a differing kernel-resolved final path, checked before verification/admission. Real Windows replacement/junction/symlink tests passed. CI #179 on `a4cae19` independently validates that branch. It remains a primitive, not runtime capture admission or an independent system trust anchor.
-2. PR inventory revealed #11 engine guards absent from #32. PR #33 selectively carries them without old workflows: persisted ETag/Last-Modified/probe Date, correct strong If-Range, resource/range/body-size rejection, disk-full/quota/short-write abort, unbuffered writes, bounded 429/503 Retry-After. Partial URL refresh requires the same usable validator, restores metadata on refusal and pauses scheduler state while probing. Dynamic splitting validates the originally requested range while clipping writes to current segment ownership. 21 focused engine tests; Linux extended checks 40 passed/13 Windows skips.
-3. Actual #181 ZIP initially had only four license texts. Added build-only `scripts/collect_license_evidence.py`, with four focused tests, package-root confinement, immutable-output protection, version/license inventory, copied-text hashes, Python license requirement and explicit compliance_verified=false. Evidence is build environment (test/build tools included), not exact shipped modules/native compliance.
-4. proxy_tools 0.1.0 sdist lacks LICENSE; metadata says MIT, module header says BSD. Verified PyPI archive hash and exact normalized module match against upstream commit `db43f1e35d4f90a65c5a4d56d9e9af88212ec6e6`. Preserved authentic BSD text/provenance under `packaging/licenses/proxy_tools-0.1.0/`; supplement applies only to exact version/module hash, retaining conflict as review-required. #183 actual inventory confirms the supplement and conflict flag. pystray 0.19.5 metadata is LGPLv3; certifi 2026.7.22 metadata is MPL-2.0. Never call all dependencies MIT.
+Artifact `11952756207`; archive digest matches GitHub:
+`d5eb35976f535c69f2c28011048043f44e3402e8d97b0d22c724c8a30fb441f7`.
 
-## Current targeted work — payload reconciliation
+154 payload files (excluding generated third-party evidence), all file hashes and exact file membership checked. All 55 embedded native-host binary hashes independently checked from final executable bytes. No pytest/_pytest module names. 41 build-environment distributions, 115 package license texts plus Python 3.13.16 license verified; project LICENSE text unchanged after line-ending normalization. No Python312.dll remains on disk.
 
-Added build-only `scripts/collect_payload_evidence.py`: lists actual executable CArchive/PYZ entries, both embedded/on-disk base_library ZIP module names, and hashes bundle files/native entries. Python distribution candidates match exact installed RECORD module names; native candidates require identical size/SHA-256. Unknown/ambiguous entries remain explicit. No DLL/code execution, absolute runner paths, integrity-policy or compliance verdict. Excludes separately generated third-party evidence from recursive file inventory. Chrome extension copy moves before evidence collection so both installer/portable payloads are covered.
+Durable current evidence:
+- `docs/beta-payload-inspection-20261015.json`: #187 archive/asset hashes, module/native candidates and unmatched native list.
+- `docs/beta-build-inventory-20261015.json`: complete #187 observed versions/license evidence. Includes build/test tools, not all assumed shipped.
+- `docs/beta-native-version-resources-20261015.json`: actual on-disk native hashes and PE resource strings, method/provenance explicit.
+- `docs/beta-readiness-20261015.md`: detailed review, remaining gates/difficulty/conditional effort plan. Old `beta-artifact-verification-20261015.json` concerns #183 only.
 
-CI #184 SUCCESS on `862c79dddf302f0311fdc5fe8b58454bbbc80235`: 185 regression tests passed, 5 dedicated-fixture skips, 88 subtests; 15 real signature tests passed separately. All compilation, payload evidence, installer/portable and Firefox steps passed; release skipped. Actual downloaded ZIP: all 154 payload file hashes and 121 license-text hashes checked, no missing/extra payload file, archive digest matched GitHub. Four inspected archives include both base_library ZIPs; desktop 2383 entries, host 124, host 55 native entries. See `docs/beta-payload-inspection-20261015.json` for exact hashes, candidates and unmatched native files.
+Full module/native payload manifest is `third-party/payload.json` inside #187's artifact. Module ownership candidates match exact installed RECORD names (not bytecode identity); native candidates match size/SHA-256. Unknown/ambiguous entries remain explicit. This is not runtime admission or license/security clearance.
 
-The new evidence exposed three `_pytest` module entries in the desktop executable. A targeted follow-up excludes `pytest` and `_pytest` from the desktop build and rejects either root in actual archive inventory (package boundary matching). 14 local collector/license/extension tests plus 4 subtests pass. CI #185 SUCCESS on `83eff65eebff0cd7baf6cdbb191c01ea7d8c238c`: 186 regression tests, 5 fixture skips, 92 subtests; 15 real signature tests separately. Actual payload forbidden-module check, complete installer/portable/Firefox flow all passed. No pytest/_pytest module names in the archived module lists. Release skipped. Other incidental packages remain in the payload until their actual dependency role is reviewed; no blind removal.
+## Completed corrections — do not reapply
 
-## Current runtime baseline correction
+1. #26/PR #32 (`a4cae19`, CI #179): held-file Authenticode verifier rejects non-disk/directory/reparse inputs and differing kernel-resolved final path before verification/admission; exact SHA-256 leaf pin, exact-zero trust result, held handle through caller use, cleanup. Real Windows signed, unsigned, wrong signer, tamper, replacement, junction and symlink tests passed. Primitive only; no production runtime admission.
+2. PR inventory exposed #11's missing engine guards; selectively restored in #33: persisted strong validators, correct If-Range/date rules, resource/range/body rejection, bounded Retry-After, ENOSPC/quota/short-write handling with unbuffered writes, identity-safe partial URL refresh with scheduler pause, dynamic split requested-end validation. 21 focused engine tests. No historical workflow reintroduced.
+3. Build-only license collector adds actual texts/hashes and Python LICENSE. proxy_tools 0.1.0 sdist omits its license: exact source/module identity matched upstream `db43f1e35d4f90a65c5a4d56d9e9af88212ec6e6`; authentic BSD text/provenance supplemented only for matching module bytes. MIT metadata/BSD source conflict stays flagged. pystray LGPLv3 and certifi MPL-2.0 need obligation review; do not call all dependencies MIT.
+4. New build-only payload collector parses both executables and their two standard-library ZIPs without executing bundled code. Includes file/native hashes and distribution candidates. Raw Chrome extension copy moves before evidence so installer and portable contents match. CI #184 succeeded; observed three _pytest entries led to explicit exclusion and forbidden-root check, validated in #185 and #187. Do not remove other incidental packages without checking dependency use.
+5. #184 PE resources exposed Python 3.12.10 / OpenSSL 3.0.16. Official OpenSSL affected-version ranges include 3.0.16; Rapido exploitability is NOT established. Official Python 3.13.16 release includes OpenSSL 3.5.9 and Windows binaries. Updated/pinned build runtime; `scripts/check_build_runtime.py` rejects other Python or OpenSSL below 3.5.9. CI #186 initially failed because legacy OPENSSL_VERSION_INFO fields were misread; semantic version parsing plus 4 tests fixes the gate, without lowering its floor. CI #187 validates final baseline and full app flow.
 
-PE resource inspection of #184's real DLLs reports Python 3.12.10, OpenSSL 3.0.16 and SQLite 3.49.1. These are self-reported version resources plus exact hashes, not publisher verification. OpenSSL's official 3.0 advisory page includes 3.0.16 in affected version ranges (e.g. CVE-2025-9230 fixed in 3.0.18); relevant Rapido call-path exploitability is NOT established. Do not claim the beta is cleared.
+Sources: https://openssl-library.org/news/vulnerabilities-3.0/ ; https://www.python.org/downloads/release/python-31211/ ; https://www.python.org/downloads/release/python-31316/ .
 
-Sources checked 2026-10-15: https://openssl-library.org/news/vulnerabilities-3.0/ ; https://www.python.org/downloads/release/python-31211/ confirms 3.12.10 was the last binary-installer bugfix release. https://www.python.org/downloads/release/python-31316/ supplies Windows binaries and documents OpenSSL 3.5.9. Workflow now pins normal GIL-enabled Python 3.13.16 and explicitly checks its version plus OpenSSL >=3.5.9 before build. CI #186 confirmed Python 3.13.16 / OpenSSL 3.5.9, but the initial gate incorrectly interpreted the legacy `OPENSSL_VERSION_INFO` tuple and failed before dependencies/build. Corrected comparison parses the explicit OpenSSL 3 semantic version and retains the same minimum; four targeted tests cover older series/patches, prerelease/unknown implementations and unreviewed Python. Full real Windows validation and final-binary inspection are pending for the corrected gate. No production code, publication trigger or permission relaxation.
+## Remaining gates and next task
 
-## Remaining blockers and next task
+- Review exact runtime/native attribution, embedded library notices, LGPL/MPL/source/replacement requirements and proxy_tools MIT/BSD discrepancy. Inventory collection is done; compliance is not established. Dependency vulnerability review must cover exact observed versions/native components, not only pip names. Python pin is a reviewed baseline requiring future maintenance, not perpetual security assurance.
+- Provenance/attribution: repo LICENSE says Samuel Tuil, installer publisher Samuel Bentouza. Preserve rights; no authority to invent ownership or claim IDM provenance clearance.
+- #26 needs independently protected production policy/installation, signer/version lifecycle, browser host-selection enforcement and PyInstaller dependency protection before runtime admission. No production signer or managed trust anchor provided. No claim to prevent injection, mapped writers or all ancestor races. Keep issue open.
+- Clean Windows 10/11 VM matrix plus Chrome/Edge/Firefox private/cookie/absent-host/restart/upgrade flows remain. No tests on user's PC; Server CI is not a substitute.
+- Critical WebView2 dialogs (#2) need targeted cancel/delete/restart review; dependency/security review, Defender, distinct beta version and rollback gates remain before distribution. #8/#9 nonessential features deferred; #11 selected guards already present. No beta approved.
 
-`docs/beta-readiness-20261015.md` is the detailed PR/primary-source license review and task/difficulty/effort plan. Current next work:
+The report's 5–10 effective-day estimate is conditional, excludes complete #26 resolution and external signing/VM/provenance delays. Do not promise a delivery date.
 
-- Reconcile exact runtime/native payload with the collected build-environment inventory; review LGPL/MPL/source/replacement obligations and proxy_tools MIT/BSD discrepancy. Missing-text collection is fixed, complete compliance is not established.
-- Check attribution/provenance: repository LICENSE says Samuel Tuil, installer publisher says Samuel Bentouza. Preserve existing rights; no authority to invent or rewrite ownership. No IDM similarity/provenance clearance established.
-- #26 requires a concrete independently protected production policy/signer lifecycle, browser host-selection enforcement and PyInstaller dependency protection before runtime admission. No production certificate or managed trust anchor is configured. Signature checks do not prevent injection/all ancestor races/mapped writers; the issue stays open.
-- Clean Windows 10/11 VM matrix and Chrome/Edge/Firefox critical/private/cookie/absent-host/restart/upgrade tests remain. Do not substitute Windows Server CI results or test on the user's PC.
-- Critical WebView2 dialog paths, dependency/security review, Defender, distinct beta version/provenance and rollback gates remain before distribution. Nonessential #8/#9 features deferred; #2 dialogs need targeted review. #11's selected engine fixes are now in #33; do not reapply old workflows or merge blindly.
+## Efficient restart and tooling
 
-The report's 5–10 effective-day range is a conditional engineering estimate, not a calendar promise or a full #26 guarantee. External signing/VM/provenance prerequisites are not assumed available.
+Only read relevant files. engine.py/ytworker.py: downloads; app.py/local_auth.py/trusted_api.py: API; desktop.py/webview_auth.py: desktop; native_host.py/native_pipe.py/windows_peer.py/native_launcher.py: IPC; native_registration.py/packaging/rapido.iss: lifecycle; extension/background.js: browser.
 
-## Efficient restart/tools
+Local venv `/workspace/scratch/a15d48cb1e30/rapido-test-venv/bin/python` is Python 3.12, not the new Windows runtime. 18 targeted evidence/runtime/license/extension tests plus 17 subtests passed locally. PyInstaller/pefile installed only as local analysis tools; socksio installed only for this environment's SOCKS proxy. No production requirement change for these.
 
-Only read relevant files. Architecture: engine.py/ytworker.py (downloads), app.py/local_auth.py/trusted_api.py (API), desktop.py/webview_auth.py (desktop), native_host.py/native_pipe.py/windows_peer.py/native_launcher.py (IPC), native_registration.py/packaging/rapido.iss (lifecycle), extension/background.js (browser). Full map/reconciliation need not be repeated.
+Git CLI lacks write credentials. Use GitHub Git-data connector: base current tree, correct parent, update_ref with expected_sha and force=false. Verify remote SHA, fetch, compare staged content to FETCH_HEAD, then soft-reset only when identical. Never overwrite concurrent work.
 
-Local venv `/workspace/scratch/a15d48cb1e30/rapido-test-venv/bin/python`; Node on PATH. socksio was installed in this venv only to support this environment's configured SOCKS proxy; no production dependency change for that issue.
-
-Local Git lacks write credentials. Use GitHub Git-data connector: tree based on current tree, commit with correct parent, create branch or update_ref with expected_sha and force=false. Verify remote HEAD; fetch, compare local index/remote content, then soft-reset local HEAD only when identical. Never overwrite concurrent work.
-
-Only workflow is `.github/workflows/windows.yml`: this work branch has no push trigger; PR build token is read-only. On the reviewed branches release requires explicit tag push plus successful build; their PR/dispatch runs cannot publish, no deployment step. These guards are NOT yet on main: main still has its historical auto-release behavior and must not be triggered. Any future authorized integration must preserve the tag-only guard before running on main. Do not change main/tags or weaken tests. Current change is build-time payload evidence only; preserve runtime code and retain exact validation identities.
+Only workflow `.github/workflows/windows.yml`: branch has no push trigger; PR build read-only. Reviewed branch workflow releases only on explicit publication tag push plus successful build; no deployment step. These guards are NOT on main, which retains historical auto-release behavior. Any future authorized integration must preserve tag-only guard before running on main. No such action is authorized now.

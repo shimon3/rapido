@@ -3,10 +3,10 @@
   "scope": "installed-build-environment",
   "compliance_verified": false,
   "python": {
-    "version": "3.12.10",
+    "version": "3.13.16",
     "license_collected": true,
     "path": "Python-LICENSE.txt",
-    "sha256": "e502c6b880ff58d614901495a9009c136539cd0b1e2a2abb8fc00b934c203419"
+    "sha256": "62bec384df47b0328307db41455ff6ea2559e5546b394ac69148561b21703120"
   },
   "packages": [
     {
@@ -57,23 +57,6 @@
         {
           "path": "packages/anyio/anyio-4.15.1.dist-info/licenses/LICENSE",
           "sha256": "5361ac9dc58f2ef5fd2e9b09c68297c17f04950909bbc8023bdb82eacf22c2b0"
-        }
-      ],
-      "problems": []
-    },
-    {
-      "name": "argcomplete",
-      "version": "3.7.2",
-      "license_expression": "",
-      "license_metadata": "Apache Software License",
-      "files": [
-        {
-          "path": "packages/argcomplete/argcomplete-3.7.2.dist-info/licenses/LICENSE.rst",
-          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
-        },
-        {
-          "path": "packages/argcomplete/argcomplete-3.7.2.dist-info/licenses/NOTICE",
-          "sha256": "2c889c721ec8ae6d7664680afaefbb4c7620976f434b57a506ecd92f0649b6a0"
         }
       ],
       "problems": []
@@ -165,19 +148,6 @@
         {
           "path": "packages/fastapi/fastapi-0.143.1.dist-info/licenses/LICENSE",
           "sha256": "4ec89ffc81485b97fec584b2d4a961032eeffe834453894fd9c1274906cc744e"
-        }
-      ],
-      "problems": []
-    },
-    {
-      "name": "filelock",
-      "version": "4.0.3",
-      "license_expression": "MIT",
-      "license_metadata": "",
-      "files": [
-        {
-          "path": "packages/filelock/filelock-4.0.3.dist-info/licenses/LICENSE",
-          "sha256": "608c89d5060ae9921adccf3236695bc654a9946e12323ef6c021dfa04e294d48"
         }
       ],
       "problems": []
@@ -283,12 +253,12 @@
           "sha256": "590d12eee73ddbec53b4e9ee5bfc64d9cb3aacb4940e8ebcba260757ce56740b"
         },
         {
-          "path": "packages/packaging/packaging/licenses/__pycache__/__init__.cpython-312.pyc",
-          "sha256": "d73e073dda13d2a4b61e832afc1919240879fbd2761678e87079291ab9ade74f"
+          "path": "packages/packaging/packaging/licenses/__pycache__/__init__.cpython-313.pyc",
+          "sha256": "7a5a759b9fce88f8ac435aef48aa82c52ab374bcc082c8b38c76293bdbe710e6"
         },
         {
-          "path": "packages/packaging/packaging/licenses/__pycache__/_spdx.cpython-312.pyc",
-          "sha256": "c8b817d8ec0ba2fd25044c79b9d435bab9a9258cbc4bcaacf7f8ce0771ded02e"
+          "path": "packages/packaging/packaging/licenses/__pycache__/_spdx.cpython-313.pyc",
+          "sha256": "87cfd0b6d2696755f7de9e0d023c9a72d16d848cc2234fba61988ff95a6fd1c0"
         },
         {
           "path": "packages/packaging/packaging/licenses/_spdx.py",
@@ -458,12 +428,12 @@
           "sha256": "fc9c745d1883ff9f296a5b169f22eb2ee879f59a4608f20f5cb29d668f4e26f4"
         },
         {
-          "path": "packages/pip/pip/_vendor/packaging/licenses/__pycache__/__init__.cpython-312.pyc",
-          "sha256": "0636990e1157fefe8e96e8629e917b5f0b84821313baef32979427afd7a27053"
+          "path": "packages/pip/pip/_vendor/packaging/licenses/__pycache__/__init__.cpython-313.pyc",
+          "sha256": "70346f56abe1a0b9e1e59985b8ffe964e8582ea822a205737f530a59c2fab6d6"
         },
         {
-          "path": "packages/pip/pip/_vendor/packaging/licenses/__pycache__/_spdx.cpython-312.pyc",
-          "sha256": "b4307e7dc8d45c38143659352284b100f01be0f29caf858449037614497b5375"
+          "path": "packages/pip/pip/_vendor/packaging/licenses/__pycache__/_spdx.cpython-313.pyc",
+          "sha256": "2b309eae49ba1b7b2d85d81abfc8f9b6ce9faa582e2f156e57c41fe59613891b"
         },
         {
           "path": "packages/pip/pip/_vendor/packaging/licenses/_spdx.py",
@@ -512,32 +482,6 @@
         {
           "path": "packages/pip/pip/_vendor/urllib3/LICENSE.txt",
           "sha256": "130e3a64d5fdd5d096a752694634a7d9df284469de86e5732100268041e3d686"
-        }
-      ],
-      "problems": []
-    },
-    {
-      "name": "pipx",
-      "version": "1.17.6",
-      "license_expression": "MIT",
-      "license_metadata": "",
-      "files": [
-        {
-          "path": "packages/pipx/pipx-1.17.6.dist-info/licenses/LICENSE",
-          "sha256": "2e142cbef6acf436d47d8fe1412439c442eeb6c48d5ef73d6b91fffbbf1cdf89"
-        }
-      ],
-      "problems": []
-    },
-    {
-      "name": "platformdirs",
-      "version": "4.11.14",
-      "license_expression": "MIT",
-      "license_metadata": "",
-      "files": [
-        {
-          "path": "packages/platformdirs/platformdirs-4.11.14.dist-info/licenses/LICENSE",
-          "sha256": "29e0fd62e929850e86eb28c3fdccf0cefdf4fa94879011cffb3d0d4bed6d4db6"
         }
       ],
       "problems": []
@@ -782,12 +726,12 @@
           "sha256": "4f05cb1d9097c1281d17044b3f15bad364fa99289eba74851cce9fa7ca605bbf"
         },
         {
-          "path": "packages/setuptools/setuptools/_vendor/packaging/licenses/__pycache__/__init__.cpython-312.pyc",
-          "sha256": "4997dbd27950321c9f2f5c3dc7467c72e81656a434256be7a792edfb9b9b1183"
+          "path": "packages/setuptools/setuptools/_vendor/packaging/licenses/__pycache__/__init__.cpython-313.pyc",
+          "sha256": "7de4bcb4cce79f3ecbcf3d933f3b3ca9b1c0906efb2d3887445e5163cce2bdb3"
         },
         {
-          "path": "packages/setuptools/setuptools/_vendor/packaging/licenses/__pycache__/_spdx.cpython-312.pyc",
-          "sha256": "4e3b5ca0e42454eaf7075b9e5aa2ca74af81e618d5fb7c623bcb41300eb55a0d"
+          "path": "packages/setuptools/setuptools/_vendor/packaging/licenses/__pycache__/_spdx.cpython-313.pyc",
+          "sha256": "227df2b6d5bab79f9c31deb5a435e86b54307e7433ebaaad1a3afdee3954fc37"
         },
         {
           "path": "packages/setuptools/setuptools/_vendor/packaging/licenses/_spdx.py",
@@ -873,19 +817,6 @@
       "problems": []
     },
     {
-      "name": "userpath",
-      "version": "1.9.2",
-      "license_expression": "MIT",
-      "license_metadata": "",
-      "files": [
-        {
-          "path": "packages/userpath/userpath-1.9.2.dist-info/licenses/LICENSE.txt",
-          "sha256": "9f4f88aa42884240ae152d6fdd0e0b7e83e2430169c8ce613ae18f6a840f1c57"
-        }
-      ],
-      "problems": []
-    },
-    {
       "name": "uvicorn",
       "version": "0.54.0",
       "license_expression": "BSD-3-Clause",
@@ -911,5 +842,10 @@
       ],
       "problems": []
     }
-  ]
+  ],
+  "observed_from": {
+    "code_sha": "6ba9c229b3cfae3d106b71687553abe18c81a00f",
+    "ci_run": 38691471314,
+    "artifact_id": 11952756207
+  }
 }

@@ -1,0 +1,1179 @@
+{
+  "method": "PE string VERSIONINFO resources read without execution using pefile 2024.8.26",
+  "scope": "on-disk native payload files; self-reported resource strings, not publisher verification or vulnerability/compliance verdict",
+  "files": [
+    {
+      "path": "Rapido.exe",
+      "sha256": "da1a5d1a276ce81e036b4369276bdd0039201c31ba06173860d9cefd4a31bd46",
+      "version_resources": [
+        {
+          "CompanyName": "Samuel Bentouza",
+          "ProductName": "Rapido",
+          "ProductVersion": "1.2.2",
+          "FileVersion": "1.2.2",
+          "LegalCopyright": "MIT License",
+          "OriginalFilename": "Rapido.exe"
+        }
+      ]
+    },
+    {
+      "path": "RapidoNativeHost.exe",
+      "sha256": "fb627cc8f4f118272217d394ddc23c529c4ef80a2d04db53c460b23c0bc7a4c3",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/PIL/_avif.cp313-win_amd64.pyd",
+      "sha256": "2e3e5cce3aea38c603680ca3da5d161fad123ce23a803bb692a56aff608989be",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/PIL/_imaging.cp313-win_amd64.pyd",
+      "sha256": "88756e8e0e3f6180e518da25d379597c861e2d20d716ef001894789b515c1777",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/PIL/_imagingcms.cp313-win_amd64.pyd",
+      "sha256": "7ecb50b954d13d72b7a0ff565872332443cdbc83a36e58a56b2b949a56f32549",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/PIL/_imagingft.cp313-win_amd64.pyd",
+      "sha256": "e94673a471a0b6fd5e92e8b6cdbdfe16e2e91bcf5689e9e4c9b391ab43788d85",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/PIL/_imagingmath.cp313-win_amd64.pyd",
+      "sha256": "9d5bbea6a877a48ed7995a0640ecb0a5567d9fad544a4a1fbf9f22d507029b57",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/PIL/_imagingtk.cp313-win_amd64.pyd",
+      "sha256": "8ccd6128481d5a3a15993c2f8a69585694ff972652a6b06dcaee276fc65633a7",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/PIL/_webp.cp313-win_amd64.pyd",
+      "sha256": "9918faf8d90faa86e03e48479c6a62383be71da759254afded18591a406a92fe",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/VCRUNTIME140.dll",
+      "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Visual Studio\u00ae",
+          "ProductVersion": "14.51.36247.0",
+          "FileVersion": "14.51.36247.0",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "vcruntime140.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/VCRUNTIME140_1.dll",
+      "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Visual Studio\u00ae",
+          "ProductVersion": "14.51.36247.0",
+          "FileVersion": "14.51.36247.0",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "vcruntime140_1.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_asyncio.pyd",
+      "sha256": "6654dfbf4cc92609801f35022acaddd3fc19e6c777b7771b0f0a68f5813889a8",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_asyncio.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_bz2.pyd",
+      "sha256": "6da4d453852346299e983b458f3ec2f0db3b5f765998ba3f45c91b4a1549037b",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_bz2.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_cffi_backend.cp313-win_amd64.pyd",
+      "sha256": "21b7160d4a6da9590794fdb38718982060b5c92d56fb0e441fc8b62ee789be8d",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/_ctypes.pyd",
+      "sha256": "5bcddf4c374c4d247e1e4a61f3347159c36c5785fe43bdae11a4e6c9ea2c0166",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_ctypes.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_decimal.pyd",
+      "sha256": "eeb278dfbdb305bb5af916ed79e878943e25dc4bd6e99ec17abb7b3fd9f935d5",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_decimal.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_elementtree.pyd",
+      "sha256": "34968e3aebdb3e89cb1472b75b04986ce1bbf27d290f4154d77649cc17c41fab",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_elementtree.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_hashlib.pyd",
+      "sha256": "4d3eb9d9492d626c7bb10cfe5ab233a9195ec7b27e92b465b287e7a24fc8266c",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_hashlib.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_lzma.pyd",
+      "sha256": "2b4dcb12c0420ffced4b91968ae4eff6cb585f0f07490160c6da47da63064a99",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_lzma.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_multiprocessing.pyd",
+      "sha256": "5017bb9dd0d5ab6d7c0f007763d7906d33464f0b436ac6577f1f4fffd5c98986",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_multiprocessing.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_overlapped.pyd",
+      "sha256": "3f393b2ce1fe5973fc45e49dffcf51405fa875cdb284cf96b2f0d4b93b08765c",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_overlapped.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_queue.pyd",
+      "sha256": "79c196a0804b152fc48b4055387f4352838e41c28863a0c946e7a98137e681e1",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_queue.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_socket.pyd",
+      "sha256": "c5936292083189e0675a96ddd0e38235726f1c58195cec64eb0085b9c479ddce",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_socket.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_sqlite3.pyd",
+      "sha256": "95d5b99f696cb33550534e8be80d31003db8b8a27062dfd6b09fdba4bb92f812",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_sqlite3.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_ssl.pyd",
+      "sha256": "30ff82a3ea0c675ddc99e6b14f71ca750f06e77d6653e2da3d7d35b7ef0fc2ed",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_ssl.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_uuid.pyd",
+      "sha256": "0d6fcf704721d4bae58cc754b15a3f8c36907b718874f6d7cbbaa363a14618b1",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_uuid.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_wmi.pyd",
+      "sha256": "f88c322f871aef92de562278bd25c34c6e758642669d5512a22ed972840317b1",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_wmi.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/_zoneinfo.pyd",
+      "sha256": "b687deba154399bf6e44963e46abff518c3f987ae4fde087a3c891a1a1f08fdd",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "_zoneinfo.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-console-l1-1-0.dll",
+      "sha256": "88ace577a9c51061cb7d1a36babbbefa48212fadc838ffde98fdfff60de18386",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-datetime-l1-1-0.dll",
+      "sha256": "1bd81dfd19204b44662510d9054852fb77c9f25c1088d647881c9b976cc16818",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-debug-l1-1-0.dll",
+      "sha256": "591358eb4d1531e9563ee0813e4301c552ce364c912ce684d16576eabf195dc3",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-errorhandling-l1-1-0.dll",
+      "sha256": "d56ce7b1cd76108ad6c137326ec694a14c99d48c3d7b0ace8c3ff4d9bcee3ce8",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-fibers-l1-1-0.dll",
+      "sha256": "91d249d7bc0e38ef6bcb17158b1fdc6dd8888dc086615c9b8b750b87e52a5fb3",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-fibers-l1-1-1.dll",
+      "sha256": "fc9d86cec621383eab636ebc87ddd3f5c19a3cb2a33d97be112c051d0b275429",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-file-l1-1-0.dll",
+      "sha256": "1ca895aba4e7435563a6b43e85eba67a0f8c74aa6a6a94d0fc48fa35535e2585",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-file-l1-2-0.dll",
+      "sha256": "4cadbc0c39da7c6722206fdcebd670abe5b8d261e7b041dd94f9397a89d1990d",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-file-l2-1-0.dll",
+      "sha256": "93c624b366ba16c643fc8933070a26f03b073ad0cf7f80173266d67536c61989",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-handle-l1-1-0.dll",
+      "sha256": "39095f59c41d76ec81bb2723d646fde4c148e7cc3402f4980d2ade95cb9c84f9",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-heap-l1-1-0.dll",
+      "sha256": "8f105771b236dbcb859de271f0a6822ce1cb79c36988dd42c9e3f6f55c5f7eb9",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-interlocked-l1-1-0.dll",
+      "sha256": "53b25e753ca785bf8b695d89dde5818a318890211dc992a89146f16658f0b606",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-kernel32-legacy-l1-1-1.dll",
+      "sha256": "a9b13a1cd1b8c19b0c6b4afcd5bb0dd29c0e2288231ac9e6db8510094ce68ba6",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-libraryloader-l1-1-0.dll",
+      "sha256": "7f39ba298b41e4963047341288cab36b6a241835ee11ba4ad70f44dacd40906c",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-localization-l1-2-0.dll",
+      "sha256": "6ee44dd0d8510dc024c9f7c79b1b9fa88c987b26b6beb6653ddd11751c34e5dc",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-memory-l1-1-0.dll",
+      "sha256": "0512a35316ec9180437f86696a84c5c06a7e4e82e050055a656e5bf9fca206f9",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-namedpipe-l1-1-0.dll",
+      "sha256": "c05f1fffe3b5a2738ea54ce9485cca026fb9635f982626fba1e1dcc531897273",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-processenvironment-l1-1-0.dll",
+      "sha256": "c4eca98c3c67b6395d5b005b00ac1eb0318b86b23aa71035a44c2b1602befba9",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-processthreads-l1-1-0.dll",
+      "sha256": "5ccb89e93d67bc3288d4e84649c5346e66e15e3d7cd65d989daf3f4cb584be9a",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-processthreads-l1-1-1.dll",
+      "sha256": "4ad565a8ba3ef0ea8ab87221ad11f83ee0bc844ce236607958406663b407333e",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-profile-l1-1-0.dll",
+      "sha256": "7809160932f44e59b021699f5bc68799eb7293ee1fa926d6fcca3c3445302e61",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-rtlsupport-l1-1-0.dll",
+      "sha256": "9dc1e91e71c7c054854bd1487cb4e6946d82c9f463430f1c4e8d1471005172b1",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-string-l1-1-0.dll",
+      "sha256": "60fc31d2a0c634412f529dba76af3b9bf991352877c6dae528186d3935704cfd",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-synch-l1-1-0.dll",
+      "sha256": "3a72b4f29f39a265d32ad12f0ce15dbf60129c840e10d84d427829ede45e78ad",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-synch-l1-2-0.dll",
+      "sha256": "efc1e4460984a73cf47a3def033af1c8f3b1dbc1a56cd27781d3aacf3e3330cb",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-sysinfo-l1-1-0.dll",
+      "sha256": "b203d862ddef1dd62bf623fc866c7f7a9c317c1c2ae30d1f52cb41f955b5698e",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-sysinfo-l1-2-0.dll",
+      "sha256": "2703635d835396afd0f138d7c73751afe7e33a24f4225d08c1690b0a371932c0",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-timezone-l1-1-0.dll",
+      "sha256": "33f4fddc181066fce06b2227bded813f95e94ed1f3d785e982c6b6b56c510c57",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-core-util-l1-1-0.dll",
+      "sha256": "6eda016742a6171205a387a14b3c0b331841567740376f56768f8c151724207d",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-conio-l1-1-0.dll",
+      "sha256": "b762061b688aae679afe788904d2c9970f74a7dac98f3b42463d08f25e483d3f",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-convert-l1-1-0.dll",
+      "sha256": "ebb2ae5535a64f65daeab8235585114fc9dd2cf1a49f5852d446250b998b6ae4",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-environment-l1-1-0.dll",
+      "sha256": "17d63275d00bdd8670422b95bd264c532998e0a1b041079e54fce4b6b7a55819",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-filesystem-l1-1-0.dll",
+      "sha256": "9a9e2a65a281644e368d0f272b95ba5f6b445d1c35910d06056c5ebeb77402db",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-heap-l1-1-0.dll",
+      "sha256": "bab9ac3ec83e380ae51e4295ef3bf2c738627812d3a49d1e713661abbc8dc57a",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-locale-l1-1-0.dll",
+      "sha256": "bd14c67ea28e21d6257ad780a37122c9b5773f69e693f5db6bffaee4d839526e",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-math-l1-1-0.dll",
+      "sha256": "606d66d82db562ea7979179d06486a0f94d079941d26b80a1e2c49d29959df6f",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-process-l1-1-0.dll",
+      "sha256": "f6156b1020380ec4f0e48577ebedaaef5fb1ab1f337d8b4e72e6a33a7567a9cc",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-runtime-l1-1-0.dll",
+      "sha256": "c5902934d026d7e15fbe9917d474f3322846a41a25e66f4b2b1f758801879f4b",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-stdio-l1-1-0.dll",
+      "sha256": "a9c5a153d8c0286f9b41a2b1c65854ad9e6471b8755b7de87bae4470e60bcab6",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-string-l1-1-0.dll",
+      "sha256": "25b8f83a7767211b11132775a0e27a45aa4ec8ab4e6572599f9c172ae3606b40",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-time-l1-1-0.dll",
+      "sha256": "7c7f6393f06de11750adb09cc5698ae55cd9fb27b2e51e207286feb1b5b2b156",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/api-ms-win-crt-utility-l1-1-0.dll",
+      "sha256": "d8ba5f17b9ffcbf3aeaf3fa1da226832d2fa90f81acce0cd669464e76ce434ac",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "apisetstub"
+        }
+      ]
+    },
+    {
+      "path": "_internal/clr_loader/ffi/dlls/amd64/ClrLoader.dll",
+      "sha256": "07f62bcb1b70320f221ffb2cfc5ce6133815195f3e7cdb8d833222506188c2ac",
+      "version_resources": [
+        {
+          "CompanyName": "ClrLoader",
+          "ProductName": "ClrLoader",
+          "ProductVersion": "1.0.0",
+          "FileVersion": "1.0.0.0",
+          "LegalCopyright": " ",
+          "OriginalFilename": "ClrLoader.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/clr_loader/ffi/dlls/x86/ClrLoader.dll",
+      "sha256": "3128381d133f4ff746add70100cfef713ce2d78f2b12c02ec24ec453c5dfab0d",
+      "version_resources": [
+        {
+          "CompanyName": "ClrLoader",
+          "ProductName": "ClrLoader",
+          "ProductVersion": "1.0.0",
+          "FileVersion": "1.0.0.0",
+          "LegalCopyright": " ",
+          "OriginalFilename": "ClrLoader.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/libcrypto-3.dll",
+      "sha256": "75495fe0e079ab00d49be740d3c710a0b94e3f74f9648cb7cc9f768fc7f52319",
+      "version_resources": [
+        {
+          "CompanyName": "The OpenSSL Project, https://www.openssl.org/",
+          "ProductName": "The OpenSSL Toolkit",
+          "ProductVersion": "3.5.9",
+          "FileVersion": "3.5.9",
+          "LegalCopyright": "Copyright 1998-2026 The OpenSSL Authors. All rights reserved.",
+          "OriginalFilename": "libcrypto"
+        }
+      ]
+    },
+    {
+      "path": "_internal/libffi-8.dll",
+      "sha256": "eff52743773eb550fcc6ce3efc37c85724502233b6b002a35496d828bd7b280a",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/libssl-3.dll",
+      "sha256": "8957182a9c385bfd9f3f790921de2ddc614cf91f99edbed4e9e5446a46504e32",
+      "version_resources": [
+        {
+          "CompanyName": "The OpenSSL Project, https://www.openssl.org/",
+          "ProductName": "The OpenSSL Toolkit",
+          "ProductVersion": "3.5.9",
+          "FileVersion": "3.5.9",
+          "LegalCopyright": "Copyright 1998-2026 The OpenSSL Authors. All rights reserved.",
+          "OriginalFilename": "libssl"
+        }
+      ]
+    },
+    {
+      "path": "_internal/pydantic_core/_pydantic_core.cp313-win_amd64.pyd",
+      "sha256": "6c320aa8f5a182d815aeeef4332cd44a36cf1f3ca4a0653d33bc0079c4fb3f7c",
+      "version_resources": [],
+      "problem": "no-string-version-resource"
+    },
+    {
+      "path": "_internal/pyexpat.pyd",
+      "sha256": "3865fae84ff0f274c049e737731cd8aa184fae208af5b4c0d0cfc42a38f79cea",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "pyexpat.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/python313.dll",
+      "sha256": "3b29bf9ff39bed8f660f5b935f19657f7ce7f145009851741b11364f6ebcb862",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "python313.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/pythonnet/runtime/Python.Runtime.dll",
+      "sha256": "2ebd4492e28442ef1f1af587afe5b3a090c2ebfa220758ded4f1450f2a27f13a",
+      "version_resources": [
+        {
+          "CompanyName": "Python.Runtime",
+          "ProductName": "Python.Runtime",
+          "ProductVersion": "3.2.1",
+          "FileVersion": "3.2.1.0",
+          "LegalCopyright": " ",
+          "OriginalFilename": "Python.Runtime.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/select.pyd",
+      "sha256": "17df388a7aa42e7f066b80aa4f77cbbba9286495e6f3508425806be6766d122b",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "select.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/sqlite3.dll",
+      "sha256": "fa794b6edd241d456b7d4e7ff5d99cebd326b45ebe659a0bc37d9affcc292210",
+      "version_resources": [
+        {
+          "CompanyName": "SQLite3",
+          "ProductName": "SQLite3",
+          "ProductVersion": "3.50.4.0",
+          "FileVersion": "3.50.4.0",
+          "LegalCopyright": "Unspecified",
+          "OriginalFilename": "sqlite3.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/ucrtbase.dll",
+      "sha256": "2e5fb14b7bf8540278f3614a12f0226e56a7cc9e64b81cbd976c6fcf2f71cbfb",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft\u00ae Windows\u00ae Operating System",
+          "ProductVersion": "10.0.26100.1742",
+          "FileVersion": "10.0.26100.1742 (WinBuild.160101.0800)",
+          "LegalCopyright": "\u00a9 Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "ucrtbase.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/unicodedata.pyd",
+      "sha256": "d113047658f92d893bf4ee2da81ffbd624ec5c485733c02e116fac1b9a1b964c",
+      "version_resources": [
+        {
+          "CompanyName": "Python Software Foundation",
+          "ProductName": "Python",
+          "ProductVersion": "3.13.16",
+          "FileVersion": "3.13.16",
+          "LegalCopyright": "Copyright \u00a9 2001-2024 Python Software Foundation. Copyright \u00a9 2000 BeOpen.com. Copyright \u00a9 1995-2001 CNRI. Copyright \u00a9 1991-1995 SMC.",
+          "OriginalFilename": "unicodedata.pyd"
+        }
+      ]
+    },
+    {
+      "path": "_internal/webview/lib/Microsoft.Web.WebView2.Core.dll",
+      "sha256": "8219a3135436c147f8eb02fb831e99596103eebc18b6d7b794ca93f4c67018a2",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft",
+          "ProductName": "WebView2 .NET Interop Wrapper",
+          "ProductVersion": "1.0.3856.49",
+          "FileVersion": "1.0.3856.49",
+          "LegalCopyright": "Copyright \u00a92020",
+          "OriginalFilename": "Microsoft.Web.WebView2.Core.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/webview/lib/Microsoft.Web.WebView2.WinForms.dll",
+      "sha256": "c48f8d729dc531288d2c53a6241effe7922ed1b947850b2442008a945c098c48",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft",
+          "ProductName": "WebView2 Windows Forms Control",
+          "ProductVersion": "1.0.3856.49",
+          "FileVersion": "1.0.3856.49",
+          "LegalCopyright": "Copyright \u00a92020",
+          "OriginalFilename": "Microsoft.Web.WebView2.WinForms.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/webview/lib/WebBrowserInterop.x64.dll",
+      "sha256": "f6a646470f0e1058224a52e8e2e217501dca46939b30bfc9a5dd4dcdd43f088d",
+      "version_resources": [
+        {
+          "ProductVersion": "0.0.0.0",
+          "FileVersion": "0.0.0.0",
+          "LegalCopyright": " ",
+          "OriginalFilename": "WebBrowserInterop.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/webview/lib/WebBrowserInterop.x86.dll",
+      "sha256": "4e527297fbea7c5a0419f3a6af307c2681787beb0bf0ef3fea849a7fd85a08dc",
+      "version_resources": [
+        {
+          "ProductVersion": "0.0.0.0",
+          "FileVersion": "0.0.0.0",
+          "LegalCopyright": " ",
+          "OriginalFilename": "WebBrowserInterop.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/webview/lib/runtimes/win-arm64/native/WebView2Loader.dll",
+      "sha256": "0937030efc718f3da77c5e0978fb5046e381d0bb7b01acaad31a535a1b588a33",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft Edge Embedded Browser WebView Loader",
+          "ProductVersion": "1.0.3856.49",
+          "FileVersion": "1.0.3856.49",
+          "LegalCopyright": "Copyright Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "WebView2Loader.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/webview/lib/runtimes/win-x64/native/WebView2Loader.dll",
+      "sha256": "eb5335edeaa6f2122c044e82aab2351dc8c9b4e0fe5e578c71922fb61be285e7",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft Edge Embedded Browser WebView Loader",
+          "ProductVersion": "1.0.3856.49",
+          "FileVersion": "1.0.3856.49",
+          "LegalCopyright": "Copyright Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "WebView2Loader.dll"
+        }
+      ]
+    },
+    {
+      "path": "_internal/webview/lib/runtimes/win-x86/native/WebView2Loader.dll",
+      "sha256": "04814b2c59314c6452d61b821a4a3a5c5f8e8577b55b985f6a7a4b59f8907ec5",
+      "version_resources": [
+        {
+          "CompanyName": "Microsoft Corporation",
+          "ProductName": "Microsoft Edge Embedded Browser WebView Loader",
+          "ProductVersion": "1.0.3856.49",
+          "FileVersion": "1.0.3856.49",
+          "LegalCopyright": "Copyright Microsoft Corporation. All rights reserved.",
+          "OriginalFilename": "WebView2Loader.dll"
+        }
+      ]
+    }
+  ],
+  "observed_from": {
+    "code_sha": "6ba9c229b3cfae3d106b71687553abe18c81a00f",
+    "ci_run": 38691471314,
+    "artifact_id": 11952756207
+  }
+}

@@ -2,50 +2,78 @@
 
 État vérifié le 15 octobre 2026. **Bêta publique non approuvée.** Aucun accord de fusion/publication n'est impliqué par ce document. Pas de nouvelle fonctionnalité prévue.
 
-## Dernière version validée — CI #183
+## Dernière version validée — CI #187
 
-Code testé : `c33041ab36a68632625734f9824bb297b206217c`, PR #33 dépendante de #32.
-[CI #183](https://github.com/shimon3/rapido/actions/runs/38685767705) entièrement
-réussie : **179 tests de régression**, 5 fixtures ignorées après leur exécution
-séparée, 88 sous-tests et 1 avertissement ; les **15 tests Authenticode dédiés**
-ont tous réussi. Compilation, fenêtres réelles, installateur/désinstallateur,
-coexistence portable et Firefox réel réussis. Job release ignoré, aucune fusion
-ou publication.
+Code testé : `6ba9c229b3cfae3d106b71687553abe18c81a00f`, PR #33 dépendante de #32.
+[CI #187](https://github.com/shimon3/rapido/actions/runs/38691471314) réussie :
+190 tests dans la suite générale, 5 fixtures signées ignorées après exécution
+séparée, 105 sous-tests et 1 avertissement. L'exécution dédiée des signatures
+passe ses 15 tests : 9 tests de politique/unitaires, 1 test réel de fichier non
+signé et 5 tests réels de PE signés. Les nombres des deux exécutions se recoupent.
+Compilation, fenêtre réelle, installateur/désinstallateur, coexistence portable
+et Firefox réel passent. OS : Windows Server 2025, pas une validation Windows 10/11.
+Token de compilation en lecture seule ; release ignorée. Aucune fusion/publication.
 
-Ces garde-fous de CI sont sur les branches en revue. `main` n'a pas été modifié
-et conserve son ancien mécanisme de publication automatique : une future
-intégration devra préserver le garde-fou « tag explicite uniquement » avant
-toute exécution sur `main`. Aucun déclenchement de ce mécanisme n'est autorisé ici.
+La base de compilation est maintenant **Python 3.13.16 / OpenSSL 3.5.9**, vérifiée
+sur le runner et dans les ressources VERSIONINFO des DLL réellement téléchargées.
+Auparavant, #184 embarquait Python 3.12.10 / OpenSSL 3.0.16. Les avis
+[OpenSSL 3.0](https://openssl-library.org/news/vulnerabilities-3.0/) comprennent
+cette ancienne version dans des plages affectées ; l'exploitabilité des chemins
+correspondants dans Rapido n'a pas été établie. La
+[version Python retenue](https://www.python.org/downloads/release/python-31316/)
+fournit les binaires Windows et documente OpenSSL 3.5.9. Un contrôle préalable
+refuse une autre version de Python ou un OpenSSL inférieur à la base retenue.
+#186 avait échoué uniquement sur une mauvaise interprétation de
+`OPENSSL_VERSION_INFO` ; la comparaison explicite des versions et ses tests
+corrigent ce contrôle dans #187, sans abaisser le seuil.
 
-Inspection du ZIP final téléchargé : **394 entrées**, **46 distributions**,
-**121 textes de licence de packages**, LICENSE Python 3.12.10 et licence Rapido
-présents. Aucune distribution de cet inventaire ne manque de texte collecté.
-Les empreintes de tous les textes référencés ont été recalculées et vérifiées.
-Le complément proxy_tools est présent et sa contradiction MIT/BSD reste
-signalée ; `compliance_verified=false` reste explicite. Cela ne clôture pas la
-revue des obligations LGPL/MPL ou des DLL natives.
+L'inventaire lit les archives CArchive/PYZ des deux exécutables sans exécuter
+leur code, ainsi que leurs deux ZIP de bibliothèque standard. Il distingue les
+candidats de distribution par nom de module RECORD des correspondances natives
+par taille et SHA-256. Les inconnus/ambiguïtés restent visibles. Les modules
+`pytest`/`_pytest` observés dans #184 sont exclus ; le build refuse leur présence
+et le ZIP final confirme leur absence. Aucun statut de conformité ou politique
+d'intégrité d'exécution n'est déduit de cet inventaire de compilation.
 
-| Artefact #183 | SHA-256 vérifiée |
+Inspection finale : **154 fichiers de charge utile** (hors preuves tierces),
+**55 entrées binaires de l'hôte natif**, **41 distributions de compilation**,
+**115 textes de licence de packages**, licence Python 3.13.16 et licence Rapido.
+Empreintes de ces fichiers/textes et concordance du contenu final vérifiées.
+Les quatre archives listent 2411 entrées dans Rapido.exe, 131 dans l'hôte et
+154 dans chacun des deux ZIP standard ; ces nombres ne désignent pas des
+composants tiers distincts. La contradiction MIT/BSD de proxy_tools reste
+signalée. Obligations LGPL/MPL, notices natives et provenance restent à examiner.
+
+| Artefact #187 | SHA-256 vérifiée |
 | --- | --- |
-| Archive GitHub Actions | `f7dd0c3e0df5635abe1111438a19c38cbaed848f7af584464f521e59493e7f70` |
-| Rapido-1.2.2-portable.zip | `c9d28a1ea20b12689e157d9f08d4addb160606883967165315f143b4e5c0e049` |
-| Rapido-Setup-1.2.2.exe | `a335e783b4fd88630acedd71782b6e16cf02ac5501af7b6da15a11ff4e7b59f9` |
+| Archive GitHub Actions | `d5eb35976f535c69f2c28011048043f44e3402e8d97b0d22c724c8a30fb441f7` |
+| Rapido-1.2.2-portable.zip | `22f0d2b282f29012ff592ac8c851ef7d415d0ddfff11078496009c8f4fe38aa1` |
+| Rapido-Setup-1.2.2.exe | `a0f9337f21b769ddea2c52cdcacd1b3e589be48d4219f12c0400ff4025f8a182` |
 
-Preuves conservées : [inventaire exact de compilation](beta-build-inventory-20261015.json)
-et [résultat d'inspection des artefacts](beta-artifact-verification-20261015.json).
-Leur périmètre reste l'environnement de compilation, avec ses outils de test,
-pas une certification exhaustive du contenu natif du logiciel distribué.
-L'archive est un artefact CI de revue, toujours étiqueté 1.2.2 dans les binaires ;
-une version bêta distincte et approuvée reste à préparer avant diffusion.
+Preuves actuelles : [inspection du contenu](beta-payload-inspection-20261015.json),
+[inventaire des distributions](beta-build-inventory-20261015.json),
+[ressources de version natives](beta-native-version-resources-20261015.json).
+Les chaînes VERSIONINFO sont déclaratives ; aucune validation du signataire ou
+certification de sécurité exhaustive n'est impliquée. Le manifeste complet de
+charge utile est dans `third-party/payload.json` de l'artefact lié à la CI.
+L'ancien `beta-artifact-verification-20261015.json` concerne #183 uniquement.
 
-Les sections suivantes conservent les étapes antérieures et la liste du travail
-restant. Les empreintes antérieures ne désignent pas ce dernier build.
+Ces garde-fous CI sont sur les branches en revue. `main` conserve son ancien
+mécanisme de publication automatique : toute future intégration autorisée devra
+préserver la publication sur tag explicite avant une exécution sur `main`.
+Le nom binaire reste 1.2.2 ; aucune diffusion bêta n'est approuvée.
+Le checkpoint documentaire suivant #187 ne modifie aucun code testé et évite
+une CI dupliquée avec [skip ci] ; ne pas prétendre que ce HEAD documentaire a
+lui-même exécuté les tests. Une future intégration exige sa propre validation.
+
+Les sections suivantes conservent des étapes antérieures ; leurs empreintes et
+nombres ne désignent pas #187.
 
 ## Ce qui est vérifié
 
-- Moteur consolidé PR #33, code `0dd20fc3d52457b0a33dd2f5bbfe6494f1fc9dee` : [CI Windows #181](https://github.com/shimon3/rapido/actions/runs/38684202772) réussie. 175 régressions réussies, 5 fixtures ignorées après exécution dédiée ; les 15 tests Authenticode dédiés ont tous réussi. Compilation, fenêtres, installateur/portable et Firefox réel réussis ; release ignorée.
+- Moteur consolidé PR #33, code `0dd20fc3d52457b0a33dd2f5bbfe6494f1fc9dee` : [CI Windows #181](https://github.com/shimon3/rapido/actions/runs/38684202772) réussie. 175 régressions réussies, 5 fixtures ignorées après exécution dédiée ; les 15 tests de signature dédiés ont tous réussi (dont 5 tests de PE signés réels). Compilation, fenêtres, installateur/portable et Firefox réel réussis ; release ignorée.
 - Inspection effective de l'artefact #181 : 166 entrées dans le ZIP portable, aucun `ffmpeg.exe` ou `deno.exe`, licence Rapido présente et identique au texte source après normalisation LF/CRLF. Empreinte de l'archive Actions : `8114fb77195d97547ee1e4f084f940fbf595ab6e41a0fb7471d0f821b4540b19`. SHA-256 installateur : `053bff5263dca809f328ef1b94f967eb1e3e2ffe67a3d02b0e8ea811812eaed9` ; ZIP portable : `71bea57fb088cb9997948080db0c873f0f842cea3244382418f73b55f3314114`. Ces empreintes concernent #181 uniquement, pas un build ultérieur.
-- PR #32, code `a4cae19e43cffa8028814e46f42b125e1971d918` : [CI Windows #179](https://github.com/shimon3/rapido/actions/runs/38682625394) réussie. 15 tests de signature réels sans skip ; 154 régressions réussies, 5 tests de fixtures ignorés dans la suite générale après leur exécution dédiée ; 88 sous-tests, 1 avertissement.
+- PR #32, code `a4cae19e43cffa8028814e46f42b125e1971d918` : [CI Windows #179](https://github.com/shimon3/rapido/actions/runs/38682625394) réussie. 15 tests de signature dédiés sans skip (dont 5 tests de PE signés réels) ; 154 régressions réussies, 5 tests de fixtures ignorés dans la suite générale après leur exécution dédiée ; 88 sous-tests, 1 avertissement.
 - Les tests réels couvrent signature valide/mauvais signataire/altération, verrouillage écriture/suppression, remplacement par un autre processus, remplacement entre deux vérifications, jonction NTFS et lien symbolique. Le vérificateur reste une brique non connectée à l'autorisation des captures.
 - Compilation, fenêtre réelle, installation/désinstallation, coexistence portable, Firefox réel et empaquetage réussis. Token de compilation en lecture seule ; job release ignoré.
 - OS du runner : **Windows Server 2025**. Ce résultat ne prouve pas une validation sur Windows 10 ou Windows 11.
@@ -133,7 +161,7 @@ n'est produit par ces tests.
 | FFmpeg / Deno | Les routes `/api/tools/ffmpeg` et `/api/tools/deno` lancent winget avec `Gyan.FFmpeg` / `DenoLand.Deno`. Le workflow ne les copie pas explicitement dans le bundle ; vérifier les fichiers finaux avant d'attester leur absence. [FFmpeg](https://ffmpeg.org/legal.html) distingue LGPL et options GPL ; [Deno](https://github.com/denoland/deno/blob/main/LICENSE.md) fournit son texte MIT. Vérifier l'artefact effectivement choisi, pas seulement le nom du projet. |
 | Interface, images, nom et comparaison IDM | Aucune revue complète de provenance, de marque ou de similarité avec un logiciel tiers n'a été faite ici. L'absence de conflit avec IDM n'est pas établie : je ne peux pas confirmer ça. La présence d'un LICENSE MIT dans le dépôt ne démontre pas l'origine de chaque élément. |
 
-Référence Python : [licence de Python 3.12 et composants incorporés](https://docs.python.org/3.12/license.html). Il manque encore l'inventaire exact du bundle et les notices tierces correspondantes ; ne pas remplacer ces preuves par une déclaration générale « toutes les dépendances sont MIT ».
+Référence Python : [licence de Python 3.12 et composants incorporés](https://docs.python.org/3.12/license.html). L'inventaire des fichiers/modules est maintenant collecté ; les attributions natives et obligations de redistribution restent à vérifier ; ne pas remplacer ces preuves par une déclaration générale « toutes les dépendances sont MIT ».
 
 ## Travail restant, difficulté et effort
 
