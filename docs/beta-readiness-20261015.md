@@ -1,17 +1,27 @@
 # Rapido — préparation de la première bêta Windows
 
-État vérifié le 15 octobre 2026. **Bêta publique non approuvée.** Aucun accord de fusion/publication n'est impliqué par ce document. Pas de nouvelle fonctionnalité prévue.
+État du 15 octobre 2026. **Bêta publique non approuvée.** Pas de fusion, tag,
+release ou déploiement autorisé. `main` reste sur `18e0997` et conserve son ancien
+mécanisme de publication ; une future intégration autorisée doit préserver les
+garde-fous de publication sur tag explicite avant toute exécution sur `main`.
 
-## Dernière étape — dépendances et notices, CI #190
+## Dernière validation
 
-Code `b6a5740fc9a8ad1d225e7271d2cadcba89c1d8dc`,
-[CI #190](https://github.com/shimon3/rapido/actions/runs/38696191089) réussie :
+CI #191 réussie sur `b9a7136ca21d93fe6e0adf811660c73158cd2154` :
+[run Windows](https://github.com/shimon3/rapido/actions/runs/38697169313).
 214 régressions, 5 fixtures signées ignorées après exécution dédiée, 105 sous-tests,
-1 avertissement ; 15 tests de signature dédiés réussis, avec recoupement de la suite.
-`pip check`, les deux sondes WebView2, installateur/portable et Firefox passent ;
-release ignorée. Runner Windows Server 2025, pas une acceptation Windows 10/11.
-Un suivi ajoute l'arrêt immédiat si une installation pip échoue ; sa CI reste
-à vérifier, sans modification du code applicatif testé ici.
+1 avertissement. Exécution dédiée : 15 tests de signature, dont 5 tests réels de
+PE signés, 1 test réel de fichier non signé et 9 tests de politique/unitaires.
+Les deux exécutions se recoupent. Sondes WebView2, compilations, installateur/portable,
+Firefox, pip check et les 41 réponses PyPI passent ; release ignorée et token build
+en lecture seule. Python 3.13.16 / OpenSSL 3.5.9 vérifiés. Les échecs d'installation
+pip arrêtent immédiatement la commande. Runner Server 2025, pas certification
+Windows 10/11. L'artefact indépendamment inspecté ci-dessous reste #190, pas #191.
+Le checkpoint documentaire suivant conserve le code testé et utilise [skip ci] ;
+ce HEAD documentaire n'a pas lui-même exécuté la CI. Toute intégration future
+exige ses propres contrôles et une autorisation de fusion.
+
+## Dépendances et artefact inspecté — #190
 
 Les 41 versions observées sont figées dans
 [les contraintes Windows](../packaging/constraints-windows-build.txt), appliquées
@@ -44,118 +54,30 @@ rapport PyPI, les cinq DLL SDK et les deux textes d'origine concordent.
 | ZIP portable | `177818d1f09748fe5a32f980023115861af81654c2395ed7b5c556185d11b52c` |
 | Installateur | `3ee85e1b5906d99fb51a297e557daf5ed179d57bd8ac1ed7fd1aa0616707aa7b` |
 
-Les sections suivantes sont historiques : leurs chiffres/empreintes ne désignent
-pas #190. Les fichiers JSON d'inventaire/inspection/versions natives courants
-ont été actualisés sur #190 ; `critical-actions-validation` concerne #189.
 
-## Validation fonctionnelle des actions — référence #189
-
-Code `2016be14c8be31f0c45de4b4d175760e8e8b5adc`,
-[CI Windows #189](https://github.com/shimon3/rapido/actions/runs/38693975564) réussie :
-194 régressions, 5 fixtures signées ignorées dans la suite générale après leur
-exécution dédiée, 105 sous-tests, 1 avertissement. L'exécution des signatures
-passe ses 15 tests dédiés (dont 5 tests réels de PE signés, avec recoupement des
-tests unitaires de la suite générale). Les sondes WebView2 des deux fenêtres,
-compilations, installateur/portable et Firefox passent ; release ignorée.
+## Corrections critiques déjà validées
 
 Les confirmations de suppression, redémarrage, récupération de handoff et
-annulation de progression utilisent maintenant le dialogue intégré. Annuler est
-le choix initial ; Échap/événement cancel et fermeture externe refusent. Les
-appels répétés sont bloqués pendant une action et les éléments confirmés sont
-figés malgré le rafraîchissement. Suppr/Ctrl+A dans un champ ne pilotent plus la
-liste. Une erreur de mise en pause reste visible et ne ferme pas la fenêtre.
+annulation de progression utilisent le dialogue intégré. Annuler reçoit le
+focus ; Échap/événement cancel et fermeture externe refusent. Les identités
+confirmées sont figées malgré le rafraîchissement, les doubles actions sont
+bloquées. Suppr/Ctrl+A dans un champ ne pilotent plus la liste. Une erreur de
+pause reste affichée sans fermer la fenêtre.
 
-Le chemin API simple de redémarrage attendait déjà l'annulation. Deux tests ont
-reproduit les défauts réels : appel concurrent qui dépassait l'ancien écrivain
-et annulation d'une requête qui interrompait le nettoyage puis réinitialisait.
-Le moteur garde désormais la tâche enregistrée jusqu'à sa fin, annule une seule
-fois et protège son nettoyage. Une requête interrompue est propagée sans
-réinitialisation ; le téléchargement reste en pause avec son état partiel. Les
-appels concurrents attendent l'ancien écrivain et le fichier terminé est conservé.
+Deux défauts moteur reproduits puis corrigés : un redémarrage concurrent pouvait
+réinitialiser avant la fin de l'ancien écrivain ; annuler son appelant pouvait
+interrompre le nettoyage et quand même réinitialiser. Le moteur attend la tâche
+partagée, annule une fois, protège le nettoyage et propage l'annulation de
+l'appelant. L'état partiel reste en pause ; le fichier terminé est conservé.
+Trois tests utilisent de vraies tâches asyncio et des fichiers temporaires.
 
-[Preuves et périmètre](critical-actions-validation-20261015.json) : Node exerce
-les vrais helpers/handlers avec DOM simulé ; WebView2 exerce les vrais dialogues
-et handlers avec POST destructifs interceptés. Les tests backend utilisent de
-vraies tâches asyncio et des fichiers temporaires. L'événement cancel est
-synthétique : pas de validation d'une touche physique ni certification Windows
-10/11. Les empreintes de la section historique suivante concernent #187. #189 n'avait pas été inspecté indépendamment ; les preuves courantes ont depuis été actualisées sur #190.
-
-## Référence de build inspectée — CI #187
-
-Code testé : `6ba9c229b3cfae3d106b71687553abe18c81a00f`, PR #33 dépendante de #32.
-[CI #187](https://github.com/shimon3/rapido/actions/runs/38691471314) réussie :
-190 tests dans la suite générale, 5 fixtures signées ignorées après exécution
-séparée, 105 sous-tests et 1 avertissement. L'exécution dédiée des signatures
-passe ses 15 tests : 9 tests de politique/unitaires, 1 test réel de fichier non
-signé et 5 tests réels de PE signés. Les nombres des deux exécutions se recoupent.
-Compilation, fenêtre réelle, installateur/désinstallateur, coexistence portable
-et Firefox réel passent. OS : Windows Server 2025, pas une validation Windows 10/11.
-Token de compilation en lecture seule ; release ignorée. Aucune fusion/publication.
-
-La base de compilation est maintenant **Python 3.13.16 / OpenSSL 3.5.9**, vérifiée
-sur le runner et dans les ressources VERSIONINFO des DLL réellement téléchargées.
-Auparavant, #184 embarquait Python 3.12.10 / OpenSSL 3.0.16. Les avis
-[OpenSSL 3.0](https://openssl-library.org/news/vulnerabilities-3.0/) comprennent
-cette ancienne version dans des plages affectées ; l'exploitabilité des chemins
-correspondants dans Rapido n'a pas été établie. La
-[version Python retenue](https://www.python.org/downloads/release/python-31316/)
-fournit les binaires Windows et documente OpenSSL 3.5.9. Un contrôle préalable
-refuse une autre version de Python ou un OpenSSL inférieur à la base retenue.
-#186 avait échoué uniquement sur une mauvaise interprétation de
-`OPENSSL_VERSION_INFO` ; la comparaison explicite des versions et ses tests
-corrigent ce contrôle dans #187, sans abaisser le seuil.
-
-L'inventaire lit les archives CArchive/PYZ des deux exécutables sans exécuter
-leur code, ainsi que leurs deux ZIP de bibliothèque standard. Il distingue les
-candidats de distribution par nom de module RECORD des correspondances natives
-par taille et SHA-256. Les inconnus/ambiguïtés restent visibles. Les modules
-`pytest`/`_pytest` observés dans #184 sont exclus ; le build refuse leur présence
-et le ZIP final confirme leur absence. Aucun statut de conformité ou politique
-d'intégrité d'exécution n'est déduit de cet inventaire de compilation.
-
-Inspection finale : **154 fichiers de charge utile** (hors preuves tierces),
-**55 entrées binaires de l'hôte natif**, **41 distributions de compilation**,
-**115 textes de licence de packages**, licence Python 3.13.16 et licence Rapido.
-Empreintes de ces fichiers/textes et concordance du contenu final vérifiées.
-Les quatre archives listent 2411 entrées dans Rapido.exe, 131 dans l'hôte et
-154 dans chacun des deux ZIP standard ; ces nombres ne désignent pas des
-composants tiers distincts. La contradiction MIT/BSD de proxy_tools reste
-signalée. Obligations LGPL/MPL, notices natives et provenance restent à examiner.
-
-| Artefact #187 | SHA-256 vérifiée |
-| --- | --- |
-| Archive GitHub Actions | `d5eb35976f535c69f2c28011048043f44e3402e8d97b0d22c724c8a30fb441f7` |
-| Rapido-1.2.2-portable.zip | `22f0d2b282f29012ff592ac8c851ef7d415d0ddfff11078496009c8f4fe38aa1` |
-| Rapido-Setup-1.2.2.exe | `a0f9337f21b769ddea2c52cdcacd1b3e589be48d4219f12c0400ff4025f8a182` |
-
-Preuves actuelles : [inspection du contenu](beta-payload-inspection-20261015.json),
-[inventaire des distributions](beta-build-inventory-20261015.json),
-[ressources de version natives](beta-native-version-resources-20261015.json).
-Les chaînes VERSIONINFO sont déclaratives ; aucune validation du signataire ou
-certification de sécurité exhaustive n'est impliquée. Le manifeste complet de
-charge utile est dans `third-party/payload.json` de l'artefact lié à la CI.
-L'ancien `beta-artifact-verification-20261015.json` concerne #183 uniquement.
-
-Ces garde-fous CI sont sur les branches en revue. `main` conserve son ancien
-mécanisme de publication automatique : toute future intégration autorisée devra
-préserver la publication sur tag explicite avant une exécution sur `main`.
-Le nom binaire reste 1.2.2 ; aucune diffusion bêta n'est approuvée.
-Le checkpoint documentaire suivant #187 ne modifie aucun code testé et évite
-une CI dupliquée avec [skip ci] ; ne pas prétendre que ce HEAD documentaire a
-lui-même exécuté les tests. Une future intégration exige sa propre validation.
-
-Les sections suivantes conservent des étapes antérieures ; leurs empreintes et
-nombres ne désignent pas #187.
-
-## Ce qui est vérifié
-
-- Moteur consolidé PR #33, code `0dd20fc3d52457b0a33dd2f5bbfe6494f1fc9dee` : [CI Windows #181](https://github.com/shimon3/rapido/actions/runs/38684202772) réussie. 175 régressions réussies, 5 fixtures ignorées après exécution dédiée ; les 15 tests de signature dédiés ont tous réussi (dont 5 tests de PE signés réels). Compilation, fenêtres, installateur/portable et Firefox réel réussis ; release ignorée.
-- Inspection effective de l'artefact #181 : 166 entrées dans le ZIP portable, aucun `ffmpeg.exe` ou `deno.exe`, licence Rapido présente et identique au texte source après normalisation LF/CRLF. Empreinte de l'archive Actions : `8114fb77195d97547ee1e4f084f940fbf595ab6e41a0fb7471d0f821b4540b19`. SHA-256 installateur : `053bff5263dca809f328ef1b94f967eb1e3e2ffe67a3d02b0e8ea811812eaed9` ; ZIP portable : `71bea57fb088cb9997948080db0c873f0f842cea3244382418f73b55f3314114`. Ces empreintes concernent #181 uniquement, pas un build ultérieur.
-- PR #32, code `a4cae19e43cffa8028814e46f42b125e1971d918` : [CI Windows #179](https://github.com/shimon3/rapido/actions/runs/38682625394) réussie. 15 tests de signature dédiés sans skip (dont 5 tests de PE signés réels) ; 154 régressions réussies, 5 tests de fixtures ignorés dans la suite générale après leur exécution dédiée ; 88 sous-tests, 1 avertissement.
-- Les tests réels couvrent signature valide/mauvais signataire/altération, verrouillage écriture/suppression, remplacement par un autre processus, remplacement entre deux vérifications, jonction NTFS et lien symbolique. Le vérificateur reste une brique non connectée à l'autorisation des captures.
-- Compilation, fenêtre réelle, installation/désinstallation, coexistence portable, Firefox réel et empaquetage réussis. Token de compilation en lecture seule ; job release ignoré.
-- OS du runner : **Windows Server 2025**. Ce résultat ne prouve pas une validation sur Windows 10 ou Windows 11.
-- `main` reste sur `18e0997`. Les correctifs sont dans des branches/PR, pas dans la version publiée.
+Les sondes WebView2 utilisent les vrais dialogues/handlers, avec POST destructifs
+interceptés. L'événement cancel est synthétique : pas de certification d'une
+touche physique ou de tous les parcours UI/API destructifs. Le
+[rapport ciblé #189](critical-actions-validation-20261015.json) conserve la preuve
+initiale ; #190 réexécute ces contrôles. Les garde-fous de reprise/ETag/If-Range,
+Retry-After, plage/taille et écriture disque restent présents. Aucun ancien
+workflow des PR séparées n'a été réintroduit.
 
 ## Revue des PR : ne pas tout fusionner aveuglément
 
@@ -182,56 +104,21 @@ La branche bêta reprend les validateurs ETag/Last-Modified, `If-Range`, le refu
 
 Référence technique : [RFC 9110, If-Range et validateurs](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5). Ces garde-fous ne sont pas une preuve cryptographique d'authenticité du fichier fourni par un serveur.
 
-## Licences et provenance : revue initiale, pas conformité attestée
+## Licences et provenance — reste une revue à terminer
 
-L'inspection du ZIP #181 n'a trouvé que la licence Rapido et trois textes de
-licence de distributions Python. Le nouveau collecteur
-`scripts/collect_license_evidence.py` rassemble donc les textes de licence
-enregistrés par les distributions installées et le LICENSE de l'interpréteur,
-avec noms/versions/empreintes et problèmes explicites. Ils sont destinés à
-`Rapido/third-party/` dans le portable et l'installateur. Les chemins de métadonnées
-qui sortent du répertoire de packages ne sont pas copiés. Le collecteur ne charge
-pas le code des packages et n'exporte pas les variables d'environnement ou les
-chemins absolus du runner.
-
-Le rapport indique `scope=installed-build-environment` et
-`compliance_verified=false` : outils de compilation/tests compris, sans prétendre
-identifier exactement les modules distribués ou résoudre les obligations des
-DLL natives. Le build refuse l'absence du LICENSE Python ; les autres textes
-manquants sont signalés pour revue. Le collecteur a passé trois tests ciblés et
-un essai réel sur 25 distributions Linux (36 textes collectés). Validation Windows et inspection effective sont désormais établies par #183 ci-dessus ; la conformité juridique complète reste non attestée.
-
-### Inspection Windows #182
-
-[CI #182](https://github.com/shimon3/rapido/actions/runs/38684939137), code
-`e7483de52c2056ce4f502bb665ae22dd39823922` : réussite complète, 178 régressions
-réussies, 5 fixtures ignorées après exécution dédiée ; 15 tests Authenticode
-dédiés réussis. L'archive réelle a été téléchargée et vérifiée : 393 entrées,
-46 distributions inventoriées, 120 textes de licence de packages et le LICENSE
-Python 3.12.10 présents. Toutes les empreintes des textes copiés correspondent à
-l'inventaire. Digest de l'archive Actions :
-`bd28f0aa9dd99cd4fd4f56ed27e60ed46f0e1f50e1d9fcf5288f3519e47e5538`.
-
-Le seul texte de package manquant dans ce build est `proxy_tools 0.1.0`. Sa
-source publiée PyPI (SHA-256 vérifié) n'inclut pas de LICENSE ; ses métadonnées
-annoncent MIT, mais l'en-tête du module annonce BSD. Le module publié correspond
-exactement au module d'un commit amont dont le fichier BSD est accessible.
-Le texte authentique et sa [provenance](../packaging/licenses/proxy_tools-0.1.0/PROVENANCE.md)
-sont désormais conservés dans le dépôt. Le collecteur ne les applique qu'à la
-version et à l'empreinte exacte de ce module et garde le conflit MIT/BSD signalé
-pour revue. Cette modification supplémentaire est désormais validée et inspectée dans #183 ci-dessus.
-
-L'inventaire réel confirme également `pystray 0.19.5` avec métadonnées LGPLv3 et
-textes COPYING/COPYING.LGPL collectés, ainsi que `certifi 2026.7.22` avec
-métadonnées MPL-2.0. Ne pas présenter toutes les dépendances comme permissives
-ou sous MIT. Les obligations de distribution correspondantes et celles des
-bibliothèques natives restent à examiner ; aucun verdict général de conformité
-n'est produit par ces tests.
+L'inventaire courant concerne #190 : 41 distributions de compilation et 117
+textes de package, dont les notices SDK ajoutées. `pystray 0.19.5` déclare LGPLv3,
+`certifi 2026.7.22` MPL-2.0 ; leurs textes sont conservés. Le supplément
+[proxy_tools 0.1.0](../packaging/licenses/proxy_tools-0.1.0/PROVENANCE.md) préserve
+le texte BSD amont pour un module strictement identifié ; le désaccord avec les
+métadonnées MIT reste signalé. Aucune compatibilité globale, obligation de
+source/remplacement ou titularité n'est déduite de la simple collecte des textes.
+La licence Python 3.13.16 de l'artefact a été vérifiée avec son empreinte.
 
 | Élément | Source vérifiée / point à terminer |
 | --- | --- |
 | Code Rapido | `LICENSE` contient MIT avec le titulaire **Samuel Tuil** ; l'installateur affiche Samuel Bentouza. Conserver les attributions existantes tant que la titularité n'est pas clarifiée. Le pipeline copie désormais ce LICENSE sans modification dans le dossier distribué. |
-| Python et modules Python | `requirements.txt` énumère les dépendances directes, mais la plupart des versions et dépendances transitives ne sont pas figées. Inventorier les versions réellement embarquées et leurs notices avant distribution. La licence propre de Rapido ne remplace pas celles des dépendances. |
+| Python et modules Python | `requirements.txt` reste large pour le développement ; les 41 versions du build Windows sont désormais figées et contrôlées. Les fichiers/modules et leurs notices sont inventoriés ; les obligations natives restent à vérifier. La licence propre de Rapido ne remplace pas celles des dépendances. |
 | Pillow | Le [texte amont](https://github.com/python-pillow/Pillow/blob/main/LICENSE) identifie MIT-CMU. Vérifier aussi les bibliothèques natives effectivement contenues dans la wheel choisie. |
 | FastAPI, HTTPX, pywebview | Sources amont consultées : [FastAPI](https://github.com/fastapi/fastapi/blob/master/LICENSE), [HTTPX](https://github.com/encode/httpx/blob/master/LICENSE.md), [pywebview](https://github.com/r0x0r/pywebview/blob/master/LICENSE). Ce sont des repères de revue, pas la liste complète du bundle ni une validation de chaque version installée. |
 | yt-dlp | Installé par pip et importé comme module. La [documentation amont](https://github.com/yt-dlp/yt-dlp#licensing) distingue le dépôt/wheel sous Unlicense et ses exécutables amont qui contiennent d'autres licences. Ne pas conclure que le bundle Rapido est libre de toute autre obligation à partir de la seule licence yt-dlp. |
@@ -239,7 +126,6 @@ n'est produit par ces tests.
 | FFmpeg / Deno | Les routes `/api/tools/ffmpeg` et `/api/tools/deno` lancent winget avec `Gyan.FFmpeg` / `DenoLand.Deno`. Le workflow ne les copie pas explicitement dans le bundle ; vérifier les fichiers finaux avant d'attester leur absence. [FFmpeg](https://ffmpeg.org/legal.html) distingue LGPL et options GPL ; [Deno](https://github.com/denoland/deno/blob/main/LICENSE.md) fournit son texte MIT. Vérifier l'artefact effectivement choisi, pas seulement le nom du projet. |
 | Interface, images, nom et comparaison IDM | Aucune revue complète de provenance, de marque ou de similarité avec un logiciel tiers n'a été faite ici. L'absence de conflit avec IDM n'est pas établie : je ne peux pas confirmer ça. La présence d'un LICENSE MIT dans le dépôt ne démontre pas l'origine de chaque élément. |
 
-Référence Python : [licence de Python 3.12 et composants incorporés](https://docs.python.org/3.12/license.html). L'inventaire des fichiers/modules est maintenant collecté ; les attributions natives et obligations de redistribution restent à vérifier ; ne pas remplacer ces preuves par une déclaration générale « toutes les dépendances sont MIT ».
 
 ## Travail restant, difficulté et effort
 
