@@ -60,8 +60,29 @@ SOURCE_NOTICES = {
                   'certifi/core.py': '5c55f2727746e697f7edac9e17c377d8752e0da7ecca191531b3b80403d61dad',
                   'certifi/py.typed': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'},
     },
+    # Native extension modules: raw bytes, matched to the official PyPI wheel.
+    ("pillow", "12.3.0"): {
+        "folder": "pillow-12.3.0",
+        "binary": True,
+        "texts": {"NOTICE.md": None},
+        "files": {'PIL/_avif.cp313-win_amd64.pyd': '2e3e5cce3aea38c603680ca3da5d161fad123ce23a803bb692a56aff608989be',
+                  'PIL/_imaging.cp313-win_amd64.pyd': '88756e8e0e3f6180e518da25d379597c861e2d20d716ef001894789b515c1777',
+                  'PIL/_imagingcms.cp313-win_amd64.pyd': '7ecb50b954d13d72b7a0ff565872332443cdbc83a36e58a56b2b949a56f32549',
+                  'PIL/_imagingft.cp313-win_amd64.pyd': 'e94673a471a0b6fd5e92e8b6cdbdfe16e2e91bcf5689e9e4c9b391ab43788d85',
+                  'PIL/_imagingmath.cp313-win_amd64.pyd': '9d5bbea6a877a48ed7995a0640ecb0a5567d9fad544a4a1fbf9f22d507029b57',
+                  'PIL/_imagingtk.cp313-win_amd64.pyd': '8ccd6128481d5a3a15993c2f8a69585694ff972652a6b06dcaee276fc65633a7',
+                  'PIL/_webp.cp313-win_amd64.pyd': '9918faf8d90faa86e03e48479c6a62383be71da759254afded18591a406a92fe'},
+    },
 }
-SOURCE_NOTICE_PACKAGES = {"pystray", "certifi"}
+SOURCE_NOTICE_PACKAGES = {"pystray", "certifi", "pillow"}
+
+# Notices of components compiled into the official Windows Python build that
+# its LICENSE.txt does not reproduce. Selected by interpreter version only.
+PYTHON_NOTICE_VERSION = "3.13.16"
+PYTHON_NOTICE_FOLDER = "cpython-3.13.16-windows"
+PYTHON_NOTICE_TEXTS = {"NOTICE.md": None,
+                       "license.rst": "952ac05720d7f1dcb63589b35eb0931b1442eb250230a4ad31198eddf0ad6abc",
+                       "HACL-LICENSE.txt": "964361468338dbed9e90e896e2f6312140a0ad79ba503df884e0c7a2288b4087"}
 
 
 def _supplement_known_missing_text(dist, root, output, item):
@@ -145,8 +166,11 @@ def _supplement_source_notice(dist, root, output, item):
             source = Path(dist.locate_file(relative))
             source.resolve().relative_to(root)
             with source.open("rb") as stream:
-                data = stream.read(MAX_LICENSE_BYTES + 1)
-            if hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest() != expected:
+                if reviewed.get("binary"):
+                    digest = hashlib.file_digest(stream, "sha256").hexdigest()
+                else:
+                    digest = hashlib.sha256(stream.read(MAX_LICENSE_BYTES + 1).replace(b"\r\n", b"\n")).hexdigest()
+            if digest != expected:
                 raise ValueError("Different installed source identity")
         originals = Path(__file__).resolve().parents[1] / "packaging/licenses" / reviewed["folder"]
         texts = {}
@@ -167,6 +191,30 @@ def _supplement_source_notice(dist, root, output, item):
                               "kind": "source-notice"})
     item["source_notice"] = {"matched_installed_files": len(reviewed["files"]),
                              "complete_legal_review": False}
+
+
+def _python_notices(output, version):
+    # Another interpreter version needs a new upstream comparison.
+    if version != PYTHON_NOTICE_VERSION:
+        return {"collected": False, "problem": "python-incorporated-notices-unreviewed-version"}
+    originals = Path(__file__).resolve().parents[1] / "packaging/licenses" / PYTHON_NOTICE_FOLDER
+    texts = {}
+    try:
+        for name, expected in PYTHON_NOTICE_TEXTS.items():
+            data = (originals / name).read_bytes().replace(b"\r\n", b"\n")
+            if not data or (expected is not None and hashlib.sha256(data).hexdigest() != expected):
+                raise ValueError("Different notice text identity")
+            texts[name] = data
+    except (OSError, ValueError):
+        return {"collected": False, "problem": "python-incorporated-notices-identity-unverified"}
+    files = []
+    for name, data in texts.items():
+        target = f"python/{PYTHON_NOTICE_FOLDER}/{name}"
+        destination = output / target
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+        files.append({"path": target, "sha256": hashlib.sha256(data).hexdigest()})
+    return {"collected": True, "files": files, "complete_legal_review": False}
 
 
 def _license_path(record):
@@ -241,6 +289,7 @@ def collect(output, *, distributions=None, python_license=None):
                            sha256=hashlib.sha256(data).hexdigest())
     except (OSError, ValueError):
         interpreter["problem"] = "python-license-not-collected"
+    interpreter["incorporated_notices"] = _python_notices(output, interpreter["version"])
 
     report = {"schema": 1, "scope": "installed-build-environment",
               "compliance_verified": False, "python": interpreter, "packages": packages}
@@ -266,6 +315,8 @@ def main():
         raise SystemExit("WebView2 SDK notices unverified: review carrier/version/binary/text identity before building")
     if any("source-notice-identity-unverified" in p["problems"] for p in report["packages"]):
         raise SystemExit("LGPL/MPL source notices unverified: compare the installed version with upstream before building")
+    if not report["python"]["incorporated_notices"]["collected"]:
+        raise SystemExit("Python incorporated-component notices unverified: review the interpreter version before building")
     if not report["python"]["license_collected"]:
         raise SystemExit("Python interpreter license missing: refusing an incomplete evidence bundle")
 

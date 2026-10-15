@@ -134,6 +134,9 @@ The regression tests reproduce the issues found by the October 2026 audit (CSRF,
 
 MIT. Downloading videos may be restricted by a site's terms of service: use it for content you are allowed to save.
 
+The Windows build includes third-party components under their own licenses; their texts, notices and source locations are shipped in the `third-party` folder next to `Rapido.exe`.
+Portions of this software are copyright © 1996-2026 The FreeType Project (https://freetype.org). All rights reserved.
+
 ### Chrome, Edge et Firefox : installation de développement
 
 L’installateur Windows enregistre `com.rapido.bridge` pour les trois navigateurs

@@ -90,16 +90,61 @@ class LicenseEvidenceTests(unittest.TestCase):
             unaffected = collect(root / "other", distributions=[other], python_license=root / "missing")
             self.assertNotIn("source-notice-identity-unverified", unaffected["packages"][0]["problems"])
 
+    def test_binary_notice_hashes_raw_bytes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            native = root / "PIL/_fixture.pyd"
+            native.parent.mkdir()
+            data = b"MZ\r\nnative fixture"
+            native.write_bytes(data)
+            dist = Distribution(root, "Pillow", [])
+            dist.version = "12.3.0"
+            reviewed = dict(evidence.SOURCE_NOTICES[("pillow", "12.3.0")])
+            reviewed["files"] = {"PIL/_fixture.pyd": hashlib.sha256(data).hexdigest()}
+            with patch.dict(evidence.SOURCE_NOTICES, {("pillow", "12.3.0"): reviewed}):
+                item = collect(root / "raw", distributions=[dist], python_license=root / "missing")["packages"][0]
+                self.assertEqual([f["path"] for f in item["files"] if f.get("kind")],
+                                 ["packages/pillow/pillow-12.3.0/NOTICE.md"])
+                reviewed["files"] = {"PIL/_fixture.pyd": hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()}
+                item = collect(root / "normalized", distributions=[dist], python_license=root / "missing")["packages"][0]
+                self.assertIn("source-notice-identity-unverified", item["problems"])
+
+    def test_python_incorporated_notices_require_reviewed_version_and_texts(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with patch.object(evidence.platform, "python_version", return_value="3.13.16"):
+                report = collect(root / "accepted", distributions=[], python_license=root / "missing")
+            notices = report["python"]["incorporated_notices"]
+            self.assertTrue(notices["collected"])
+            self.assertFalse(notices["complete_legal_review"])
+            names = {f["path"].rsplit("/", 1)[1]: f for f in notices["files"]}
+            self.assertEqual(set(names), {"NOTICE.md", "license.rst", "HACL-LICENSE.txt"})
+            self.assertIn(b"cbc944f4bc59639a444dd971c737788ba2283a91",
+                          (root / "accepted" / names["NOTICE.md"]["path"]).read_bytes())
+            with patch.object(evidence.platform, "python_version", return_value="3.13.17"):
+                other = collect(root / "other", distributions=[], python_license=root / "missing")
+            self.assertEqual(other["python"]["incorporated_notices"]["problem"],
+                             "python-incorporated-notices-unreviewed-version")
+            self.assertFalse((root / "other/python").exists())
+            with patch.object(evidence.platform, "python_version", return_value="3.13.16"), \
+                 patch.dict(evidence.PYTHON_NOTICE_TEXTS, {"license.rst": "0" * 64}):
+                bad = collect(root / "bad", distributions=[], python_license=root / "missing")
+            self.assertFalse(bad["python"]["incorporated_notices"]["collected"])
+            self.assertFalse((root / "bad/python").exists())
+
     def test_reviewed_source_notice_texts_are_present_and_reference_exact_upstream(self):
         base = Path(evidence.__file__).resolve().parents[1] / "packaging/licenses"
-        expected_commits = {"pystray": b"1907f8681d6d421517c63d94f425f9cdd74d0034",
-                            "certifi": b"5379b709be8a8595803a7bd907f87e302fc6ae1d"}
+        expected = {"pystray": ("SOURCE.md", b"1907f8681d6d421517c63d94f425f9cdd74d0034"),
+                    "certifi": ("SOURCE.md", b"5379b709be8a8595803a7bd907f87e302fc6ae1d"),
+                    "pillow": ("NOTICE.md", b"1cca606cd25738df4ed873d5ad46bbdb3d83b5cbca291f6b4ff13a4df6b0bbe8")}
         for (name, _version), reviewed in evidence.SOURCE_NOTICES.items():
             for text, digest in reviewed["texts"].items():
                 data = (base / reviewed["folder"] / text).read_bytes().replace(b"\r\n", b"\n")
                 if digest is not None:
                     self.assertEqual(hashlib.sha256(data).hexdigest(), digest)
-            self.assertIn(expected_commits[name], (base / reviewed["folder"] / "SOURCE.md").read_bytes())
+            notice, reference = expected[name]
+            self.assertIn(reference, (base / reviewed["folder"] / notice).read_bytes())
+        self.assertIn("FreeType Project".encode(), (base / "pillow-12.3.0/NOTICE.md").read_bytes())
 
     def test_supplement_requires_exact_module_identity_and_keeps_conflict_visible(self):
         with tempfile.TemporaryDirectory() as folder:
