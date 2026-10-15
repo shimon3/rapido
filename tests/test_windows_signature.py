@@ -251,12 +251,13 @@ class WindowsSignedFixtureTests(unittest.TestCase):
             replacement = Path(directory) / "replacement.exe"
             shutil.copyfile(self.folder / "signed.exe", path)
             shutil.copyfile(self.folder / "unsigned.exe", replacement)
+            original_digest = hashlib.sha256(path.read_bytes()).digest()
             script = (
                 "import os,sys\n"
                 "try: os.replace(sys.argv[1],sys.argv[2])\n"
                 "except OSError as error:\n"
                 " print(error.winerror)\n"
-                " sys.exit(0 if error.winerror == 32 else 2)\n"
+                " sys.exit(0 if error.winerror in (5,32) else 2)\n"
                 "sys.exit(3)\n"
             )
             with signature.verified_signed_file(path, certificate_sha256=[self.pin]):
@@ -264,7 +265,9 @@ class WindowsSignedFixtureTests(unittest.TestCase):
                                         capture_output=True, text=True, timeout=10,
                                         creationflags=subprocess.CREATE_NO_WINDOW)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertEqual(result.stdout.strip(), "32")
+                self.assertIn(result.stdout.strip(), ("5", "32"))
+                self.assertTrue(replacement.is_file())
+                self.assertEqual(hashlib.sha256(path.read_bytes()).digest(), original_digest)
             os.replace(replacement, path)
             with self.assertRaises(PermissionError):
                 with signature.verified_signed_file(path, certificate_sha256=[self.pin]):

@@ -41,6 +41,8 @@ Files: `windows_signature.py`, `tests/test_windows_signature.py`, `scripts/test_
 
 Focused new checks on Linux: **9 passed, 6 Windows/fixture skips, 36 subtests passed**. Windows validation pending for these new changes. Workflow unchanged: dedicated branch push has no trigger; its draft PR triggers read-only builds with release gated to explicit tag pushes only. Next: inspect this revision's real Windows CI, then examine remaining PRs/licensing and produce the beta task/effort list.
 
+Windows CI #178 (`38682472805`, `91b2fa6`) ran all 15 signed-fixture tests: 14 passed; cross-process replacement was denied with WinError 5 while the test expected WinError 32. Corrected the assertion to recognize both denial codes and additionally require the unsigned source still exists and the signed destination's SHA-256 is unchanged. Junction and symlink rejection tests passed in #178. Production verification rules unchanged; rerun Windows required.
+
 ## Validation and handoff
 
 Completed the proposed managed-mode contract and linked it from the threat model. Primary vendor documentation checked for Edge discovery/policy, Chromium policy, Mozilla registration, WinVerifyTrust and App Control. Runtime and workflow files unchanged.
