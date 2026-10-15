@@ -1,0 +1,176 @@
+{
+  "schema": 1,
+  "checked_date": "2026-10-15",
+  "scope": "windows-ci-native-launcher-and-firefox",
+  "code_sha": "c68ac60f6c23e783b1c82b5319180d33140b085a",
+  "run": {
+    "id": 38707014474,
+    "number": 196,
+    "url": "https://github.com/shimon3/rapido/actions/runs/38707014474",
+    "conclusion": "success",
+    "build_job_id": 116328810000,
+    "release_job_id": 116330806812,
+    "release_conclusion": "skipped"
+  },
+  "general_tests": {
+    "passed": 221,
+    "skipped_signed_fixtures_executed_separately": 5,
+    "subtests": 110,
+    "warnings": 1
+  },
+  "dedicated_signature_tests": {
+    "passed": 15,
+    "subtests": 39,
+    "real_signed_pe_tests": 5,
+    "real_unsigned_file_tests": 1,
+    "policy_unit_tests": 9,
+    "overlap_general_suite": true
+  },
+  "dependency_gate": {
+    "pypi_responses_verified": 41,
+    "passed": true,
+    "complete_security_review": false
+  },
+  "firefox": {
+    "version": "157.0.1",
+    "official_installer_sha512_checked": true,
+    "valid_mozilla_authenticode_required": true,
+    "installed_and_webdriver_versions_checked": true,
+    "verified_native": true,
+    "automatic_handoff": true,
+    "host_absent_keeps_browser_download": true,
+    "privileged_webdriver_dom_access": false,
+    "remote_system_access_requested_by_harness": false,
+    "shipped_test_adapter": false
+  },
+  "prior_success": {
+    "run_number": 195,
+    "id": 38706005214,
+    "code_sha": "c5a43f1f078b063874d0b113b38be1d50c7fdd3a",
+    "firefox_version": "156.0.1"
+  },
+  "build_steps": [
+    {
+      "name": "Set up job",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify reviewed Python and OpenSSL build baseline",
+      "conclusion": "success"
+    },
+    {
+      "name": "Install dependencies",
+      "conclusion": "success"
+    },
+    {
+      "name": "Isolated Authenticode fixtures (no production signing)",
+      "conclusion": "success"
+    },
+    {
+      "name": "Regression tests (security + engine)",
+      "conclusion": "success"
+    },
+    {
+      "name": "Read version",
+      "conclusion": "success"
+    },
+    {
+      "name": "Build Rapido.exe (PyInstaller)",
+      "conclusion": "success"
+    },
+    {
+      "name": "Build native messaging host (console)",
+      "conclusion": "success"
+    },
+    {
+      "name": "Build Edge and Firefox development extension folders",
+      "conclusion": "success"
+    },
+    {
+      "name": "Bundle native host with the desktop executable",
+      "conclusion": "success"
+    },
+    {
+      "name": "Collect build-environment license evidence",
+      "conclusion": "success"
+    },
+    {
+      "name": "Check reviewed versions and current PyPI advisories",
+      "conclusion": "success"
+    },
+    {
+      "name": "Inspect bundled modules and native library evidence",
+      "conclusion": "success"
+    },
+    {
+      "name": "Self-test (real window, engine, yt-dlp)",
+      "conclusion": "success"
+    },
+    {
+      "name": "Native Messaging protocol smoke test",
+      "conclusion": "success"
+    },
+    {
+      "name": "Build installer (Inno Setup)",
+      "conclusion": "success"
+    },
+    {
+      "name": "Install and uninstall browser native-host registrations",
+      "conclusion": "success"
+    },
+    {
+      "name": "Installed and portable copies coexist across uninstall",
+      "conclusion": "success"
+    },
+    {
+      "name": "Install reviewed Firefox version for browser regression",
+      "conclusion": "success"
+    },
+    {
+      "name": "Real Firefox native bridge and browser handoff",
+      "conclusion": "success"
+    },
+    {
+      "name": "Portable zip",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "conclusion": "success"
+    },
+    {
+      "name": "Complete job",
+      "conclusion": "success"
+    }
+  ],
+  "limitations": {
+    "issue_26_closed": false,
+    "runtime_attestation": false,
+    "independently_protected_policy": false,
+    "race_free_paths": false,
+    "windows_10_11_acceptance": false,
+    "new_zip_independently_inspected": false,
+    "complete_license_review": false
+  },
+  "sources": [
+    "https://github.com/shimon3/rapido/actions/runs/38707014474",
+    "https://github.com/shimon3/rapido/actions/runs/38706005214",
+    "https://archive.mozilla.org/pub/firefox/releases/157.0.1/SHA512SUMS"
+  ]
+}

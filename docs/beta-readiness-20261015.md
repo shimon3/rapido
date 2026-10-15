@@ -7,19 +7,30 @@ garde-fous de publication sur tag explicite avant toute exécution sur `main`.
 
 ## Dernière validation
 
-CI #191 réussie sur `b9a7136ca21d93fe6e0adf811660c73158cd2154` :
-[run Windows](https://github.com/shimon3/rapido/actions/runs/38697169313).
-214 régressions, 5 fixtures signées ignorées après exécution dédiée, 105 sous-tests,
+CI #196 réussie sur `c68ac60f6c23e783b1c82b5319180d33140b085a` :
+[run Windows](https://github.com/shimon3/rapido/actions/runs/38707014474).
+221 régressions, 5 fixtures signées ignorées après exécution dédiée, 110 sous-tests,
 1 avertissement. Exécution dédiée : 15 tests de signature, dont 5 tests réels de
 PE signés, 1 test réel de fichier non signé et 9 tests de politique/unitaires.
 Les deux exécutions se recoupent. Sondes WebView2, compilations, installateur/portable,
-Firefox, pip check et les 41 réponses PyPI passent ; release ignorée et token build
+Firefox 157.0.1, pip check et les 41 réponses PyPI passent ; release ignorée et token build
 en lecture seule. Python 3.13.16 / OpenSSL 3.5.9 vérifiés. Les échecs d'installation
 pip arrêtent immédiatement la commande. Runner Server 2025, pas certification
-Windows 10/11. L'artefact indépendamment inspecté ci-dessous reste #190, pas #191.
+Windows 10/11. L'artefact indépendamment inspecté ci-dessous reste #190 ; les ZIP suivants ne sont pas inspectés indépendamment.
 Le checkpoint documentaire suivant conserve le code testé et utilise [skip ci] ;
 ce HEAD documentaire n'a pas lui-même exécuté la CI. Toute intégration future
 exige ses propres contrôles et une autorisation de fusion.
+
+Le lancement natif refuse désormais aussi les liens/jonctions dans les dossiers
+parents des exécutables, du navigateur reconnu et du manifeste Firefox. Les tests
+couvrent de vraies jonctions et les dossiers Windows des navigateurs. Ce contrôle
+reste partiel : aucune attestation ni ancre protégée n'est ajoutée à #26.
+
+Le harnais Firefox utilise une copie de test séparée et un canal local à identifiant
+aléatoire ; le background distribué reste intact. Le harnais n'active pas l'accès
+système WebDriver et n'affaiblit aucune préférence de sécurité. #195 a validé Firefox 156.0.1 ; #196 valide
+séparément 157.0.1, installateur Mozilla contrôlé par SHA-512 et signature, version
+installée et version WebDriver vérifiées. [Preuves](native-launcher-validation-20261015.json).
 
 ## Dépendances et artefact inspecté — #190
 
