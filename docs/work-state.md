@@ -1,6 +1,6 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: 6437b82, run 38792947794 attempts 1-3 SUCCESS (main self-test load-wait cause fixed; one portable post-uninstall self-test failure still unexplained). Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-15 (Claude). Latest validated code: 855419c, CI #215.
 
 ## Goal and authority
 
@@ -13,6 +13,13 @@ Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again befor
 Cause: `run_selftest` runs in the `webview.start()` callback thread, which pywebview 6.2.1 starts before the GUI exists, so the main window's `loaded.wait(30)` also measured the WebView2 cold start. `loaded` fired late, not never. Evidence from run 38787572553: failing self-test steps took 58 s and 65 s, against 32 s for the passing one. Every later `evaluate_js` still succeeded, and `evaluate_js` waits at most 20 s for `_pywebviewready`, which `util.inject_pywebview` sets right before `loaded` in the same thread. So `loaded` came between 30 and 50 s. Nothing in Rapido's path clears `loaded` (only `Window.load_url/load_html` do). Ruled out: `private_mode`, `webview_auth.attach` (the synchronous `request_sent` is unchanged since passing 5d7659f), extension files.
 Fix (`desktop.py`): the first window waits `SELFTEST_FIRST_LOAD_TIMEOUT = 90` (the popup keeps 30). `track_window_load` records first shown/before_load (NavigationCompleted)/loaded seconds as `main_load_timeline`. A new `main_url_ok` requires `location.href` to be exactly the trusted main page, and is checked only after a real `loaded`. A missing load still fails, and `webview_auth` is unchanged. Regression: `tests/test_selftest_load_wait.py` (late load passes and is timed; missing load fails without touching the page; wrong URL fails; real pywebview `Event` semantics).
 CI: run 38791199948 (2d77b06): attempt 1 SUCCESS (247 passed /5 skipped /136 subtests; loaded 14.8 s), attempt 2 main self-test passed (loaded 12.7 s) but the **portable post-uninstall self-test** exited 1 in normal time (24 s vs 26 s). Its JSON was not printed, so the failing check is unknown and this is not a load timeout. 6437b82 now prints that result and the `rapido.log` tail (diagnostic only, same pass condition). Run 38792947794 (6437b82) attempts 1-3 SUCCESS, 247 passed each, main loaded 6.2/4.4/5.4 s, portable 1.2 s; artifact `12001792062` digest `c103d95ba3b043eec4ee9667d200d88d69909390bfe26c319b915b5212c8fe94`. Main self-test 5/5 since the fix. Open: the portable failure (1 of 5 runs) is unexplained; read its `Portable selftest` notice when it recurs.
+
+## Completed focus — Firefox follow-ups after VM test (Claude, 3b31c5c…855419c)
+
+- 3b31c5c: `browser_finished` notice in the active (non-private) tab when the browser already finished a download; after cancel(), check the real state (Chromium accepts cancel on a finished item) so Rapido never fetches it twice. CI #212 timed out once in the Node harness (not reproduced in #213/#215).
+- e34d5b5: right-click video menu and video button send plain video files (.mp4/.m4v/.webm/.mkv/.mov/.ogv over http/https, no credentials) to Rapido through `captureFile` (authenticated native channel + session checks); streams, blob: and embedded players still `video_disabled`. CI #213 SUCCESS.
+- 28669db: pause-before-handoff for Firefox "Save As" races — CI #214 real Firefox fallback (host absent) timed out after pause/resume (fixture advertises Accept-Ranges but returns 200 on ranged requests). Withdrawn in 855419c to keep the fail-closed browser fallback; owner chose to keep current behavior for the beta (Firefox "Save As" stays in Firefox with the notice; right-click Rapido and direct link clicks go to Rapido). Runner now prints partial Node output on timeout.
+- [CI #215](https://github.com/shimon3/rapido/actions/runs/38798051628) SUCCESS on 855419c: 247 passed /5 skipped /136 subtests; artifact `12002783121` digest `745dd2e6994ee6450e399ea374a5916fdb26af5ab579a85c9681f1dd5764d8e5`. VM retest of the Firefox right-click video path pending.
 
 ## Completed focus — refusal reasons and browser name in the extension (Claude, 9d34bf0 + ce75127)
 
