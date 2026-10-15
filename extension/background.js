@@ -89,6 +89,7 @@ const NOTICES = {
   private: "Navigation privée ou conteneur : le téléchargement reste dans le navigateur.",
   browser_session: "Site connecté : le téléchargement reste dans le navigateur pour protéger votre session.",
   unavailable: "Rapido est injoignable : vérifiez qu'il est lancé et à jour.",
+  browser_finished: "Le navigateur avait déjà terminé ce téléchargement : le fichier reste dans le navigateur. Pour Rapido, cliquez directement sur le lien du fichier.",
 };
 function noticeError(code, message) {
   const error = new Error(message);
@@ -104,6 +105,13 @@ async function notify(tab, code) {
   // The content script shows the same fixed text; pages without it keep the badge/tooltip.
   try { if (tab?.id >= 0) await chrome.tabs.sendMessage?.(tab.id, { type: "rapido-notice", code }, { frameId: 0 }); }
   catch {}
+}
+// Download items carry no tab: explain in the tab the user is looking at.
+async function notifyActive(code) {
+  let tab;
+  try { [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); } catch {}
+  if (tab && browserOwnedContext(tab)) tab = undefined;   // never message a private tab
+  await notify(tab, code);
 }
 
 /* ---------- échanges avec le serveur ---------- */
@@ -236,12 +244,18 @@ async function handleDownload(item, ext) {
     flash("!", "#b4541a");
     return;
   }
+  let cancelled = true;
   try { await chrome.downloads.cancel(item.id); }
-  catch {
+  catch { cancelled = false; }
+  // Chromium accepts cancel() on a finished download without error: check the
+  // real state so a completed file is never fetched a second time by Rapido.
+  let state;
+  try { state = (await chrome.downloads.search({ id: item.id }))?.[0]?.state; } catch {}
+  if (!cancelled || state === "complete") {
     // A completed download or refused cancellation must retain its browser
     // history. Native acceptance alone is not proof of browser cancellation.
     try { await chrome.runtime.sendNativeMessage(NATIVE_HOST,{type:"capture_abort",ticket}); } catch {}
-    flash("!", "#b4541a");
+    await notifyActive("browser_finished");
     return;
   }
   let committed = false;

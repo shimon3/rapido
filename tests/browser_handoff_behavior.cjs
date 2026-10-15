@@ -59,8 +59,9 @@ async function scenario(mode) {
       onDeterminingFilename:mode.startsWith("firefox") ? undefined : event(),
       async cancel(){calls.push("cancel");if (["cancel-failed","completed-after-native"].includes(mode)) throw new Error("Cannot cancel");},
       async erase(){calls.push("erase");if (mode === "erase-failed") throw new Error("Cannot erase");},
+      async search(){return mode === "cancel-noop-complete" ? [{state:"complete"}] : [{state:"interrupted"}];},
       async download(){calls.push("restart");}},
-    webRequest:{onHeadersReceived:{addListener(fn){mediaListener=fn;}}}, tabs:{onRemoved:event(),onUpdated:event(),async sendMessage(id,msg,opts){notices.push({id,msg,opts});}},
+    webRequest:{onHeadersReceived:{addListener(fn){mediaListener=fn;}}}, tabs:{onRemoved:event(),onUpdated:event(),async sendMessage(id,msg,opts){notices.push({id,msg,opts});},async query(){return [{id:5,incognito:false}];}},
     contextMenus:{onClicked:{addListener(fn){menuClick=fn;}},create(){}}
   };
   const context = vm.createContext({chrome, URL, navigator:{userAgent:"test"},
@@ -150,11 +151,14 @@ async function scenario(mode) {
   } else if (["completed","interrupted"].includes(mode)) {
     assert.equal(calls.length,0,"finished/interrupted items must not be recaptured");
     assert.equal(cookieReads,0);
-  } else if (["cancel-failed","completed-after-native"].includes(mode)) {
+  } else if (["cancel-failed","completed-after-native","cancel-noop-complete"].includes(mode)) {
     assert(calls.indexOf("capture_prepare") < calls.indexOf("cancel"));
     assert(!calls.includes("erase"),"failed cancellation must retain browser history");
     assert(calls.includes("capture_abort"));
+    assert(!calls.includes("capture_commit"),"a finished browser download must not be fetched again");
     assert.equal(nativeCaptures,0,"failed cancellation must not start native capture");
+    assert.equal(JSON.stringify(notices.map(n=>[n.id,n.msg.code])),JSON.stringify([[5,"browser_finished"]]),
+      "the user must be told the browser already finished");
   } else if (mode === "commit-unavailable") {
     assert.equal(commitCalls,2,"commit retry must be bounded");
     assert.equal(nativeCaptures,0);
@@ -167,7 +171,7 @@ async function scenario(mode) {
   }
 }
 (async()=>{
-  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed","legacy","commit-unavailable","commit-ack-lost","public-video","video-menu","session-menu"]) {
+  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed","legacy","commit-unavailable","commit-ack-lost","public-video","video-menu","session-menu","cancel-noop-complete"]) {
     await scenario(mode);
     console.log("PASS "+mode);
   }

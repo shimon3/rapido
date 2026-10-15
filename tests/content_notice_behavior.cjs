@@ -93,6 +93,8 @@ assert.equal(toast.shown, "block");
 assert.match(toast.text, /Capture vidéo désactivée dans cette bêta/);
 toast = p.notice({type: "rapido-notice", code: "browser_session"});
 assert.match(toast.text, /Site connecté/);
+toast = p.notice({type: "rapido-notice", code: "browser_finished"});
+assert.match(toast.text, /déjà terminé ce téléchargement/);
 toast = p.notice({type: "rapido-notice", code: "anything-else"});
 assert.match(toast.text, /Rapido est injoignable/);
 
