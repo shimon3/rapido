@@ -1,12 +1,16 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: 08fa540, CI #204. Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-15 (Claude). Latest validated code: 5d7659f, CI #206. Start here; do not repeat repository overview or completed PR reconciliation.
 
 ## Goal and authority
 
 First stable Windows beta, essential corrections only. Branch `work/beta-engine-guards-20261015`, draft PR #33 targets draft PR #32's `work/security-26-followup-20261015` (dependent on #29).
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
+
+## Completed focus — Chromium cmd.exe relay in launcher admission (Claude, 5d7659f)
+
+Windows 10 22H2 VM (Edge 155) diagnosis: extension saw downloads (capture on, mp4 configured, 0 cookies) but `capabilities` returned only `["ping"]`; passive process watch showed `msedge.exe -> cmd.exe /d /s /c "...RapidoNativeHost.exe" chrome-extension://<id>/ --parent-window=0 -> bootloader -> host`. `trusted_launcher` required a browser as direct parent, so IPC failed and every Edge download stayed in Edge (fail-closed). Earlier Rapido windows came from the clipboard watcher, not interception. Video button/menu failure is the intentional S3 disable (`captureVideo`), but its UI says "Rapido n'est pas lancé" (defect, not fixed). Fix: admit exactly one System32 `cmd.exe` (CSIDL_SYSTEM, not %ComSpec%) between helper and a recognized Chromium browser, same SID/creation/link checks; refuse second relay, non-browser/Firefox/desktop/helper above it, copied cmd, unknown System32. Shell command line not inspected (#26 residual). 4 tests (+subtests incl. real System32). [CI #206](https://github.com/shimon3/rapido/actions/runs/38784141121) SUCCESS: 240 passed /5 skipped /136 subtests; artifact `11996883975` digest `669209f4b0fbd8c3d67f6011dfc0f2b368d3e3ba9b971cf1c8395dbe2ab479c8`. VM retest pending (owner installs). Concurrent doc commit 9e8904d (`docs/windows-10-vm-verification-20261015.md`) fast-forwarded, untouched.
 
 ## Owner decision — beta without full #26 (2026-10-15)
 
