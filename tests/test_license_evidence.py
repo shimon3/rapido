@@ -109,6 +109,42 @@ class LicenseEvidenceTests(unittest.TestCase):
                 item = collect(root / "normalized", distributions=[dist], python_license=root / "missing")["packages"][0]
                 self.assertIn("source-notice-identity-unverified", item["problems"])
 
+    def test_crate_texts_must_match_names_and_index_exactly(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            native = root / "pydantic_core/_native.pyd"
+            native.parent.mkdir()
+            native.write_bytes(b"native fixture")
+            licenses = root / "packaging/licenses"
+            texts = licenses / "fixture/texts"
+            texts.mkdir(parents=True)
+            body = b"MIT fixture text\n"
+            digest = hashlib.sha256(body).hexdigest()
+            (texts / f"{digest}.txt").write_bytes(body)
+            (licenses / "fixture/NOTICE.md").write_bytes(b"notice\n")
+            index = {"crates": [{"name": "demo", "version": "1.0.0", "license_files": {"LICENSE": digest}}]}
+            (licenses / "fixture/crates.json").write_text(json.dumps(index))
+            dist = Distribution(root, "pydantic_core", [])
+            dist.version = "2.50.1"
+            reviewed = dict(evidence.SOURCE_NOTICES[("pydantic-core", "2.50.1")], folder="fixture",
+                            files={"pydantic_core/_native.pyd": hashlib.sha256(b"native fixture").hexdigest()})
+            # The collector reads notices relative to its own location.
+            (root / "scripts").mkdir()
+            with patch.dict(evidence.SOURCE_NOTICES, {("pydantic-core", "2.50.1"): reviewed}), \
+                 patch.object(evidence, "__file__", str(root / "scripts/x.py")):
+                item = collect(root / "ok", distributions=[dist], python_license=root / "missing")["packages"][0]
+                paths = {f["path"] for f in item["files"] if f.get("kind")}
+                self.assertIn(f"packages/pydantic-core/fixture/texts/{digest}.txt", paths)
+                self.assertNotIn("source-notice-identity-unverified", item["problems"])
+                (texts / "extra.txt").write_bytes(b"unexpected\n")
+                item = collect(root / "extra", distributions=[dist], python_license=root / "missing")["packages"][0]
+                self.assertIn("source-notice-identity-unverified", item["problems"])
+                (texts / "extra.txt").unlink()
+                (texts / f"{digest}.txt").write_bytes(b"tampered\n")
+                item = collect(root / "tampered", distributions=[dist], python_license=root / "missing")["packages"][0]
+                self.assertIn("source-notice-identity-unverified", item["problems"])
+                self.assertFalse([f for f in item["files"] if f.get("kind")])
+
     def test_python_incorporated_notices_require_reviewed_version_and_texts(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -134,9 +170,15 @@ class LicenseEvidenceTests(unittest.TestCase):
 
     def test_reviewed_source_notice_texts_are_present_and_reference_exact_upstream(self):
         base = Path(evidence.__file__).resolve().parents[1] / "packaging/licenses"
+        crates = json.loads((base / "pydantic_core-2.50.1/crates.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(crates["crates"]), 99)
+        referenced = {d for c in crates["crates"] for d in c["license_files"].values()}
+        stored = {p.stem for p in (base / "pydantic_core-2.50.1/texts").iterdir()}
+        self.assertEqual(referenced, stored)
         expected = {"pystray": ("SOURCE.md", b"1907f8681d6d421517c63d94f425f9cdd74d0034"),
                     "certifi": ("SOURCE.md", b"5379b709be8a8595803a7bd907f87e302fc6ae1d"),
-                    "pillow": ("NOTICE.md", b"1cca606cd25738df4ed873d5ad46bbdb3d83b5cbca291f6b4ff13a4df6b0bbe8")}
+                    "pillow": ("NOTICE.md", b"1cca606cd25738df4ed873d5ad46bbdb3d83b5cbca291f6b4ff13a4df6b0bbe8"),
+                    "pydantic-core": ("NOTICE.md", b"ac24753c2ed315f8dc22d6470fa868970e3705a0888d879704e872d53f21452d")}
         for (name, _version), reviewed in evidence.SOURCE_NOTICES.items():
             for text, digest in reviewed["texts"].items():
                 data = (base / reviewed["folder"] / text).read_bytes().replace(b"\r\n", b"\n")

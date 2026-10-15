@@ -73,8 +73,17 @@ SOURCE_NOTICES = {
                   'PIL/_imagingtk.cp313-win_amd64.pyd': '8ccd6128481d5a3a15993c2f8a69585694ff972652a6b06dcaee276fc65633a7',
                   'PIL/_webp.cp313-win_amd64.pyd': '9918faf8d90faa86e03e48479c6a62383be71da759254afded18591a406a92fe'},
     },
+    # Rust crates statically linked into the native module; texts are named by
+    # their SHA-256 and indexed in crates.json.
+    ("pydantic-core", "2.50.1"): {
+        "folder": "pydantic_core-2.50.1",
+        "binary": True,
+        "texts": {"NOTICE.md": None, "crates.json": None},
+        "text_dir": "texts",
+        "files": {'pydantic_core/_pydantic_core.cp313-win_amd64.pyd': '6c320aa8f5a182d815aeeef4332cd44a36cf1f3ca4a0653d33bc0079c4fb3f7c'},
+    },
 }
-SOURCE_NOTICE_PACKAGES = {"pystray", "certifi", "pillow"}
+SOURCE_NOTICE_PACKAGES = {"pystray", "certifi", "pillow", "pydantic-core"}
 
 # Notices of components compiled into the official Windows Python build that
 # its LICENSE.txt does not reproduce. Selected by interpreter version only.
@@ -179,7 +188,22 @@ def _supplement_source_notice(dist, root, output, item):
             if not data or (expected is not None and hashlib.sha256(data).hexdigest() != expected):
                 raise ValueError("Different notice text identity")
             texts[name] = data
-    except (OSError, ValueError):
+        if reviewed.get("text_dir"):
+            # Self-certifying names: content hash must match, and the folder
+            # must hold exactly the texts referenced by the crate index.
+            index = json.loads(texts["crates.json"])
+            referenced = {digest for crate in index["crates"] for digest in crate["license_files"].values()}
+            present = set()
+            for path in (originals / reviewed["text_dir"]).iterdir():
+                data = path.read_bytes().replace(b"\r\n", b"\n")
+                digest = hashlib.sha256(data).hexdigest()
+                if path.name != digest + ".txt":
+                    raise ValueError("Different notice text identity")
+                present.add(digest)
+                texts[f"{reviewed['text_dir']}/{path.name}"] = data
+            if not referenced or present != referenced:
+                raise ValueError("Incomplete or unexpected notice texts")
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         item["problems"].append("source-notice-identity-unverified")
         return
     for name, data in texts.items():
