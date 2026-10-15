@@ -1,5 +1,6 @@
 "use strict";
 const BASE = "__BASE__";
+const CONTROL = "__CONTROL__";
 const wait = ms => new Promise(resolve=>setTimeout(resolve,ms));
 async function search(id) { return chrome.downloads.search({id}); }
 async function until(predicate) {
@@ -10,8 +11,7 @@ async function until(predicate) {
   }
   throw new Error("Browser smoke timeout");
 }
-const out=document.querySelector("#result");
-document.querySelector("#start").onclick=async()=>{
+async function start() {
   try {
     const caps=await chrome.runtime.sendNativeMessage("com.rapido.bridge",{type:"capabilities"});
     if(caps?.protocol!==1 || !caps.features?.includes("capture_handoff")) throw new Error("Verified handoff missing");
@@ -26,20 +26,39 @@ document.querySelector("#start").onclick=async()=>{
       if(rows[0]?.state==="complete") throw new Error("Automatic capture stayed in Firefox");
       return rows.length===0;
     });
-    out.textContent=JSON.stringify({ok:true,verified_native:true,automatic_handoff:true});
+    return {ok:true,verified_native:true,automatic_handoff:true};
   } catch(error) {
-    out.textContent=JSON.stringify({ok:false,error:String(error)});
+    return {ok:false,error:String(error)};
   }
-  out.dataset.done="true";
-};
-document.querySelector("#fallback").onclick=async()=>{
-  out.dataset.done="false";
+}
+async function fallback() {
   try {
     const id=await chrome.downloads.download({url:BASE+"/fallback.zip",filename:"fallback.zip",saveAs:false});
     await until(async()=> (await search(id))[0]?.state==="complete");
-    out.textContent=JSON.stringify({ok:true,host_absent_keeps_browser_download:true});
+    return {ok:true,host_absent_keeps_browser_download:true};
   } catch(error) {
-    out.textContent=JSON.stringify({ok:false,error:String(error)});
+    return {ok:false,error:String(error)};
   }
-  out.dataset.done="true";
-};
+}
+
+// This adapter exists only in the disposable test extension. The production
+// background is unchanged; all native operations still use its real host/IPC.
+(async () => {
+  const seen = new Set();
+  for (;;) {
+    const command = await fetch(CONTROL + "/command", {cache:"no-store"});
+    if (!command.ok) throw new Error("Probe control unavailable");
+    const {phase} = await command.json();
+    if ((phase === "start" || phase === "fallback") && !seen.has(phase)) {
+      seen.add(phase);
+      const result = await (phase === "start" ? start() : fallback());
+      const report = await fetch(CONTROL + "/result", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({phase,result}),
+      });
+      if (!report.ok) throw new Error("Probe report refused");
+      if (!result.ok || phase === "fallback") return;
+    }
+    await wait(100);
+  }
+})();
