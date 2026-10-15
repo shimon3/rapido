@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "scope": "PyPI-version-specific-advisories-for-installed-build-environment",
-  "checked_at_utc": "2026-10-15T06:58:12.192993+00:00",
+  "checked_at_utc": "2026-10-15T07:05:26.847204+00:00",
   "gate_passed": true,
   "complete_security_review": false,
   "compliance_verified": false,
@@ -505,9 +505,9 @@
     "Native/embedded libraries and later browser-smoke dependencies require separate review.",
     "Exact versions are checked; this is not hash-locked installation or byte reproducibility."
   ],
-  "inventory_reference": {
-    "path": "docs/beta-build-inventory-20261015.json",
-    "code_sha": "6ba9c229b3cfae3d106b71687553abe18c81a00f",
-    "ci_run": 38691471314
+  "observed_from": {
+    "code_sha": "b6a5740fc9a8ad1d225e7271d2cadcba89c1d8dc",
+    "ci_run": 38696191089,
+    "artifact_id": 11954004962
   }
 }

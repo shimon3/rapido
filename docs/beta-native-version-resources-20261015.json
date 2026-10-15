@@ -4,7 +4,7 @@
   "files": [
     {
       "path": "Rapido.exe",
-      "sha256": "da1a5d1a276ce81e036b4369276bdd0039201c31ba06173860d9cefd4a31bd46",
+      "sha256": "103d84fce742f0c2ea94cabd59112d357054a15d67172ec317fbbc8708dd0600",
       "version_resources": [
         {
           "CompanyName": "Samuel Bentouza",
@@ -18,7 +18,7 @@
     },
     {
       "path": "RapidoNativeHost.exe",
-      "sha256": "fb627cc8f4f118272217d394ddc23c529c4ef80a2d04db53c460b23c0bc7a4c3",
+      "sha256": "87d89bed2f1611dcce085d46af1c1d166cf8729bfe672dd1e09faa4c0dc6d57c",
       "version_resources": [],
       "problem": "no-string-version-resource"
     },
@@ -1172,8 +1172,8 @@
     }
   ],
   "observed_from": {
-    "code_sha": "6ba9c229b3cfae3d106b71687553abe18c81a00f",
-    "ci_run": 38691471314,
-    "artifact_id": 11952756207
+    "code_sha": "b6a5740fc9a8ad1d225e7271d2cadcba89c1d8dc",
+    "ci_run": 38696191089,
+    "artifact_id": 11954004962
   }
 }

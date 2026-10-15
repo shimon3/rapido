@@ -254,11 +254,11 @@
         },
         {
           "path": "packages/packaging/packaging/licenses/__pycache__/__init__.cpython-313.pyc",
-          "sha256": "7a5a759b9fce88f8ac435aef48aa82c52ab374bcc082c8b38c76293bdbe710e6"
+          "sha256": "f67a369725fbdc8bbca29353f5d7f9c027b1dd5b071ea4ff7e45577773196152"
         },
         {
           "path": "packages/packaging/packaging/licenses/__pycache__/_spdx.cpython-313.pyc",
-          "sha256": "87cfd0b6d2696755f7de9e0d023c9a72d16d848cc2234fba61988ff95a6fd1c0"
+          "sha256": "b00fbb582bfbf7f98bb1f1bc9171a0336b6fdd71b26fe5b712342c0c99ed7753"
         },
         {
           "path": "packages/packaging/packaging/licenses/_spdx.py",
@@ -429,11 +429,11 @@
         },
         {
           "path": "packages/pip/pip/_vendor/packaging/licenses/__pycache__/__init__.cpython-313.pyc",
-          "sha256": "70346f56abe1a0b9e1e59985b8ffe964e8582ea822a205737f530a59c2fab6d6"
+          "sha256": "778df8564d071c519a1c9d22a3bc6f1d3ebf853f3cbda6bc5b5d0a231f20d0e2"
         },
         {
           "path": "packages/pip/pip/_vendor/packaging/licenses/__pycache__/_spdx.cpython-313.pyc",
-          "sha256": "2b309eae49ba1b7b2d85d81abfc8f9b6ce9faa582e2f156e57c41fe59613891b"
+          "sha256": "856926f90457fc736c2b306739b377cabf19d72e52d7b94e7cd97bb459efaa21"
         },
         {
           "path": "packages/pip/pip/_vendor/packaging/licenses/_spdx.py",
@@ -654,9 +654,51 @@
         {
           "path": "packages/pywebview/pywebview-6.2.1.dist-info/licenses/LICENSE",
           "sha256": "4a988dd3598832cd3653de20dc33cb677d0fb53ab5551c879ca31280ae653675"
+        },
+        {
+          "path": "packages/pywebview/Microsoft.Web.WebView2-1.0.3856.49/LICENSE.txt",
+          "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55",
+          "source": "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.3856.49/microsoft.web.webview2.1.0.3856.49.nupkg!/LICENSE.txt",
+          "component": "Microsoft.Web.WebView2 1.0.3856.49"
+        },
+        {
+          "path": "packages/pywebview/Microsoft.Web.WebView2-1.0.3856.49/NOTICE.txt",
+          "sha256": "106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90",
+          "source": "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.3856.49/microsoft.web.webview2.1.0.3856.49.nupkg!/NOTICE.txt",
+          "component": "Microsoft.Web.WebView2 1.0.3856.49"
         }
       ],
-      "problems": []
+      "problems": [],
+      "supplemental_components": [
+        {
+          "name": "Microsoft.Web.WebView2",
+          "version": "1.0.3856.49",
+          "source": "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.3856.49/microsoft.web.webview2.1.0.3856.49.nupkg",
+          "complete_legal_review": false,
+          "matched_installed_files": [
+            {
+              "path": "webview/lib/Microsoft.Web.WebView2.Core.dll",
+              "sha256": "8219a3135436c147f8eb02fb831e99596103eebc18b6d7b794ca93f4c67018a2"
+            },
+            {
+              "path": "webview/lib/Microsoft.Web.WebView2.WinForms.dll",
+              "sha256": "c48f8d729dc531288d2c53a6241effe7922ed1b947850b2442008a945c098c48"
+            },
+            {
+              "path": "webview/lib/runtimes/win-arm64/native/WebView2Loader.dll",
+              "sha256": "0937030efc718f3da77c5e0978fb5046e381d0bb7b01acaad31a535a1b588a33"
+            },
+            {
+              "path": "webview/lib/runtimes/win-x64/native/WebView2Loader.dll",
+              "sha256": "eb5335edeaa6f2122c044e82aab2351dc8c9b4e0fe5e578c71922fb61be285e7"
+            },
+            {
+              "path": "webview/lib/runtimes/win-x86/native/WebView2Loader.dll",
+              "sha256": "04814b2c59314c6452d61b821a4a3a5c5f8e8577b55b985f6a7a4b59f8907ec5"
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "pywin32-ctypes",
@@ -727,11 +769,11 @@
         },
         {
           "path": "packages/setuptools/setuptools/_vendor/packaging/licenses/__pycache__/__init__.cpython-313.pyc",
-          "sha256": "7de4bcb4cce79f3ecbcf3d933f3b3ca9b1c0906efb2d3887445e5163cce2bdb3"
+          "sha256": "d1a8bddd8e05ae194e8f0b2f3025e1987c700ae6fd880e4fc61db4af4c12730d"
         },
         {
           "path": "packages/setuptools/setuptools/_vendor/packaging/licenses/__pycache__/_spdx.cpython-313.pyc",
-          "sha256": "227df2b6d5bab79f9c31deb5a435e86b54307e7433ebaaad1a3afdee3954fc37"
+          "sha256": "e88bd9faddbaa512b68f374de6334eb17ed9f5ec5f4fe5ba123dab2587a9f1ee"
         },
         {
           "path": "packages/setuptools/setuptools/_vendor/packaging/licenses/_spdx.py",
@@ -844,8 +886,8 @@
     }
   ],
   "observed_from": {
-    "code_sha": "6ba9c229b3cfae3d106b71687553abe18c81a00f",
-    "ci_run": 38691471314,
-    "artifact_id": 11952756207
+    "code_sha": "b6a5740fc9a8ad1d225e7271d2cadcba89c1d8dc",
+    "ci_run": 38696191089,
+    "artifact_id": 11954004962
   }
 }

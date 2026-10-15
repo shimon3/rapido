@@ -2,7 +2,53 @@
 
 État vérifié le 15 octobre 2026. **Bêta publique non approuvée.** Aucun accord de fusion/publication n'est impliqué par ce document. Pas de nouvelle fonctionnalité prévue.
 
-## Dernière validation fonctionnelle — CI #189
+## Dernière étape — dépendances et notices, CI #190
+
+Code `b6a5740fc9a8ad1d225e7271d2cadcba89c1d8dc`,
+[CI #190](https://github.com/shimon3/rapido/actions/runs/38696191089) réussie :
+214 régressions, 5 fixtures signées ignorées après exécution dédiée, 105 sous-tests,
+1 avertissement ; 15 tests de signature dédiés réussis, avec recoupement de la suite.
+`pip check`, les deux sondes WebView2, installateur/portable et Firefox passent ;
+release ignorée. Runner Windows Server 2025, pas une acceptation Windows 10/11.
+Un suivi ajoute l'arrêt immédiat si une installation pip échoue ; sa CI reste
+à vérifier, sans modification du code applicatif testé ici.
+
+Les 41 versions observées sont figées dans
+[les contraintes Windows](../packaging/constraints-windows-build.txt), appliquées
+aux installations et aux outils de build connus. Le contrôle exige le même
+inventaire, interroge les endpoints PyPI de versions précises et refuse les avis
+actifs, retraits de fichiers/version ou réponses non vérifiées. Le
+[rapport #190](dependency-advisory-snapshot-20261015.json) contient 41 réponses
+vérifiées sans avis actif retourné à cet instant. Les avis retirés sont conservés.
+Ce résultat n'est pas une absence démontrée de vulnérabilités ; les dépendances
+natives et celles installées plus tard pour Selenium restent à examiner. Les
+versions seules ne constituent pas un verrouillage par empreintes des paquets.
+
+Les cinq DLL Microsoft du SDK WebView2 correspondent octet pour octet au paquet
+NuGet 1.0.3856.49. Ses deux textes originaux LICENSE/NOTICE sont conservés avec
+[provenance et empreintes](../packaging/licenses/Microsoft.Web.WebView2-1.0.3856.49/PROVENANCE.md).
+Le collecteur vérifie les cinq DLL installées, la version du porteur pywebview
+et les deux textes avant de les copier ; un écart arrête le build. Aucun droit
+ou engagement de fourniture de sources n'est inventé. Les autres composants,
+la compatibilité d'ensemble et les obligations LGPL/MPL restent ouverts.
+
+Le ZIP #190 a été téléchargé : 154 fichiers de charge utile, 55 entrées binaires
+embarquées et 117 textes de licence de packages vérifiés. Les 41 versions et le
+rapport PyPI, les cinq DLL SDK et les deux textes d'origine concordent.
+[Inspection complète](beta-payload-inspection-20261015.json) et
+[ressources natives déclarées](beta-native-version-resources-20261015.json).
+
+| Artefact #190 | SHA-256 vérifiée |
+| --- | --- |
+| Archive Actions | `46713a203094f27e1b5600358701df2d056c25d9bca75c7092612594bd4929fc` |
+| ZIP portable | `177818d1f09748fe5a32f980023115861af81654c2395ed7b5c556185d11b52c` |
+| Installateur | `3ee85e1b5906d99fb51a297e557daf5ed179d57bd8ac1ed7fd1aa0616707aa7b` |
+
+Les sections suivantes sont historiques : leurs chiffres/empreintes ne désignent
+pas #190. Les fichiers JSON d'inventaire/inspection/versions natives courants
+ont été actualisés sur #190 ; `critical-actions-validation` concerne #189.
+
+## Validation fonctionnelle des actions — référence #189
 
 Code `2016be14c8be31f0c45de4b4d175760e8e8b5adc`,
 [CI Windows #189](https://github.com/shimon3/rapido/actions/runs/38693975564) réussie :
@@ -32,9 +78,7 @@ les vrais helpers/handlers avec DOM simulé ; WebView2 exerce les vrais dialogue
 et handlers avec POST destructifs interceptés. Les tests backend utilisent de
 vraies tâches asyncio et des fichiers temporaires. L'événement cancel est
 synthétique : pas de validation d'une touche physique ni certification Windows
-10/11. Les anciens artefacts inspectés ci-dessous concernent #187, pas #189.
-L'inventaire et les collecteurs sont exécutés dans #189, mais aucune nouvelle
-inspection indépendante de son ZIP n'est revendiquée.
+10/11. Les empreintes de la section historique suivante concernent #187. #189 n'avait pas été inspecté indépendamment ; les preuves courantes ont depuis été actualisées sur #190.
 
 ## Référence de build inspectée — CI #187
 

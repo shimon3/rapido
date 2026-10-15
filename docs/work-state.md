@@ -10,33 +10,38 @@ Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actio
 
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`. #30 reconciliation is complete. #3/#26/#28 remain open because fixes are unmerged or acceptance gates unresolved.
 
-## Latest validated code — CI #189 SUCCESS
+## Latest validated code — CI #190 SUCCESS
 
-Code `2016be14c8be31f0c45de4b4d175760e8e8b5adc`:
-https://github.com/shimon3/rapido/actions/runs/38693975564
+Code `b6a5740fc9a8ad1d225e7271d2cadcba89c1d8dc`:
+https://github.com/shimon3/rapido/actions/runs/38696191089
 
-- 194 general regression tests passed, 5 signed-fixture skips after separate execution, 105 subtests, 1 warning.
+- 214 general regression tests passed, 5 signed-fixture skips after separate execution, 105 subtests, 1 warning.
 - Dedicated signature run: 15 passed, no skips — 9 policy/unit tests, 1 real unsigned-file test and 5 real signed-PE fixture tests. Previous wording implying all 15 were real signed fixtures was inaccurate; PR #32 and current report are corrected. The two executions overlap, do not sum them as unique tests.
 - Desktop/native compilation, real-window self-test including both confirmation probes, installer/uninstaller, installed/portable coexistence and real Firefox all passed. Build token Contents:read; release skipped.
 - Runner Windows Server 2025 is not Windows 10/11 validation.
-- Python is pinned to 3.13.16; build TLS reports OpenSSL 3.5.9. CI #189 confirms that baseline. The independently inspected #187 ZIP DLL resources report the same; no independent #189 ZIP inspection is claimed. Resource strings are not publisher verification.
+- Python is pinned to 3.13.16; build TLS reports OpenSSL 3.5.9. CI #190 confirms that baseline and the independently inspected #190 DLL resources report the same. Resource strings are not publisher verification.
 
 Final documentation-only checkpoint follows this SHA with [skip ci]. No runtime/build/test/workflow changes after validated code. Do not claim documentation HEAD itself ran CI; future authorized integration requires exact-head/integration checks.
 
-## Independently inspected reference artifact — #187
+## Independently inspected reference artifact — #190
 
-Artifact `11952756207`; archive digest matches GitHub:
-`d5eb35976f535c69f2c28011048043f44e3402e8d97b0d22c724c8a30fb441f7`.
+Artifact `11954004962` at code `b6a5740`. Downloaded archive SHA-256 matches GitHub:
+`46713a203094f27e1b5600358701df2d056c25d9bca75c7092612594bd4929fc`.
+154 payload file hashes/exact membership, 55 embedded native-host binary hashes,
+117 package license-text hashes, Python license and unchanged project LICENSE verified.
+All 41 installed versions match the constraints; all 41 embedded advisory responses
+verified with empty active lists. Five SDK DLL hashes and two original SDK text
+hashes checked. No pytest/_pytest names. No complete security/license verdict.
 
-154 payload files (excluding generated third-party evidence), all file hashes and exact file membership checked. All 55 embedded native-host binary hashes independently checked from final executable bytes. No pytest/_pytest module names. 41 build-environment distributions, 115 package license texts plus Python 3.13.16 license verified; project LICENSE text unchanged after line-ending normalization. No Python312.dll remains on disk.
-
-Durable #187 artifact evidence (not a fresh inspection of #189):
-- `docs/beta-payload-inspection-20261015.json`: #187 archive/asset hashes, module/native candidates and unmatched native list.
-- `docs/beta-build-inventory-20261015.json`: complete #187 observed versions/license evidence. Includes build/test tools, not all assumed shipped.
-- `docs/beta-native-version-resources-20261015.json`: actual on-disk native hashes and PE resource strings, method/provenance explicit.
-- `docs/beta-readiness-20261015.md`: detailed review, remaining gates/difficulty/conditional effort plan. Old `beta-artifact-verification-20261015.json` concerns #183 only.
-
-Full module/native payload manifest is `third-party/payload.json` inside #187's artifact. Module ownership candidates match exact installed RECORD names (not bytecode identity); native candidates match size/SHA-256. Unknown/ambiguous entries remain explicit. This is not runtime admission or license/security clearance.
+Current #190 evidence: `docs/beta-payload-inspection-20261015.json`,
+`docs/beta-build-inventory-20261015.json`,
+`docs/beta-native-version-resources-20261015.json`,
+`docs/dependency-advisory-snapshot-20261015.json`.
+Full payload manifest is `third-party/payload.json` inside #190's artifact.
+Module ownership candidates match RECORD names, native candidates match bytes;
+unknown/ambiguous entries remain visible. Older `beta-artifact-verification-20261015.json`
+and `critical-actions-validation-20261015.json` are #183/#189 historical proofs.
+`docs/beta-readiness-20261015.md` holds remaining gates and conditional effort plan.
 
 ## Completed corrections — do not reapply
 
@@ -58,13 +63,13 @@ The initial engine-only suspicion was refined by reading app.redownload: a SINGL
 
 Current backend correction retains the old task until completion, issues cancellation once, shields cleanup from caller cancellation and propagates cancelled operations instead of committing restart. Interrupted active downloads remain paused with partial state. Finished-task removal checks identity to preserve a replacement task. 35 targeted engine/restart/dialog/API tests and 42 subtests pass locally (1 existing warning). Final CI #189 validates this engine change and all UI/runtime checks; release skipped. Code remains on the draft work branch.
 
-Current validation summary: `docs/critical-actions-validation-20261015.json`. Destructive UI POSTs are intercepted during WebView2 probes; real temporary-file/task backend tests separately verify cancellation ordering and completed-file preservation. No physical keyboard or end-to-end destructive UI/API interaction certification is implied.
+Historical focused #189 action summary: `docs/critical-actions-validation-20261015.json`; #190 reran those checks successfully. Destructive UI POSTs are intercepted during WebView2 probes; real temporary-file/task backend tests separately verify cancellation ordering and completed-file preservation. No physical keyboard or end-to-end destructive UI/API interaction certification is implied.
 
 ## Current task — reviewed build versions and SDK notices
 
 Read 41 exact version endpoints in PyPI JSON on 2026-10-15; no advisories/yanks returned. `docs/dependency-advisory-snapshot-20261015.json` is a dated scoped observation, NOT a vulnerability-free/native-library/license verdict. New `scripts/check_dependency_advisories.py` validates response identity/schema/withdrawal dates, bounds retries and fails on unverified metadata, active advisories, any release-file yank or installed-version drift. Unknown inventory names are not queried. 33 targeted advisory/license/payload/release-policy tests + 12 subtests pass; real local API run verified all 41 responses.
 
-`packaging/constraints-windows-build.txt` pins all 41 observed build-environment versions (including pip); install uses runtime/build constraints and pip check. Exact versions only: no artifact hashes or byte reproducibility claimed. Isolated build tools not listed and later Selenium smoke dependencies remain outside this version matrix. CI is pending for these changes.
+`packaging/constraints-windows-build.txt` pins all 41 observed build-environment versions (including pip); install uses runtime/build constraints and pip check. Exact versions only: no artifact hashes or byte reproducibility claimed. Isolated build tools not listed and later Selenium smoke dependencies remain outside this version matrix. CI #190 succeeded on `b6a5740`: 214 regression tests, 5 fixture skips, 105 subtests, 1 warning; 15 dedicated signature tests separately. pip check, all 41 live advisory responses, SDK identity checks, both WebView2 probes, installer/portable and Firefox passed; release skipped. Actual #190 ZIP inspected: 154 file hashes/membership, 55 embedded binary hashes, 117 package text hashes, 5 SDK DLLs and 2 original SDK texts checked. Current evidence JSON files now refer to #190. A follow-up adds immediate PowerShell exits after each pip install command so pip check cannot mask a failed install; its CI is pending. Runtime code is unchanged by that follow-up.
 
 Official NuGet `Microsoft.Web.WebView2 1.0.3856.49` package downloaded; all five SDK DLLs in actual #187 artifact match exact package entries. Original LICENSE.txt/NOTICE.txt preserved under packaging/licenses with package/text/native hashes and provenance. Collector adds both SDK texts only after checking pywebview 6.2.1, all five installed DLL identities and both text hashes; mismatch stops the Windows build. Actual #187 DLL bytes passed this new collector locally. WebBrowserInterop files, independent SDK/runtime signing, source obligations and overall compatibility are not cleared by this match.
 
