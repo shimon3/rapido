@@ -1,12 +1,18 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: 5d7659f, CI #206. Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-15 (Claude). Latest validated code: ce75127, run 38787572553 attempt 3 (intermittent self-test failure open). Start here; do not repeat repository overview or completed PR reconciliation.
 
 ## Goal and authority
 
 First stable Windows beta, essential corrections only. Branch `work/beta-engine-guards-20261015`, draft PR #33 targets draft PR #32's `work/security-26-followup-20261015` (dependent on #29).
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
+
+## Completed focus — refusal reasons and browser name in the extension (Claude, 9d34bf0 + ce75127)
+
+VM findings fixed: video button said "Rapido n'est pas lancé" for the intentional S3 video disable; right-click video menu failed with only a "!" badge; popup said "Capture Chrome" in Edge. Background now returns fixed codes (video_disabled, private, browser_session, unavailable) — no raw error text reaches pages; button shows short reason + tooltip; failed menu actions show an in-page notice from the content script (closed shadow DOM, sender id checked, unknown codes -> unavailable) and set the toolbar tooltip; popup names Edge/Chrome/Firefox (Client Hints, `Edg/` fallback, moz-extension). Node tests run the real background, content and popup scripts; S3 static test updated to require the unconditional `noticeError("video_disabled")` and no fetch/post/native call in `captureVideo`.
+
+CI: #207 (9d34bf0) failed only that outdated static test. [Run 38787572553](https://github.com/shimon3/rapido/actions/runs/38787572553) (#208, ce75127): attempts 1 and 2 failed the self-test with `main_loaded: false` only (title, table, download, native pipe/capture/handoff all true); attempt 3 SUCCESS: 242 passed /5 skipped /136 subtests, `main_loaded: true`; artifact `12000002327` digest `b0da09541e73735d98053ccb63ff35dae1b3a2dd4a54e80473eaf2acc6313a42`. Control: rerun of #206 (5d7659f) passed. The desktop window never loads extension files; cause of the intermittent `main_win.events.loaded.wait(30)` timeout NOT identified (2 of 3 attempts on ce75127, 0 of 2 on 5d7659f). Open follow-up: investigate the self-test loaded-event wait before relying on CI as a release gate. VM retest of the three texts pending.
 
 ## Completed focus — Chromium cmd.exe relay in launcher admission (Claude, 5d7659f)
 
