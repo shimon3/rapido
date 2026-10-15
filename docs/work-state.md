@@ -40,6 +40,16 @@ Pending: save branch remotely, create a dependent draft PR against `work/securit
 
 Draft PR #33 is open against #32; first beta code `f39a7f8` is remotely saved and CI #180 (`38683841431`) passed regression/build steps and is continuing installer/browser checks. A further focused regression reproduced a real dynamic-split failure: a response matching the originally requested end was rejected after the supervisor shortened seg.end. The worker now validates against captured requested_end while still clipping writes to the segment's current ownership. This is new code requiring another Windows CI; do not claim #180 validates it. New focused engine count: 21 tests.
 
+## Latest beta validation and current packaging task
+
+PR #33 code `0dd20fc3d52457b0a33dd2f5bbfe6494f1fc9dee`, [CI #181](https://github.com/shimon3/rapido/actions/runs/38684202772): SUCCESS. 175 regression passes, 5 signed-fixture skips after dedicated execution, 88 subtests, 1 warning; 15 dedicated Authenticode tests passed. Full compiled/install/browser pipeline passed; release job skipped.
+
+Downloaded and inspected artifact `11949652428`: archive SHA-256 matches GitHub's digest `8114fb77195d97547ee1e4f084f940fbf595ab6e41a0fb7471d0f821b4540b19`. Portable has 166 entries and only four license texts; source project license matches after LF/CRLF normalization. No ffmpeg.exe/deno.exe present. Individual installer/portable hashes are in the beta readiness report.
+
+Current targeted work: build-only license evidence collector, `scripts/collect_license_evidence.py`, three focused tests, and a workflow step placing evidence under `dist/Rapido/third-party` before installer/ZIP generation. It records installed build-environment packages/versions/license metadata and copied texts/hashes; rejects escaping paths, flags missing texts, refuses missing Python license. It explicitly does NOT certify compliance or exact runtime contents. No package code is imported or host environment/absolute paths exported. Local real trial: 25 installed distributions, 36 texts copied, Python license absent on this Linux runtime (reported correctly). Unit/workflow tests: 5 passed, 8 subtests.
+
+Next: push collector and run Windows CI; inspect the resulting ZIP for interpreter/package notices and inventory flags, then record final evidence. No further runtime engine changes in this packaging task.
+
 ## Beta review and remaining work
 
 `docs/beta-readiness-20261015.md` records the 26-PR inventory, ancestry findings, initial primary-source license review and a task/difficulty/effort table. PRs #2/#8/#9 are separate; defer nonessential additions. #3/#28 remain open because fixes are unmerged; #30 reconciliation is already complete.

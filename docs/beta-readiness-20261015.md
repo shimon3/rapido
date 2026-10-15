@@ -4,6 +4,8 @@
 
 ## Ce qui est vérifié
 
+- Moteur consolidé PR #33, code `0dd20fc3d52457b0a33dd2f5bbfe6494f1fc9dee` : [CI Windows #181](https://github.com/shimon3/rapido/actions/runs/38684202772) réussie. 175 régressions réussies, 5 fixtures ignorées après exécution dédiée ; les 15 tests Authenticode dédiés ont tous réussi. Compilation, fenêtres, installateur/portable et Firefox réel réussis ; release ignorée.
+- Inspection effective de l'artefact #181 : 166 entrées dans le ZIP portable, aucun `ffmpeg.exe` ou `deno.exe`, licence Rapido présente et identique au texte source après normalisation LF/CRLF. Empreinte de l'archive Actions : `8114fb77195d97547ee1e4f084f940fbf595ab6e41a0fb7471d0f821b4540b19`. SHA-256 installateur : `053bff5263dca809f328ef1b94f967eb1e3e2ffe67a3d02b0e8ea811812eaed9` ; ZIP portable : `71bea57fb088cb9997948080db0c873f0f842cea3244382418f73b55f3314114`. Ces empreintes concernent #181 uniquement, pas un build ultérieur.
 - PR #32, code `a4cae19e43cffa8028814e46f42b125e1971d918` : [CI Windows #179](https://github.com/shimon3/rapido/actions/runs/38682625394) réussie. 15 tests de signature réels sans skip ; 154 régressions réussies, 5 tests de fixtures ignorés dans la suite générale après leur exécution dédiée ; 88 sous-tests, 1 avertissement.
 - Les tests réels couvrent signature valide/mauvais signataire/altération, verrouillage écriture/suppression, remplacement par un autre processus, remplacement entre deux vérifications, jonction NTFS et lien symbolique. Le vérificateur reste une brique non connectée à l'autorisation des captures.
 - Compilation, fenêtre réelle, installation/désinstallation, coexistence portable, Firefox réel et empaquetage réussis. Token de compilation en lecture seule ; job release ignoré.
@@ -37,6 +39,24 @@ Référence technique : [RFC 9110, If-Range et validateurs](https://www.rfc-edit
 
 ## Licences et provenance : revue initiale, pas conformité attestée
 
+L'inspection du ZIP #181 n'a trouvé que la licence Rapido et trois textes de
+licence de distributions Python. Le nouveau collecteur
+`scripts/collect_license_evidence.py` rassemble donc les textes de licence
+enregistrés par les distributions installées et le LICENSE de l'interpréteur,
+avec noms/versions/empreintes et problèmes explicites. Ils sont destinés à
+`Rapido/third-party/` dans le portable et l'installateur. Les chemins de métadonnées
+qui sortent du répertoire de packages ne sont pas copiés. Le collecteur ne charge
+pas le code des packages et n'exporte pas les variables d'environnement ou les
+chemins absolus du runner.
+
+Le rapport indique `scope=installed-build-environment` et
+`compliance_verified=false` : outils de compilation/tests compris, sans prétendre
+identifier exactement les modules distribués ou résoudre les obligations des
+DLL natives. Le build refuse l'absence du LICENSE Python ; les autres textes
+manquants sont signalés pour revue. Le collecteur a passé trois tests ciblés et
+un essai réel sur 25 distributions Linux (36 textes collectés). Validation et
+inspection Windows de ce nouvel empaquetage encore nécessaires.
+
 | Élément | Source vérifiée / point à terminer |
 | --- | --- |
 | Code Rapido | `LICENSE` contient MIT avec le titulaire **Samuel Tuil** ; l'installateur affiche Samuel Bentouza. Conserver les attributions existantes tant que la titularité n'est pas clarifiée. Le pipeline copie désormais ce LICENSE sans modification dans le dossier distribué. |
@@ -56,7 +76,7 @@ Référence Python : [licence de Python 3.12 et composants incorporés](https://
 
 | Priorité | Tâche restante | Difficulté | Effort estimé | Condition de fin |
 | --- | --- | --- | --- | --- |
-| P0 | Valider la branche moteur consolidée sur Windows | Moyenne | 2–4 h, corrections éventuelles comprises | Régressions, compilation, installateur et navigateur réussis sur ce code exact |
+| Terminé | Valider la branche moteur consolidée sur Windows | Moyenne | 0 h restantes pour ce correctif | CI #181 réussie sur `0dd20fc` ; les changements d'empaquetage suivants ont leur propre validation |
 | P0 | Revue finale sécurité/intégration des PR indispensables | Élevée | 1–2 j | Routes/IPC/persistance/handoff relus, conflits traités sur branche, critères #3/#28 couverts ; aucune fusion avant accord |
 | P0 | Définir la garantie réelle de la bêta pour #26 | Élevée | 0,5–1 j de revue | Distinguer bêta par utilisateur et installation administrée ; limites explicites, aucune prétention de protection contre le compte compromis |
 | P0 | Inventaire du bundle, versions, notices et provenance | Moyenne à élevée | 0,5–1,5 j | Composants/versions/hashes/licences exacts, notices présentes, attributions clarifiées |

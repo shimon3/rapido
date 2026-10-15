@@ -93,6 +93,9 @@ jobs:
           Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
           Copy-Item -LiteralPath LICENSE -Destination dist/Rapido/LICENSE
 
+      - name: Collect build-environment license evidence
+        run: python scripts/collect_license_evidence.py --output dist/Rapido/third-party
+
       - name: Self-test (real window, engine, yt-dlp)
         timeout-minutes: 4
         shell: pwsh
