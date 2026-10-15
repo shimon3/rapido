@@ -808,13 +808,30 @@ class Manager:
         proc = self._procs.get(dl_id)
         if proc is not None and proc.is_alive():
             proc.terminate()
-        t = self.tasks.pop(dl_id, None)
-        if t and not t.done():
-            t.cancel()
+        # Keep the old task registered until cleanup really finishes. Another
+        # request must await the same writer before deleting/resetting its file.
+        t = self.tasks.get(dl_id)
+        if t is not None:
             try:
-                await t
-            except (asyncio.CancelledError, Exception):
-                pass
+                if not t.done():
+                    if not t.cancelling():
+                        t.cancel()
+                    try:
+                        # Cancelling an API caller must not cancel the writer's
+                        # cleanup a second time or allow that caller to reset it.
+                        await asyncio.shield(t)
+                    except asyncio.CancelledError:
+                        if asyncio.current_task().cancelling():
+                            dl = self.downloads.get(dl_id)
+                            if dl is not None and dl.status == "downloading":
+                                dl.status, dl.speed = "paused", 0
+                                self.save(force=True)
+                            raise
+                    except Exception:
+                        pass
+            finally:
+                if t.done() and self.tasks.get(dl_id) is t:
+                    self.tasks.pop(dl_id, None)
 
     # ---------- limitation de debit (globale) ----------
     async def _throttle(self, nbytes: int):
