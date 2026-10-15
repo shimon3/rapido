@@ -1,6 +1,6 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: 855419c, CI #215.
+Updated 2026-10-15 (Claude). Latest validated code: 855419c, CI #215 (self-test load-wait fixed in 2d77b06/6437b82; one portable post-uninstall self-test failure still unexplained). Start here; do not repeat repository overview or completed PR reconciliation.
 
 ## Goal and authority
 
