@@ -82,8 +82,24 @@ SOURCE_NOTICES = {
         "text_dir": "texts",
         "files": {'pydantic_core/_pydantic_core.cp313-win_amd64.pyd': '6c320aa8f5a182d815aeeef4332cd44a36cf1f3ca4a0653d33bc0079c4fb3f7c'},
     },
+    # libffi compiled statically from cffi's bundled src/c/libffi_x86_x64.
+    ("cffi", "2.1.1"): {
+        "folder": "cffi-2.1.1",
+        "binary": True,
+        "texts": {"NOTICE.md": None,
+                  "LIBFFI-NOTICES.txt": "66c393b49ba03bc33586b2380894580c6d2536e0cc93f8f5c64428f6715a746b"},
+        "files": {'_cffi_backend.cp313-win_amd64.pyd': '21b7160d4a6da9590794fdb38718982060b5c92d56fb0e441fc8b62ee789be8d'},
+    },
+    # Interop assemblies committed in the pywebview repository (not WebView2 SDK).
+    ("pywebview", "6.2.1"): {
+        "folder": "pywebview-6.2.1",
+        "binary": True,
+        "texts": {"WEBBROWSERINTEROP.md": None},
+        "files": {'webview/lib/WebBrowserInterop.x64.dll': 'f6a646470f0e1058224a52e8e2e217501dca46939b30bfc9a5dd4dcdd43f088d',
+                  'webview/lib/WebBrowserInterop.x86.dll': '4e527297fbea7c5a0419f3a6af307c2681787beb0bf0ef3fea849a7fd85a08dc'},
+    },
 }
-SOURCE_NOTICE_PACKAGES = {"pystray", "certifi", "pillow", "pydantic-core"}
+SOURCE_NOTICE_PACKAGES = {"pystray", "certifi", "pillow", "pydantic-core", "cffi", "pywebview"}
 
 # Notices of components compiled into the official Windows Python build that
 # its LICENSE.txt does not reproduce. Selected by interpreter version only.

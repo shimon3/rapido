@@ -178,7 +178,9 @@ class LicenseEvidenceTests(unittest.TestCase):
         expected = {"pystray": ("SOURCE.md", b"1907f8681d6d421517c63d94f425f9cdd74d0034"),
                     "certifi": ("SOURCE.md", b"5379b709be8a8595803a7bd907f87e302fc6ae1d"),
                     "pillow": ("NOTICE.md", b"1cca606cd25738df4ed873d5ad46bbdb3d83b5cbca291f6b4ff13a4df6b0bbe8"),
-                    "pydantic-core": ("NOTICE.md", b"ac24753c2ed315f8dc22d6470fa868970e3705a0888d879704e872d53f21452d")}
+                    "pydantic-core": ("NOTICE.md", b"ac24753c2ed315f8dc22d6470fa868970e3705a0888d879704e872d53f21452d"),
+                    "cffi": ("NOTICE.md", b"fd33e7700f0ebafe6f30bd5053f13327221b77a2"),
+                    "pywebview": ("WEBBROWSERINTEROP.md", b"2fc63cd6a92b8630c14f6d4dd73f9691591f8eea")}
         for (name, _version), reviewed in evidence.SOURCE_NOTICES.items():
             for text, digest in reviewed["texts"].items():
                 data = (base / reviewed["folder"] / text).read_bytes().replace(b"\r\n", b"\n")
@@ -187,6 +189,9 @@ class LicenseEvidenceTests(unittest.TestCase):
             notice, reference = expected[name]
             self.assertIn(reference, (base / reviewed["folder"] / notice).read_bytes())
         self.assertIn("FreeType Project".encode(), (base / "pillow-12.3.0/NOTICE.md").read_bytes())
+        libffi = (base / "cffi-2.1.1/LIBFFI-NOTICES.txt").read_bytes()
+        self.assertEqual(libffi.count(b"===== src/c/libffi_x86_x64/"), 6)
+        self.assertIn(b"Red Hat, Inc.", libffi)
 
     def test_supplement_requires_exact_module_identity_and_keeps_conflict_visible(self):
         with tempfile.TemporaryDirectory() as folder:
