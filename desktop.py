@@ -31,6 +31,12 @@ _rapido = None
 
 WEBVIEW2_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 
+# The self-test thread starts with webview.start(), before WebView2 exists. The
+# first window's wait therefore covers the WebView2 cold start, which on CI
+# runners intermittently exceeded 30 s (loaded fired between 30 and 50 s).
+SELFTEST_FIRST_LOAD_TIMEOUT = 90
+SELFTEST_POPUP_LOAD_TIMEOUT = 30
+
 
 def parse_args():
     p = argparse.ArgumentParser(prog="Rapido")
@@ -180,6 +186,8 @@ def main() -> int:
 
     attach(main_win, BASE_URL + "/", rapido._LOCAL_AUTH)
     main_win.events.closing += on_main_closing
+    # Registered before webview.start() so no window event can be missed.
+    main_timeline = track_window_load(main_win) if args.selftest else None
 
     def show_main():
         try:
@@ -265,7 +273,7 @@ def main() -> int:
             quit_all()
             return
         if args.selftest:
-            run_selftest(main_win, open_popup, result)
+            run_selftest(main_win, open_popup, result, main_timeline)
             quit_all()
 
     try:
@@ -381,12 +389,46 @@ def check_confirmation_ui(window, fixture_id, *, popup=False):
     return {"ok": False, "error": "Dialog UI self-test timed out"}
 
 
-def run_selftest(main_win, open_popup, result: dict):
+def track_window_load(window, clock=time.monotonic) -> dict:
+    """Record when pywebview's shown/before_load/loaded first fire (seconds).
+
+    before_load fires on WebView2 NavigationCompleted and loaded after the
+    pywebview bridge is injected, so a slow run shows which phase was late.
+    """
+    start = clock()
+    timeline: dict[str, float] = {}
+
+    def mark(name):
+        def handler():
+            timeline.setdefault(name, round(clock() - start, 2))
+        return handler
+
+    window.events.shown += mark("shown")
+    window.events.before_load += mark("before_load")
+    window.events.loaded += mark("loaded")
+    return timeline
+
+
+def wait_main_loaded(main_win, result: dict, timeline: dict | None = None,
+                     timeout: float = SELFTEST_FIRST_LOAD_TIMEOUT) -> bool:
+    """Wait for the real loaded event of the trusted main page; never assume it."""
+    loaded = main_win.events.loaded.wait(timeout)
+    result["main_loaded"] = loaded
+    if timeline is not None:
+        result["main_load_timeline"] = dict(timeline)
+    if loaded:
+        result["main_url_ok"] = main_win.evaluate_js("location.href") == BASE_URL + "/"
+    else:
+        result["main_url_ok"] = False
+    return loaded
+
+
+def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None = None):
     """Verifie la fenetre, le moteur de telechargement, yt-dlp et les petites fenetres."""
     import webview
     try:
         result["renderer"] = webview.renderer
-        result["main_loaded"] = main_win.events.loaded.wait(30)
+        wait_main_loaded(main_win, result, main_timeline)
         time.sleep(1.5)
         result["main_title"] = main_win.evaluate_js("document.title")
         result["main_rows_html"] = main_win.evaluate_js("document.querySelector('#thead') !== null")
@@ -407,7 +449,7 @@ def run_selftest(main_win, open_popup, result: dict):
         result["yt_dlp"] = yt_dlp.version.__version__
 
         popup = open_popup(f"/w?view=progress&id={dl['id']}", 520, 360)
-        result["popup_loaded"] = popup.events.loaded.wait(30)
+        result["popup_loaded"] = popup.events.loaded.wait(SELFTEST_POPUP_LOAD_TIMEOUT)
         time.sleep(1.5)
         result["popup_title"] = popup.evaluate_js("document.title")
         result["popup_token"] = popup.evaluate_js("!!new URLSearchParams(location.search).get('w')")
@@ -500,7 +542,7 @@ def run_selftest(main_win, open_popup, result: dict):
 
 
         result["ok"] = bool(
-            result["renderer"] == "edgechromium" and result["main_loaded"]
+            result["renderer"] == "edgechromium" and result["main_loaded"] and result["main_url_ok"]
             and result["main_title"] == "Rapido" and status == "completed" and result["download_file_ok"]
             and result["popup_loaded"] and result["popup_token"] and result["popup_resized"]
             and result["settings_desktop"] and result["csp"] and result["guard_ok"]
