@@ -89,7 +89,9 @@ jobs:
 
       - name: Bundle native host with the desktop executable
         shell: pwsh
-        run: Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
+        run: |
+          Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
+          Copy-Item -LiteralPath LICENSE -Destination dist/Rapido/LICENSE
 
       - name: Self-test (real window, engine, yt-dlp)
         timeout-minutes: 4

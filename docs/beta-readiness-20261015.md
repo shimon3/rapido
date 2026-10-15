@@ -1,0 +1,75 @@
+# Rapido — préparation de la première bêta Windows
+
+État vérifié le 15 octobre 2026. **Bêta publique non approuvée.** Aucun accord de fusion/publication n'est impliqué par ce document. Pas de nouvelle fonctionnalité prévue.
+
+## Ce qui est vérifié
+
+- PR #32, code `a4cae19e43cffa8028814e46f42b125e1971d918` : [CI Windows #179](https://github.com/shimon3/rapido/actions/runs/38682625394) réussie. 15 tests de signature réels sans skip ; 154 régressions réussies, 5 tests de fixtures ignorés dans la suite générale après leur exécution dédiée ; 88 sous-tests, 1 avertissement.
+- Les tests réels couvrent signature valide/mauvais signataire/altération, verrouillage écriture/suppression, remplacement par un autre processus, remplacement entre deux vérifications, jonction NTFS et lien symbolique. Le vérificateur reste une brique non connectée à l'autorisation des captures.
+- Compilation, fenêtre réelle, installation/désinstallation, coexistence portable, Firefox réel et empaquetage réussis. Token de compilation en lecture seule ; job release ignoré.
+- OS du runner : **Windows Server 2025**. Ce résultat ne prouve pas une validation sur Windows 10 ou Windows 11.
+- `main` reste sur `18e0997`. Les correctifs sont dans des branches/PR, pas dans la version publiée.
+
+## Revue des PR : ne pas tout fusionner aveuglément
+
+Inventaire de 26 PR ouvertes consulté via l'API GitHub ; vérification locale de l'ascendance de chaque HEAD vers #32. Une ascendance confirme la présence des commits, pas une revue complète ni l'absence de régressions.
+
+| PR | Constat et traitement pour la bêta |
+| --- | --- |
+| #6 → #7 → #10 → #12 → #13 → #14 → #15 → #16 → #17 → #18 → #19 → #20 → #21 → #22 → #23 → #24 → #25 → #27 → #29 → #32 | HEAD présents dans l'ascendance de #32. Les premières PR ont des bases communes et des diff cumulatifs ; la chaîne décrit la présence des changements, pas un ordre de fusion autorisé. Faire une revue finale de l'ensemble puis préparer l'intégration sans perdre les garde-fous CI. |
+| #11 | HEAD **absent** de #32. Les cinq garde-fous moteur n'étaient donc pas attestés présents ; lecture du code a confirmé leur absence. Repris sélectivement sur `work/beta-engine-guards-20261015`, avec tests et adaptation à la persistance privée actuelle. Aucun ancien workflow n'est réintroduit. |
+| #5 | HEAD non ancêtre. Le confinement des cookies a été repris dans la branche native (commits `8be504d`, `552d065` et protections ultérieures). Comparer les critères de #5 aux tests actuels avant de décider son sort ; ne pas compter son ancien statut comme preuve d'intégration. |
+| #4 | Ancienne conception documentaire, HEAD non ancêtre ; les modèles de menace actuels sont plus récents. Préserver la traçabilité, pas un blocage d'exécution à lui seul. |
+| #2 | Dialogues de confirmation et version 1.2.3, non intégrés. Vérifier les parcours annuler/supprimer/recommencer sur WebView2 avant de décider quels correctifs sont indispensables ; ne pas reprendre son ancien workflow publiant automatiquement. |
+| #8, #9 | Langues et notifications de mises à jour : branches séparées non intégrées. Différer les ajouts non indispensables ; ne pas présenter les traductions comme terminées. Aucun téléchargement/exécution d'updater à ajouter. |
+
+### Moteur : correction sélectionnée après la revue
+
+La branche bêta reprend les validateurs ETag/Last-Modified, `If-Range`, le refus d'une ressource modifiée, les écritures courtes/disque plein et les attentes bornées HTTP 429/503. Adaptations supplémentaires :
+
+- Une date `If-Range` n'est utilisée qu'en l'absence d'ETag et avec un `Date` de réponse au moins 60 secondes après `Last-Modified`. Un ETag faible ne devient pas artificiellement un validateur fort.
+- Rafraîchir un lien d'un fichier déjà partiellement écrit exige le même validateur utilisable et la reprise disponible ; la taille seule ne suffit plus. En cas de refus, URL/validateurs d'origine sont conservés et un téléchargement actif reste en pause.
+- Le téléchargement est retiré temporairement de la file pendant la sonde du nouveau lien. Les écritures du fichier `.part` sont non tamponnées pour ne pas avancer la progression sur une simple acceptation en tampon Python.
+- Les validateurs sont conservés dans l'enveloppe DPAPI existante sur Windows. Une ancienne fiche sans validateur reste lisible ; le rafraîchissement d'un fichier partiel non identifiable exige de recommencer depuis zéro.
+
+Référence technique : [RFC 9110, If-Range et validateurs](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5). Ces garde-fous ne sont pas une preuve cryptographique d'authenticité du fichier fourni par un serveur.
+
+## Licences et provenance : revue initiale, pas conformité attestée
+
+| Élément | Source vérifiée / point à terminer |
+| --- | --- |
+| Code Rapido | `LICENSE` contient MIT avec le titulaire **Samuel Tuil** ; l'installateur affiche Samuel Bentouza. Conserver les attributions existantes tant que la titularité n'est pas clarifiée. Le pipeline copie désormais ce LICENSE sans modification dans le dossier distribué. |
+| Python et modules Python | `requirements.txt` énumère les dépendances directes, mais la plupart des versions et dépendances transitives ne sont pas figées. Inventorier les versions réellement embarquées et leurs notices avant distribution. La licence propre de Rapido ne remplace pas celles des dépendances. |
+| Pillow | Le [texte amont](https://github.com/python-pillow/Pillow/blob/main/LICENSE) identifie MIT-CMU. Vérifier aussi les bibliothèques natives effectivement contenues dans la wheel choisie. |
+| FastAPI, HTTPX, pywebview | Sources amont consultées : [FastAPI](https://github.com/fastapi/fastapi/blob/master/LICENSE), [HTTPX](https://github.com/encode/httpx/blob/master/LICENSE.md), [pywebview](https://github.com/r0x0r/pywebview/blob/master/LICENSE). Ce sont des repères de revue, pas la liste complète du bundle ni une validation de chaque version installée. |
+| yt-dlp | Installé par pip et importé comme module. La [documentation amont](https://github.com/yt-dlp/yt-dlp#licensing) distingue le dépôt/wheel sous Unlicense et ses exécutables amont qui contiennent d'autres licences. Ne pas conclure que le bundle Rapido est libre de toute autre obligation à partir de la seule licence yt-dlp. |
+| PyInstaller | L'[exception de distribution](https://pyinstaller.org/en/stable/license.html) permet de choisir la licence de l'application générée sous réserve des dépendances ; le mot GPL sur l'outil ne suffit pas à imposer cette licence à Rapido. |
+| FFmpeg / Deno | Les routes `/api/tools/ffmpeg` et `/api/tools/deno` lancent winget avec `Gyan.FFmpeg` / `DenoLand.Deno`. Le workflow ne les copie pas explicitement dans le bundle ; vérifier les fichiers finaux avant d'attester leur absence. [FFmpeg](https://ffmpeg.org/legal.html) distingue LGPL et options GPL ; [Deno](https://github.com/denoland/deno/blob/main/LICENSE.md) fournit son texte MIT. Vérifier l'artefact effectivement choisi, pas seulement le nom du projet. |
+| Interface, images, nom et comparaison IDM | Aucune revue complète de provenance, de marque ou de similarité avec un logiciel tiers n'a été faite ici. L'absence de conflit avec IDM n'est pas établie : je ne peux pas confirmer ça. La présence d'un LICENSE MIT dans le dépôt ne démontre pas l'origine de chaque élément. |
+
+Référence Python : [licence de Python 3.12 et composants incorporés](https://docs.python.org/3.12/license.html). Il manque encore l'inventaire exact du bundle et les notices tierces correspondantes ; ne pas remplacer ces preuves par une déclaration générale « toutes les dépendances sont MIT ».
+
+## Travail restant, difficulté et effort
+
+**Estimations d'ingénierie**, pas résultats mesurés ni date promise. Une journée représente environ 6 à 8 heures de travail effectif. Les délais de certificat, d'infrastructure ou de réponse externe sont exclus.
+
+| Priorité | Tâche restante | Difficulté | Effort estimé | Condition de fin |
+| --- | --- | --- | --- | --- |
+| P0 | Valider la branche moteur consolidée sur Windows | Moyenne | 2–4 h, corrections éventuelles comprises | Régressions, compilation, installateur et navigateur réussis sur ce code exact |
+| P0 | Revue finale sécurité/intégration des PR indispensables | Élevée | 1–2 j | Routes/IPC/persistance/handoff relus, conflits traités sur branche, critères #3/#28 couverts ; aucune fusion avant accord |
+| P0 | Définir la garantie réelle de la bêta pour #26 | Élevée | 0,5–1 j de revue | Distinguer bêta par utilisateur et installation administrée ; limites explicites, aucune prétention de protection contre le compte compromis |
+| P0 | Inventaire du bundle, versions, notices et provenance | Moyenne à élevée | 0,5–1,5 j | Composants/versions/hashes/licences exacts, notices présentes, attributions clarifiées |
+| P0 | Tests propres Windows 10/11, Chrome/Edge/Firefox, comptes/installations isolés | Élevée | 1,5–3 j | Captures normales/privées/cookies, host absent, pause/reprise/redémarrage, mise à niveau et désinstallation ; sur VM dédiée, jamais le PC utilisateur |
+| P1 | Dialogues critiques, erreurs et parcours sans extension | Moyenne | 0,5–1 j | Annuler/Échap/supprimer/recommencer vérifiés dans les fenêtres réelles |
+| P0 avant diffusion | Revue des artefacts, Defender, hashes, version bêta distincte et retour arrière | Moyenne | 0,5–1 j | Artefacts identifiés par commit, aucun secret/test-key, procédure de réparation/retrait documentée |
+| Décision externe | Identité/certificat de signature de production | Dépend du fournisseur | Non estimable ici ; intégration technique 0,5–1 j une fois les prérequis disponibles | Identité et renouvellement approuvés ; aucune clé de test utilisée en production |
+| Hors garantie bêta actuelle | Résoudre complètement #26 contre le remplacement par le même compte | Très élevée | Prototype/revue/matrice : au moins 5–10 j supplémentaires ; estimation à revoir après choix d'architecture | Ancre système indépendante, exécution/dépendances protégées et sélection navigateur imposée ; la signature seule ne suffit pas |
+
+Pour une bêta au périmètre explicite, prévoir environ **5–10 journées effectives restantes**, selon les défauts trouvés en revue et sur les VM. Ce n'est pas une promesse de calendrier. Si la résistance complète au compte compromis est exigée avant la bêta, ne pas utiliser cette fourchette : le dernier chantier s'ajoute et les prérequis de déploiement restent à établir.
+
+## Prochain ordre de travail
+
+1. Finir la validation Windows du moteur et corriger les échecs réels.
+2. Produire l'inventaire exact et les notices du bundle ; conserver les droits existants.
+3. Vérifier les parcours critiques et la matrice des VM de bureau, puis préparer une revue d'intégration.
+4. Soumettre les éléments concrets nécessitant une décision ; aucune fusion, tag, release ou publication automatique.
