@@ -38,6 +38,8 @@ Focused Linux checks: 20 engine tests passed; combined engine/HTTP integrity/res
 
 Pending: save branch remotely, create a dependent draft PR against `work/security-26-followup-20261015`, inspect Windows CI, correct failures. The Windows workflow is still the only workflow: this new branch has no push trigger; PR runs use read-only build permissions and a release job gated on explicit publication-tag push. No deployment step.
 
+Draft PR #33 is open against #32; first beta code `f39a7f8` is remotely saved and CI #180 (`38683841431`) passed regression/build steps and is continuing installer/browser checks. A further focused regression reproduced a real dynamic-split failure: a response matching the originally requested end was rejected after the supervisor shortened seg.end. The worker now validates against captured requested_end while still clipping writes to the segment's current ownership. This is new code requiring another Windows CI; do not claim #180 validates it. New focused engine count: 21 tests.
+
 ## Beta review and remaining work
 
 `docs/beta-readiness-20261015.md` records the 26-PR inventory, ancestry findings, initial primary-source license review and a task/difficulty/effort table. PRs #2/#8/#9 are separate; defer nonessential additions. #3/#28 remain open because fixes are unmerged; #30 reconciliation is already complete.

@@ -30,6 +30,7 @@ La branche bêta reprend les validateurs ETag/Last-Modified, `If-Range`, le refu
 - Une date `If-Range` n'est utilisée qu'en l'absence d'ETag et avec un `Date` de réponse au moins 60 secondes après `Last-Modified`. Un ETag faible ne devient pas artificiellement un validateur fort.
 - Rafraîchir un lien d'un fichier déjà partiellement écrit exige le même validateur utilisable et la reprise disponible ; la taille seule ne suffit plus. En cas de refus, URL/validateurs d'origine sont conservés et un téléchargement actif reste en pause.
 - Le téléchargement est retiré temporairement de la file pendant la sonde du nouveau lien. Les écritures du fichier `.part` sont non tamponnées pour ne pas avancer la progression sur une simple acceptation en tampon Python.
+- Si un segment est raccourci pendant l'arrivée d'une réponse, sa plage est comparée à la requête réellement envoyée ; seule la partie encore attribuée au worker est écrite. Un test reproduit le refus erroné antérieur puis vérifie ce comportement.
 - Les validateurs sont conservés dans l'enveloppe DPAPI existante sur Windows. Une ancienne fiche sans validateur reste lisible ; le rafraîchissement d'un fichier partiel non identifiable exige de recommencer depuis zéro.
 
 Référence technique : [RFC 9110, If-Range et validateurs](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5). Ces garde-fous ne sont pas une preuve cryptographique d'authenticité du fichier fourni par un serveur.

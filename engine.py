@@ -990,9 +990,10 @@ class Manager:
             if dl.resumable:
                 headers["Accept-Encoding"] = "identity"
             pos = seg.start + seg.done
+            requested_end = seg.end
             before = seg.done
             if dl.resumable:
-                headers["Range"] = f"bytes={pos}-{seg.end}"
+                headers["Range"] = f"bytes={pos}-{requested_end}"
                 validator = if_range_validator(dl)
                 if validator:
                     headers["If-Range"] = validator
@@ -1016,9 +1017,9 @@ class Manager:
                         m = re.fullmatch(r"\s*bytes\s+(\d+)-(\d+)/(\d+)\s*", r.headers.get("content-range", ""))
                         if (not m or int(m.group(1)) != pos or
                                 int(m.group(2)) < int(m.group(1)) or
-                                int(m.group(2)) > seg.end or int(m.group(3)) != dl.size):
+                                int(m.group(2)) > requested_end or int(m.group(3)) != dl.size):
                             raise ResourceChanged(f"Plage inattendue du serveur : {r.headers.get('content-range')!r} "
-                                          f"au lieu de {pos}-{seg.end}")
+                                          f"au lieu de {pos}-{requested_end}")
                         response_end = int(m.group(2))
                         # E5 : des octets compresses ne correspondent plus aux positions du fichier
                         if r.headers.get("content-encoding", "identity").lower() not in ("identity", ""):

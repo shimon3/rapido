@@ -187,6 +187,26 @@ async def test_response_cannot_write_past_its_declared_range():
 
 
 @async_test
+async def test_dynamic_split_after_request_keeps_original_response_bounds():
+    dl = make_download()
+    segment = dl.segments[0]
+    written = []
+    class SplitDuringRequest(FakeStream):
+        async def __aenter__(self):
+            segment.end = 1  # supervisor assigns the tail to another worker
+            return self
+    class RecordingFile(FakeFH):
+        def write(self, chunk):
+            written.append(chunk)
+            return len(chunk)
+    client = FakeClient(SplitDuringRequest())
+    await make_manager(client)._segment_worker(dl, segment, RecordingFile())
+    assert client.headers["Range"] == "bytes=0-4"
+    assert written == [b"he"]
+    assert segment.done == 2
+
+
+@async_test
 async def test_weak_validator_is_not_sent_as_if_range_without_timestamp():
     client = FakeClient(FakeStream(headers={"content-range":"bytes 0-4/5"}))
     dl = make_download()
