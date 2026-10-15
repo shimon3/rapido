@@ -17,6 +17,8 @@ async function scenario(mode) {
   const ticket = "a".repeat(64);
   let mediaReads = 0;
   const messageListeners = [];
+  const notices = [];
+  const titles = [];
   const firefox = mode.startsWith("firefox");
   const gate = new Promise(resolve => {release = resolve;});
   const chrome = {
@@ -44,12 +46,13 @@ async function scenario(mode) {
       }},
     storage: {local:{async get(){return {enabled:true};},async set(){}},
       session:{async get(){mediaReads++;return {};},async set(){mediaWrites++;},async remove(){}}},
-    action:{setBadgeText(){},setBadgeBackgroundColor(){},setTitle(){},onClicked:event()},
+    action:{setBadgeText(){},setBadgeBackgroundColor(){},setTitle(o){titles.push(o.title);},onClicked:event()},
     cookies:{async getAll({url,storeId}) {
       cookieReads++;
       if (firefox) assert.equal(storeId,"firefox-default");
       if (mode === "firefox-default-cookie") return [{}];
       if (mode === "cookie-error") throw new Error("Denied");
+      if (mode === "session-menu") return url.includes("private") ? [{}] : [];
       return mode === "private-target" || (mode === "private-referrer" && url.includes("private")) ? [{}] : [];
     }},
     downloads:{onCreated:{addListener(fn){createdListener=fn;}},
@@ -57,7 +60,7 @@ async function scenario(mode) {
       async cancel(){calls.push("cancel");if (["cancel-failed","completed-after-native"].includes(mode)) throw new Error("Cannot cancel");},
       async erase(){calls.push("erase");if (mode === "erase-failed") throw new Error("Cannot erase");},
       async download(){calls.push("restart");}},
-    webRequest:{onHeadersReceived:{addListener(fn){mediaListener=fn;}}}, tabs:{onRemoved:event(),onUpdated:event()},
+    webRequest:{onHeadersReceived:{addListener(fn){mediaListener=fn;}}}, tabs:{onRemoved:event(),onUpdated:event(),async sendMessage(id,msg,opts){notices.push({id,msg,opts});}},
     contextMenus:{onClicked:{addListener(fn){menuClick=fn;}},create(){}}
   };
   const context = vm.createContext({chrome, URL, navigator:{userAgent:"test"},
@@ -71,13 +74,41 @@ async function scenario(mode) {
     mode === "firefox-unknown-store" ? "future-isolated-store" : "firefox-default";
   if (["completed","interrupted"].includes(mode)) item.state = mode === "completed" ? "complete" : "interrupted";
   assert.equal(typeof createdListener, "function");
+  if (mode === "public-video") {
+    // The video path is intentionally disabled (S3): the page must get a fixed reason code.
+    let reply;
+    const tab={id:3,url:item.url,incognito:false};
+    let async=false;
+    for(const listener of messageListeners) {
+      if (listener({type:"grab-video",src:item.url},{tab,url:item.url},value=>{reply=value;})) async=true;
+    }
+    assert(async,"video request must answer asynchronously");
+    for(let n=0;n<20 && !reply;n++) await new Promise(r=>setImmediate(r));
+    assert.equal(JSON.stringify(reply),JSON.stringify({ok:false,code:"video_disabled"}));
+    assert.equal(calls.length,0,"disabled video path must not reach the native host");
+    return;
+  }
+  if (mode === "video-menu") {
+    await menuClick({menuItemId:"rapido-video",srcUrl:item.url},{id:7,url:item.url,incognito:false});
+    assert.equal(JSON.stringify(notices),JSON.stringify([{id:7,msg:{type:"rapido-notice",code:"video_disabled"},opts:{frameId:0}}]));
+    assert(titles.at(-1).includes("Capture vidéo désactivée"),titles.at(-1));
+    assert.equal(calls.length,0);
+    return;
+  }
+  if (mode === "session-menu") {
+    await menuClick({menuItemId:"rapido-link",linkUrl:"https://example.org/private.zip",pageUrl:"https://example.org/page"},
+      {id:8,url:"https://example.org/page",incognito:false});
+    assert.equal(JSON.stringify(notices.map(n=>n.msg.code)),JSON.stringify(["browser_session"]));
+    assert.equal(calls.length,0,"session-bound link must stay in the browser");
+    return;
+  }
   if (mode.endsWith("video")) {
     let reply;
     const tab={id:1,url:item.url,incognito:mode==="incognito-video",cookieStoreId:item.cookieStoreId};
     for(const listener of messageListeners) {
       listener({type:"grab-video",src:item.url},{tab,url:item.url},value=>{reply=value;});
     }
-    assert.equal(reply?.ok,false);
+    assert.equal(JSON.stringify(reply),JSON.stringify({ok:false,code:"private"}));
     assert.equal(mediaReads,0,"must reject private video before reading candidates");
     assert.equal(mediaWrites,0);
     assert.equal(cookieReads,0);
@@ -97,6 +128,7 @@ async function scenario(mode) {
       {incognito:false,cookieStoreId:item.cookieStoreId,url:item.referrer});
     assert.equal(calls.length,0);
     assert.equal(cookieReads,0);
+    assert(titles.at(-1).includes("Navigation privée"),"private menu click must explain why");
     return;
   }
   const task = mode.startsWith("firefox") ? createdListener(item) : mode === "incognito-menu" ? menuClick({menuItemId:"rapido-link",linkUrl:item.url,pageUrl:item.referrer},{incognito:true,url:item.referrer}) : context.runDownload(item, "zip");
@@ -135,7 +167,7 @@ async function scenario(mode) {
   }
 }
 (async()=>{
-  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed","legacy","commit-unavailable","commit-ack-lost"]) {
+  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed","legacy","commit-unavailable","commit-ack-lost","public-video","video-menu","session-menu"]) {
     await scenario(mode);
     console.log("PASS "+mode);
   }

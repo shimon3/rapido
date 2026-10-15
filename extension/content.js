@@ -52,7 +52,7 @@
 
   function hide(now) {
     clearTimeout(hideTimer);
-    const go = () => { host.style.display = "none"; current = null; label.textContent = "Télécharger cette vidéo"; };
+    const go = () => { host.style.display = "none"; current = null; label.textContent = "Télécharger cette vidéo"; btn.title = "Envoyer la vidéo à Rapido"; };
     now ? go() : (hideTimer = setTimeout(go, 2500));
   }
 
@@ -86,21 +86,62 @@
     hide(true);
   });
 
+  // Short button labels and longer explanations, keyed by the codes the
+  // background script may return. Unknown codes fall back to "unavailable".
+  const SHORT = {
+    video_disabled: "Capture vidéo désactivée (bêta)",
+    private: "Laissé au navigateur (privé)",
+    browser_session: "Laissé au navigateur (site connecté)",
+    unavailable: "Rapido injoignable",
+  };
+  const LONG = {
+    video_disabled: "Capture vidéo désactivée dans cette bêta. Utilisez « Enregistrer la vidéo sous… » du navigateur.",
+    private: "Navigation privée ou conteneur : le téléchargement reste dans le navigateur.",
+    browser_session: "Site connecté : le téléchargement reste dans le navigateur pour protéger votre session.",
+    unavailable: "Rapido est injoignable : vérifiez qu'il est lancé et à jour.",
+  };
+  const known = code => Object.hasOwn(SHORT, code) ? code : "unavailable";
+
   btn.addEventListener("click", () => {
     if (!current) return;
     const src = current.currentSrc || current.src || "";
     label.textContent = "Envoi à Rapido…";
     try {
       chrome.runtime.sendMessage({ type: "grab-video", src }, (res) => {
-        if (chrome.runtime.lastError || !res || !res.ok) {
-          label.textContent = "Rapido n'est pas lancé";
+        const failed = chrome.runtime.lastError || !res || !res.ok;
+        if (failed) {
+          const code = known(res?.code);
+          label.textContent = SHORT[code];
+          btn.title = LONG[code];
         } else {
           label.textContent = "Envoyé ✓";
         }
-        setTimeout(() => hide(false), 1500);
+        setTimeout(() => hide(false), failed ? 4000 : 1500);
       });
     } catch {
       label.textContent = "Recharge la page";   // extension mise à jour depuis le chargement
     }
+  });
+
+  // Explanation for right-click menu actions that the extension could not complete.
+  const toastHost = document.createElement("div");
+  toastHost.style.cssText = "position:fixed;z-index:2147483647;top:12px;right:12px;display:none;max-width:360px";
+  const toastRoot = toastHost.attachShadow({ mode: "closed" });
+  toastRoot.innerHTML = `
+    <style>
+      div{all:initial;display:block;font:13px/1.4 "Segoe UI",system-ui,sans-serif;color:#fff;background:#7a3b10;
+        padding:10px 12px;border-radius:7px;box-shadow:0 3px 12px rgba(0,0,0,.35)}
+      b{font-weight:600}
+    </style>
+    <div role="status"><b>Rapido</b> — <span id="m"></span></div>`;
+  const toastText = toastRoot.getElementById("m");
+  let toastTimer = null;
+  chrome.runtime.onMessage.addListener((msg, sender) => {
+    if (sender.id !== chrome.runtime.id || msg?.type !== "rapido-notice") return;
+    toastText.textContent = LONG[known(msg.code)];
+    if (!toastHost.isConnected) (document.body || document.documentElement).appendChild(toastHost);
+    toastHost.style.display = "block";
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastHost.style.display = "none"; }, 6000);
   });
 })();

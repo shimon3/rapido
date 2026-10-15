@@ -1,5 +1,16 @@
 "use strict";
 const status = document.querySelector("#status");
+
+// Name the browser the user is actually in (the same extension ships for
+// Chrome, Edge and Firefox).
+function browserName() {
+  if (location.protocol === "moz-extension:") return "Firefox";
+  const brands = (navigator.userAgentData?.brands || []).map(b => b.brand);
+  if (brands.some(b => /Microsoft Edge/i.test(b)) || /\bEdg\//.test(navigator.userAgent)) return "Edge";
+  return "Chrome";
+}
+const BROWSER = browserName();
+document.querySelector("#title").textContent = `Rapido — ${BROWSER} ↔ Windows`;
 document.querySelector("#test").addEventListener("click", async () => {
   status.textContent = "Test en cours…";
   try {
@@ -17,7 +28,7 @@ const captureStatus = document.querySelector("#captureStatus");
 async function renderCaptureState() {
   const {enabled} = await chrome.storage.local.get({enabled:true});
   toggle.textContent = enabled ? "Désactiver la capture" : "Activer la capture";
-  captureStatus.textContent = enabled ? "Capture Chrome activée" : "Capture Chrome désactivée";
+  captureStatus.textContent = `Capture ${BROWSER} ${enabled ? "activée" : "désactivée"}`;
 }
 toggle.addEventListener("click", async () => {
   const {enabled} = await chrome.storage.local.get({enabled:true});

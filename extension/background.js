@@ -82,6 +82,30 @@ function flash(text, color) {
   setTimeout(updateBadge, 2500);
 }
 
+/* Fixed, user-facing reasons. Only these codes leave the background script;
+   raw error strings never reach a web page. */
+const NOTICES = {
+  video_disabled: "Capture vidéo désactivée dans cette bêta. Utilisez « Enregistrer la vidéo sous… » du navigateur.",
+  private: "Navigation privée ou conteneur : le téléchargement reste dans le navigateur.",
+  browser_session: "Site connecté : le téléchargement reste dans le navigateur pour protéger votre session.",
+  unavailable: "Rapido est injoignable : vérifiez qu'il est lancé et à jour.",
+};
+function noticeError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+function noticeCode(error) {
+  return Object.hasOwn(NOTICES, error?.code) ? error.code : "unavailable";
+}
+async function notify(tab, code) {
+  flash("!", "#b4541a");
+  chrome.action.setTitle({ title: "Rapido : " + NOTICES[code] });
+  // The content script shows the same fixed text; pages without it keep the badge/tooltip.
+  try { if (tab?.id >= 0) await chrome.tabs.sendMessage?.(tab.id, { type: "rapido-notice", code }, { frameId: 0 }); }
+  catch {}
+}
+
 /* ---------- échanges avec le serveur ---------- */
 // S3 interim: never send Chrome cookies to the unauthenticated HTTP API.
 async function buildHeaders(url, referrer) {
@@ -120,9 +144,9 @@ async function captureViaNative(url, referrer, filename){
 async function captureFile(url, referrer, filename, prepare = false) {
   // S3: context-menu captures must obey the same fail-closed session policy
   // as automatic downloads; no browser session details cross native messaging.
-  if (await needsBrowserSession(url)) throw new Error("Capture privée laissée à Chrome (S3)");
+  if (await needsBrowserSession(url)) throw noticeError("browser_session", "Capture privée laissée à Chrome (S3)");
   if (referrer && await needsBrowserSession(referrer))
-    throw new Error("Page de connexion laissée à Chrome (S3)");
+    throw noticeError("browser_session", "Page de connexion laissée à Chrome (S3)");
   // Never disclose referrer query strings or fragments (often contain session tokens).
   let safeReferrer = null;
   if (referrer) {
@@ -150,7 +174,7 @@ async function captureVideo(pageUrl, candidates, referrer) {
   // S3: video capture still targets an unauthenticated loopback API.
   // Never send page URLs, candidates or session-derived metadata over that path.
   // Re-enable only after the native authenticated transport is implemented.
-  throw new Error("Capture vidéo temporairement désactivée : canal sécurisé requis (S3)");
+  throw noticeError("video_disabled", "Capture vidéo temporairement désactivée : canal sécurisé requis (S3)");
 }
 
 /* ---------- interception des téléchargements ---------- */
@@ -274,12 +298,12 @@ async function grabVideo(tab, frameUrl, src) {
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === "grab-video" && sender.tab) {
     if (browserOwnedContext(sender.tab)) {
-      reply({ok:false,error:"Capture laissée au navigateur dans ce contexte privé."});
+      reply({ok:false,code:"private"});
       return false;
     }
     grabVideo(sender.tab, sender.url, msg.src)
       .then(() => reply({ ok: true }))
-      .catch(e => reply({ ok: false, error: String(e) }));
+      .catch(e => reply({ ok: false, code: noticeCode(e) }));
     return true;
   }
 });
@@ -293,7 +317,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(() => { updateBadge(); loadCfg(); });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (browserOwnedContext(tab)) return;
+  if (browserOwnedContext(tab)) { await notify(tab, "private"); return; }
   try {
     if (info.menuItemId === "rapido-link") {
       const url = info.linkUrl || info.srcUrl;
@@ -301,8 +325,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     } else if (info.menuItemId === "rapido-video" && tab) {
       await grabVideo(tab, info.frameUrl, info.srcUrl);
     }
-  } catch {
-    flash("!", "#b4541a");
+  } catch (e) {
+    await notify(tab, noticeCode(e));
   }
 });
 
