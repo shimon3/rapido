@@ -1,12 +1,18 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: c4b6442, CI #199. Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-15 (Claude). Latest validated code: 6f1f7cd, CI #200. Start here; do not repeat repository overview or completed PR reconciliation.
 
 ## Goal and authority
 
 First stable Windows beta, essential corrections only. Branch `work/beta-engine-guards-20261015`, draft PR #33 targets draft PR #32's `work/security-26-followup-20261015` (dependent on #29).
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
+
+## Completed focus — pydantic_core Rust crate notices (Claude, 6f1f7cd)
+
+Official sdist (SHA-256 e50d7b94…6e09) `Cargo.lock` (ac24753c…452d) lists 99 crates.io packages; each `.crate` downloaded from static.crates.io matched its lockfile checksum. Top-level LICENSE/COPYING/NOTICE/COPYRIGHT/UNLICENSE files (171, 54 unique, LF-normalized) stored in `packaging/licenses/pydantic_core-2.50.1/texts/<sha256>.txt` with `crates.json` index (declared licenses) and NOTICE.md. Shipped `.pyd` = official cp313 win_amd64 wheel (6c320aa8…3f7c). Collector requires module hash, self-certifying text names and exact index/text set equality, else build stops. Superset (build-only/other-platform crates); r-efi 5.2.0 and wit-bindgen-rt 0.39.0 have no license file (UEFI/wasm only). Wheel-from-this-lockfile and dual-license choice not established. [CI #200](https://github.com/shimon3/rapido/actions/runs/38720604527) SUCCESS: 230 passed /5 skipped /120 subtests /1 warning; signatures 15 passed; collector OK; release skipped.
+
+Remaining licence items: cffi static libffi notice, WebBrowserInterop.dll provenance, Microsoft runtime redistribution terms, proxy_tools MIT/BSD, Tuil/Bentouza ownership, LGPL relinking adequacy.
 
 ## Completed focus — native runtime notices (Claude, c4b6442)
 
