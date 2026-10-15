@@ -17,6 +17,41 @@ import re
 import sys
 
 MAX_LICENSE_BYTES = 1024 * 1024
+PROXY_TOOLS_MODULE_SHA256 = "d1539d95e1a713c068ca81d42e047b2c76568964cf277596d4e19efb22f476be"
+PROXY_TOOLS_LICENSE_SHA256 = "a428fb8a2e762af3eb0a6edbbb88e9b42ccfee80fd9b423958bcacf9b9abbfe4"
+PROXY_TOOLS_SOURCE = "https://github.com/jtushman/proxy_tools/blob/db43f1e35d4f90a65c5a4d56d9e9af88212ec6e6/LICENSE.txt"
+
+
+def _supplement_known_missing_text(dist, root, output, item):
+    # The published 0.1.0 sdist omits LICENSE. Its module says BSD while its
+    # packaging metadata says MIT. Preserve authentic upstream text and report
+    # the discrepancy; do not invent an attribution or resolve the legal issue.
+    if re.sub(r"[-_.]+", "-", item["name"]).lower() != "proxy-tools" or item["version"] != "0.1.0":
+        return
+    try:
+        module = Path(dist.locate_file("proxy_tools/__init__.py"))
+        module.resolve().relative_to(root)
+        with module.open("rb") as stream:
+            data = stream.read(MAX_LICENSE_BYTES + 1)
+        if hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest() != PROXY_TOOLS_MODULE_SHA256:
+            raise ValueError("Different module identity")
+        original = Path(__file__).resolve().parents[1] / "packaging/licenses/proxy_tools-0.1.0/LICENSE.txt"
+        data = original.read_bytes()
+        # A Windows checkout may convert line endings; preserve textual identity.
+        data = data.replace(b"\r\n", b"\n")
+        if hashlib.sha256(data).hexdigest() != PROXY_TOOLS_LICENSE_SHA256:
+            raise ValueError("Different supplemental license identity")
+    except (OSError, ValueError):
+        item["problems"].append("supplemental-license-identity-unverified")
+        return
+    target = "packages/proxy-tools/UPSTREAM-LICENSE.txt"
+    destination = output / target
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(data)
+    item["files"].append({"path": target, "sha256": hashlib.sha256(data).hexdigest(),
+                          "source": PROXY_TOOLS_SOURCE,
+                          "installed_module_sha256_lf": PROXY_TOOLS_MODULE_SHA256})
+    item["problems"].append("upstream-BSD-text-supplemented-metadata-MIT-review-required")
 
 
 def _license_path(record):
@@ -72,6 +107,8 @@ def collect(output, *, distributions=None, python_license=None):
             destination.write_bytes(data)
             item["files"].append({"path": target.as_posix(),
                                   "sha256": hashlib.sha256(data).hexdigest()})
+        if not item["files"]:
+            _supplement_known_missing_text(dist, root, output, item)
         if not item["files"]:
             item["problems"].append("license-text-not-collected")
         packages.append(item)

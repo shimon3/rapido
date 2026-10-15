@@ -50,6 +50,10 @@ Current targeted work: build-only license evidence collector, `scripts/collect_l
 
 Next: push collector and run Windows CI; inspect the resulting ZIP for interpreter/package notices and inventory flags, then record final evidence. No further runtime engine changes in this packaging task.
 
+License collector code `e7483de`, CI #182 (`38684939137`): SUCCESS. 178 full regression passes, 5 fixture skips after dedicated execution; 15 dedicated signature tests passed. Actual downloaded archive digest matches GitHub: `bd28f0aa9dd99cd4fd4f56ed27e60ed46f0e1f50e1d9fcf5288f3519e47e5538`. Portable contains 393 entries; all inventory-listed hashes verified, Python 3.12.10 license present, 46 distributions and 120 copied package texts. Only missing text: proxy_tools 0.1.0. Actual metadata also identifies pystray 0.19.5 LGPLv3 and certifi 2026.7.22 MPL-2.0; full compliance remains unverified.
+
+Current final correction: published proxy_tools 0.1.0 sdist SHA-256 verified (`ccb3751f...0a28010`), no LICENSE file; metadata MIT but source header BSD. Source module matches upstream commit `db43f1e35d4f90a65c5a4d56d9e9af88212ec6e6` exactly after LF normalization. Vendored its authentic BSD LICENSE.txt plus provenance; collector supplements only exact version/module hash, retains MIT/BSD conflict as review-required. Four collector tests plus two workflow tests pass (6 total, 8 subtests). Next: Windows CI and final archive inspection of this correction; do not infer it from #182.
+
 ## Beta review and remaining work
 
 `docs/beta-readiness-20261015.md` records the 26-PR inventory, ancestry findings, initial primary-source license review and a task/difficulty/effort table. PRs #2/#8/#9 are separate; defer nonessential additions. #3/#28 remain open because fixes are unmerged; #30 reconciliation is already complete.

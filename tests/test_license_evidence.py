@@ -4,7 +4,9 @@ import json
 from pathlib import Path, PurePosixPath
 import tempfile
 import unittest
+from unittest.mock import patch
 
+from scripts import collect_license_evidence as evidence
 from scripts.collect_license_evidence import collect
 
 
@@ -20,6 +22,28 @@ class Distribution:
 
 
 class LicenseEvidenceTests(unittest.TestCase):
+    def test_supplement_requires_exact_module_identity_and_keeps_conflict_visible(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            module = root / "proxy_tools/__init__.py"
+            module.parent.mkdir()
+            module.write_bytes(b"# synthetic module\n")
+            dist = Distribution(root, "proxy_tools", [])
+            dist.version = "0.1.0"
+            dist.metadata["License"] = "MIT"
+            dist.metadata.pop("License-Expression")
+            rejected = collect(root / "rejected", distributions=[dist], python_license=root / "missing")
+            self.assertFalse(rejected["packages"][0]["files"])
+            self.assertIn("supplemental-license-identity-unverified", rejected["packages"][0]["problems"])
+            digest = hashlib.sha256(module.read_bytes()).hexdigest()
+            with patch.object(evidence, "PROXY_TOOLS_MODULE_SHA256", digest):
+                report = collect(root / "accepted", distributions=[dist], python_license=root / "missing")
+            item = report["packages"][0]
+            self.assertEqual(len(item["files"]), 1)
+            self.assertEqual(item["files"][0]["sha256"], evidence.PROXY_TOOLS_LICENSE_SHA256)
+            self.assertIn("upstream-BSD-text-supplemented-metadata-MIT-review-required", item["problems"])
+            self.assertFalse(report["compliance_verified"])
+
     def test_copies_original_text_records_hashes_and_flags_missing_license(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

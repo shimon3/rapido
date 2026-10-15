@@ -57,6 +57,33 @@ manquants sont signalés pour revue. Le collecteur a passé trois tests ciblés 
 un essai réel sur 25 distributions Linux (36 textes collectés). Validation et
 inspection Windows de ce nouvel empaquetage encore nécessaires.
 
+### Inspection Windows #182
+
+[CI #182](https://github.com/shimon3/rapido/actions/runs/38684939137), code
+`e7483de52c2056ce4f502bb665ae22dd39823922` : réussite complète, 178 régressions
+réussies, 5 fixtures ignorées après exécution dédiée ; 15 tests Authenticode
+dédiés réussis. L'archive réelle a été téléchargée et vérifiée : 393 entrées,
+46 distributions inventoriées, 120 textes de licence de packages et le LICENSE
+Python 3.12.10 présents. Toutes les empreintes des textes copiés correspondent à
+l'inventaire. Digest de l'archive Actions :
+`bd28f0aa9dd99cd4fd4f56ed27e60ed46f0e1f50e1d9fcf5288f3519e47e5538`.
+
+Le seul texte de package manquant dans ce build est `proxy_tools 0.1.0`. Sa
+source publiée PyPI (SHA-256 vérifié) n'inclut pas de LICENSE ; ses métadonnées
+annoncent MIT, mais l'en-tête du module annonce BSD. Le module publié correspond
+exactement au module d'un commit amont dont le fichier BSD est accessible.
+Le texte authentique et sa [provenance](../packaging/licenses/proxy_tools-0.1.0/PROVENANCE.md)
+sont désormais conservés dans le dépôt. Le collecteur ne les applique qu'à la
+version et à l'empreinte exacte de ce module et garde le conflit MIT/BSD signalé
+pour revue. Cette modification supplémentaire nécessite sa propre CI.
+
+L'inventaire réel confirme également `pystray 0.19.5` avec métadonnées LGPLv3 et
+textes COPYING/COPYING.LGPL collectés, ainsi que `certifi 2026.7.22` avec
+métadonnées MPL-2.0. Ne pas présenter toutes les dépendances comme permissives
+ou sous MIT. Les obligations de distribution correspondantes et celles des
+bibliothèques natives restent à examiner ; aucun verdict général de conformité
+n'est produit par ces tests.
+
 | Élément | Source vérifiée / point à terminer |
 | --- | --- |
 | Code Rapido | `LICENSE` contient MIT avec le titulaire **Samuel Tuil** ; l'installateur affiche Samuel Bentouza. Conserver les attributions existantes tant que la titularité n'est pas clarifiée. Le pipeline copie désormais ce LICENSE sans modification dans le dossier distribué. |
