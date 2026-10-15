@@ -30,10 +30,27 @@ propriétaire, après relecture des PR et essais sur Windows 10/11.
 - **Historique chiffré.** L'historique des téléchargements est chiffré avec
   DPAPI (lié au compte Windows). Les versions antérieures de Rapido ne savent
   pas le relire : revenir à une ancienne version repart d'un historique vide.
+- **Capture vidéo depuis la page désactivée.** Le bouton « Télécharger cette
+  vidéo » et le menu « Télécharger la vidéo avec Rapido » affichent
+  « Capture vidéo désactivée (bêta) » : ce chemin attend un canal sécurisé.
+  Utilisez « Enregistrer la vidéo sous… » du navigateur (Chrome, Edge) ou un
+  lien de téléchargement direct.
+- **Firefox : « Enregistrer sous » non capturé.** Firefox télécharge le fichier
+  pendant que sa boîte « Enregistrer sous » est ouverte et ne prévient
+  l'extension qu'après validation : le fichier est déjà complet et reste dans
+  Firefox (seul un « ! » apparaît sur l'icône Rapido). Les téléchargements
+  directs (clic sur un lien de fichier) sont bien transmis à Rapido.
+- **Boîte d'enregistrement du navigateur.** Dans Chrome et Edge, quand Rapido
+  prend un « Enregistrer sous », la boîte du navigateur reste ouverte : il faut
+  l'annuler.
+- **Extension Firefox temporaire.** Non signée, elle se charge depuis
+  `about:debugging` et disparaît à la fermeture de Firefox.
 - **Essais réalisés.** Tests automatisés sur Windows Server 2025 (GitHub
   Actions), y compris installation, désinstallation, coexistence avec la
-  version portable et Firefox réel. Les essais sur Windows 10/11 réels et avec
-  Chrome/Edge installés par l'utilisateur restent à faire avant publication.
+  version portable et Firefox réel. Essais manuels sur une VM Windows 10 22H2
+  (le 15 octobre 2026) avec Edge 155, Chrome 155 et Firefox 158. Windows 11,
+  la navigation privée, le redémarrage et la mise à jour restent à tester avant
+  publication.
 - **Extensions de développement.** Les extensions Chrome, Edge et Firefox
   fournies sont des versions de développement à charger manuellement ; elles
   ne viennent pas des boutiques officielles.
