@@ -30,16 +30,17 @@ propriétaire, après relecture des PR et essais sur Windows 10/11.
 - **Historique chiffré.** L'historique des téléchargements est chiffré avec
   DPAPI (lié au compte Windows). Les versions antérieures de Rapido ne savent
   pas le relire : revenir à une ancienne version repart d'un historique vide.
-- **Capture vidéo depuis la page désactivée.** Le bouton « Télécharger cette
-  vidéo » et le menu « Télécharger la vidéo avec Rapido » affichent
-  « Capture vidéo désactivée (bêta) » : ce chemin attend un canal sécurisé.
-  Utilisez « Enregistrer la vidéo sous… » du navigateur (Chrome, Edge) ou un
-  lien de téléchargement direct.
+- **Capture vidéo : fichiers directs seulement.** Le bouton « Télécharger cette
+  vidéo » et le clic droit « Télécharger la vidéo avec Rapido » envoient à
+  Rapido les vidéos qui sont de simples fichiers (`.mp4`, `.webm`, `.mkv`,
+  `.mov`…). Les flux (YouTube, m3u8/DASH), les sources `blob:` et les lecteurs
+  intégrés affichent « Capture vidéo désactivée (bêta) » : ce chemin attend un
+  canal sécurisé.
 - **Firefox : « Enregistrer sous » non capturé.** Firefox télécharge le fichier
   pendant que sa boîte « Enregistrer sous » est ouverte et ne prévient
   l'extension qu'après validation : le fichier est déjà complet et reste dans
-  Firefox (seul un « ! » apparaît sur l'icône Rapido). Les téléchargements
-  directs (clic sur un lien de fichier) sont bien transmis à Rapido.
+  Firefox, avec un message qui l'explique. Dans Firefox, utilisez le clic droit
+  « Télécharger … avec Rapido » ou un clic direct sur le lien du fichier.
 - **Boîte d'enregistrement du navigateur.** Dans Chrome et Edge, quand Rapido
   prend un « Enregistrer sous », la boîte du navigateur reste ouverte : il faut
   l'annuler.

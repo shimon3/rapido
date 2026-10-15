@@ -85,11 +85,11 @@ function flash(text, color) {
 /* Fixed, user-facing reasons. Only these codes leave the background script;
    raw error strings never reach a web page. */
 const NOTICES = {
-  video_disabled: "Capture vidéo désactivée dans cette bêta. Utilisez « Enregistrer la vidéo sous… » du navigateur.",
+  video_disabled: "Capture vidéo désactivée dans cette bêta pour les flux et lecteurs intégrés. Utilisez « Enregistrer la vidéo sous… » du navigateur.",
   private: "Navigation privée ou conteneur : le téléchargement reste dans le navigateur.",
   browser_session: "Site connecté : le téléchargement reste dans le navigateur pour protéger votre session.",
   unavailable: "Rapido est injoignable : vérifiez qu'il est lancé et à jour.",
-  browser_finished: "Le navigateur avait déjà terminé ce téléchargement : le fichier reste dans le navigateur. Pour Rapido, cliquez directement sur le lien du fichier.",
+  browser_finished: "Le navigateur avait déjà terminé ce téléchargement : le fichier reste dans le navigateur. Pour Rapido, utilisez le clic droit « Télécharger … avec Rapido » ou cliquez directement sur le lien du fichier.",
 };
 function noticeError(code, message) {
   const error = new Error(message);
@@ -298,7 +298,25 @@ chrome.tabs.onUpdated.addListener((id, info) => {
   if (info.status === "loading" && info.url) chrome.storage.session.remove("m" + id);
 });
 
+// A plain video file (<video src="…/film.mp4">) is an ordinary download: hand it
+// to Rapido like a link, through the authenticated native channel and the same
+// session checks. Streams, blob: sources and embedded players stay disabled (S3).
+const DIRECT_VIDEO = /\.(mp4|m4v|webm|mkv|mov|ogv)$/i;
+function directVideoUrl(src) {
+  if (typeof src !== "string" || src.length > 4096) return null;
+  try {
+    const url = new URL(src);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return null;
+    return DIRECT_VIDEO.test(url.pathname) ? url.href : null;
+  } catch { return null; }
+}
+
 async function grabVideo(tab, frameUrl, src) {
+  const direct = directVideoUrl(src);
+  if (direct) {
+    await captureFile(direct, tab.url);
+    return;
+  }
   const sniffed = await mediaFor(tab.id);
   const candidates = [];
   if (frameUrl && frameUrl !== tab.url) candidates.push(frameUrl);            // lecteur intégré (iframe)

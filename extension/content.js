@@ -96,11 +96,11 @@
     browser_finished: "Déjà téléchargé par le navigateur",
   };
   const LONG = {
-    video_disabled: "Capture vidéo désactivée dans cette bêta. Utilisez « Enregistrer la vidéo sous… » du navigateur.",
+    video_disabled: "Capture vidéo désactivée dans cette bêta pour les flux et lecteurs intégrés. Utilisez « Enregistrer la vidéo sous… » du navigateur.",
     private: "Navigation privée ou conteneur : le téléchargement reste dans le navigateur.",
     browser_session: "Site connecté : le téléchargement reste dans le navigateur pour protéger votre session.",
     unavailable: "Rapido est injoignable : vérifiez qu'il est lancé et à jour.",
-    browser_finished: "Le navigateur avait déjà terminé ce téléchargement : le fichier reste dans le navigateur. Pour Rapido, cliquez directement sur le lien du fichier.",
+    browser_finished: "Le navigateur avait déjà terminé ce téléchargement : le fichier reste dans le navigateur. Pour Rapido, utilisez le clic droit « Télécharger … avec Rapido » ou cliquez directement sur le lien du fichier.",
   };
   const known = code => Object.hasOwn(SHORT, code) ? code : "unavailable";
 

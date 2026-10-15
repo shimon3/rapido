@@ -52,7 +52,7 @@ async function scenario(mode) {
       if (firefox) assert.equal(storeId,"firefox-default");
       if (mode === "firefox-default-cookie") return [{}];
       if (mode === "cookie-error") throw new Error("Denied");
-      if (mode === "session-menu") return url.includes("private") ? [{}] : [];
+      if (mode === "session-menu" || mode === "direct-video-session") return url.includes("private") ? [{}] : [];
       return mode === "private-target" || (mode === "private-referrer" && url.includes("private")) ? [{}] : [];
     }},
     downloads:{onCreated:{addListener(fn){createdListener=fn;}},
@@ -87,6 +87,35 @@ async function scenario(mode) {
     for(let n=0;n<20 && !reply;n++) await new Promise(r=>setImmediate(r));
     assert.equal(JSON.stringify(reply),JSON.stringify({ok:false,code:"video_disabled"}));
     assert.equal(calls.length,0,"disabled video path must not reach the native host");
+    return;
+  }
+  if (mode.startsWith("direct-video")) {
+    // A plain video file goes through the same native capture as a link.
+    const src = mode === "direct-video-session" ? "https://example.org/private/movie.mp4" : "https://example.org/media/movie.mp4?x=1";
+    const tab = {id:6,url:"https://example.org/watch",incognito:false};
+    if (mode === "direct-video-menu") {
+      await menuClick({menuItemId:"rapido-video",srcUrl:src},tab);
+    } else {
+      let reply;
+      for(const listener of messageListeners) listener({type:"grab-video",src},{tab,url:tab.url},value=>{reply=value;});
+      for(let n=0;n<40 && !reply;n++) await new Promise(r=>setImmediate(r));
+      const expected = mode === "direct-video-session" ? {ok:false,code:"browser_session"} : {ok:true};
+      assert.equal(JSON.stringify(reply),JSON.stringify(expected));
+    }
+    if (mode === "direct-video-session") {
+      assert(!calls.includes("capture_public"),"session-bound video must stay in the browser");
+    } else {
+      assert.equal(JSON.stringify(calls),JSON.stringify(["capabilities","capture_public"]));
+      assert.equal(notices.length,0);
+    }
+    return;
+  }
+  if (mode === "blob-video") {
+    let reply;
+    for(const listener of messageListeners) listener({type:"grab-video",src:"blob:https://example.org/1234"},{tab:{id:3,url:"https://example.org/w",incognito:false},url:"https://example.org/w"},value=>{reply=value;});
+    for(let n=0;n<20 && !reply;n++) await new Promise(r=>setImmediate(r));
+    assert.equal(JSON.stringify(reply),JSON.stringify({ok:false,code:"video_disabled"}));
+    assert.equal(calls.length,0);
     return;
   }
   if (mode === "video-menu") {
@@ -171,7 +200,7 @@ async function scenario(mode) {
   }
 }
 (async()=>{
-  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed","legacy","commit-unavailable","commit-ack-lost","public-video","video-menu","session-menu","cancel-noop-complete"]) {
+  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed","legacy","commit-unavailable","commit-ack-lost","public-video","video-menu","session-menu","cancel-noop-complete","direct-video","direct-video-menu","direct-video-session","blob-video"]) {
     await scenario(mode);
     console.log("PASS "+mode);
   }
