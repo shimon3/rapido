@@ -26,7 +26,10 @@ def test_cookie_inspection_failure_does_not_intercept():
 def test_video_capture_does_not_post_to_unauthenticated_loopback():
     body = SOURCE.split("async function captureVideo(", 1)[1].split("/* ---------- interception des téléchargements", 1)[0]
     assert 'post("/api/capture-video"' not in body
-    assert "throw new Error" in body
+    # Unconditional refusal with a fixed reason code; nothing leaves the extension.
+    assert 'throw noticeError("video_disabled"' in body
+    for call in ("fetch(", "post(", "sendNativeMessage"):
+        assert call not in body
     assert "S3" in body
 
 
