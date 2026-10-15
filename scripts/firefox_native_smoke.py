@@ -142,7 +142,7 @@ def wait_until(check,timeout=40):
 def result(state, phase):
     value=wait_until(lambda: state.result(phase))
     if value.get("ok") is not True:
-        raise RuntimeError(value.get("error","Browser smoke failed"))
+        raise RuntimeError(f"{value.get('stage', phase)}: {value.get('error', 'Browser smoke failed')}")
     return value
 
 def run(bundle,data_dir,probe_dir):
@@ -150,6 +150,7 @@ def run(bundle,data_dir,probe_dir):
         raise OSError("Real native browser smoke requires Windows")
     from selenium import webdriver
     from selenium.webdriver.firefox.options import Options
+    from selenium.webdriver.firefox.service import Service
     import engine
     bundle,data_dir=Path(bundle).resolve(),Path(data_dir).resolve()
     desktop=bundle/"Rapido.exe"; host=bundle/"RapidoNativeHost.exe"
@@ -187,7 +188,8 @@ def run(bundle,data_dir,probe_dir):
         options.set_preference("browser.download.dir",str(data_dir/"browser-downloads"))
         options.set_preference("browser.helperApps.neverAsk.saveToDisk","application/zip")
         options.set_preference("browser.download.alwaysOpenPanel",False)
-        driver=webdriver.Firefox(options=options)
+        driver=webdriver.Firefox(options=options,service=Service(log_output=str(data_dir/"webdriver.log")))
+        print(json.dumps({"browser_version": driver.capabilities.get("browserVersion")}),flush=True)
         driver.set_page_load_timeout(30)
         identity=driver.install_addon(str(probe),temporary=True)
         if identity!=FIREFOX_ID:
@@ -215,6 +217,18 @@ def run(bundle,data_dir,probe_dir):
             raise RuntimeError("Missing-host fallback created another native download")
         summary["browser_version"]=driver.capabilities.get("browserVersion")
         print(json.dumps(summary))
+    except Exception:
+        # Report only exception classes and missing Python identifiers. Never
+        # dump driver logs, request contents, native tickets or fixture nonces.
+        trace_path = data_dir/"webdriver.log"
+        if trace_path.is_file():
+            trace = trace_path.read_text(encoding="utf-8",errors="replace")[-262144:]
+            print(json.dumps({
+                "driver_exception_classes": sorted(set(re.findall(r"\b[A-Z][A-Za-z]*(?:Error|Exception)\b",trace))),
+                "missing_python_names": sorted(set(re.findall(r"NameError: name '([A-Za-z_][A-Za-z0-9_]*)' is not defined",trace))),
+                "missing_python_modules": sorted(set(re.findall(r"ModuleNotFoundError: No module named '([A-Za-z_][A-Za-z0-9_.]*)'",trace))),
+            }),flush=True)
+        raise
     finally:
         if driver is not None:
             try:

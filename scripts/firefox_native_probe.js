@@ -12,15 +12,20 @@ async function until(predicate) {
   throw new Error("Browser smoke timeout");
 }
 async function start() {
+  let stage = "capabilities";
   try {
     const caps=await chrome.runtime.sendNativeMessage("com.rapido.bridge",{type:"capabilities"});
     if(caps?.protocol!==1 || !caps.features?.includes("capture_handoff")) throw new Error("Verified handoff missing");
+    stage = "prepare";
     const prepared=await chrome.runtime.sendNativeMessage("com.rapido.bridge",{
       type:"capture_prepare",url:BASE+"/probe.zip",referrer:null,filename:"probe.zip"});
     if(prepared?.type!=="capture_prepared") throw new Error("Native prepare failed");
+    stage = "abort";
     const aborted=await chrome.runtime.sendNativeMessage("com.rapido.bridge",{type:"capture_abort",ticket:prepared.ticket});
     if(aborted?.ok!==true) throw new Error("Native abort failed");
+    stage = "automatic_download";
     const id=await chrome.downloads.download({url:BASE+"/automatic.zip",filename:"automatic.zip",saveAs:false});
+    stage = "automatic_handoff";
     await until(async()=> {
       const rows=await search(id);
       if(rows[0]?.state==="complete") throw new Error("Automatic capture stayed in Firefox");
@@ -28,7 +33,7 @@ async function start() {
     });
     return {ok:true,verified_native:true,automatic_handoff:true};
   } catch(error) {
-    return {ok:false,error:String(error)};
+    return {ok:false,stage,error:String(error)};
   }
 }
 async function fallback() {

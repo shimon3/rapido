@@ -146,6 +146,7 @@ async function scenario(fail) {
   await vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8'), context);
   if(fail) {
     assert.equal(reports.length,1); assert.equal(reports[0].result.ok,false);
+    assert.equal(reports[0].result.stage,'capabilities');
     assert.equal(downloads.length,0);
   } else {
     assert.deepEqual(reports.map(r=>r.phase),['start','fallback']);
