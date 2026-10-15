@@ -35,9 +35,9 @@ Overview used the tracked file inventory, README, recent commits, threat-model/r
 
 ## Current targeted task
 
-Prepare a reviewable managed-mode contract for #26, including host-selection enforcement before browser payload, full packaged dependency coverage, unsigned behavior, lifecycle rules and Windows acceptance evidence.
+Contract drafted. Current task: a standalone held-file Authenticode verifier and isolated Windows signed-fixture validation for #26. It requires explicit SHA-256 leaf certificate pins and is NOT connected to runtime admission. Same-user compromise is not fixed by this primitive.
 
-Files: `docs/windows-managed-integrity-contract.md`, existing threat-model link, this checkpoint. No runtime or workflow changes planned in this task.
+Files: `windows_signature.py`, `tests/test_windows_signature.py`, `scripts/test_windows_signature.ps1`, `.github/workflows/windows.yml`, `tests/test_workflow_release_policy.py`, contract and checkpoint.
 
 ## Validation and handoff
 
@@ -51,8 +51,12 @@ python -m pytest -q -rs tests/test_native_registration.py tests/test_windows_pee
 
 Result: **26 passed, 15 skipped** (Windows-specific API/registry/junction/pipe tests), 0.17 s. This checks existing behavior only, not the proposed integrity mechanism. `git diff --check` passed. No full suite or Windows packaging rerun for this documentation-only change. Windows API, registry, junction, compiled installer and real-browser validation must not be inferred from Linux results.
 
-Next targeted work: review/select the concrete enforcement profile for #26 before runtime implementation. Required inputs remain production signer lifecycle and a supported managed browser/OS deployment profile, including PyInstaller payload coverage and Firefox selection evidence. Until then #26 stays open; no automatic downgrade from managed mode is acceptable. No new PR is needed just to preserve this checkpoint.
+Current focused results (Linux): **35 passed, 18 skipped, 37 subtests passed** across signature, workflow publication guards, registration, process identity, launcher, pipe and installer tests. The 18 skips require Windows APIs or isolated signed fixtures. YAML parsed successfully; `git diff --check` passed. No full Linux suite needed before the Windows CI, which runs focused real signed fixtures first and the complete regression/build/browser pipeline afterward.
 
-The Windows workflow can publish on a `v*` tag and on `main` when the version tag is absent. Never use those refs for this work. A documentation checkpoint does not need a new PR or a packaging rerun.
+CI hardening: build token now read-only. The sole write-enabled release job requires a successful build AND a push event on `refs/tags/v*`. Automatic main releases are removed; dispatch and PR runs cannot publish. No deployment step exists. No publication tag is created by this work.
 
-The earlier push was rejected by automatic approval review; explicit user authorization has now resolved that limitation. Pre-push inspection found only `.github/workflows/windows.yml`: push branches are `main` and `staging/pr-29-restack-20261014`, tags `v*`. This work branch matches none, so its push does not trigger that workflow. PR runs have `GITHUB_REF=refs/pull/.../merge`, making the existing release output false; no deployment step is present. Further CI hardening is planned before creating a draft PR.
+Next: push this coherent implementation and create one dependent draft PR against PR #29's branch; inspect real Windows CI and correct failures before claiming the primitive validated. Then review/select the concrete enforcement profile for #26 before runtime admission wiring. Required inputs remain production signer lifecycle and a supported managed browser/OS deployment profile, including PyInstaller payload coverage and Firefox selection evidence. Until then #26 stays open; no automatic downgrade from managed mode is acceptable.
+
+Never use `main` or publication tags for this work. Initial checkpoint successfully saved remotely as `6c90a7a1863d594c802fedea06e823597d8f4cd6`; Git fetch confirmed identical local/remote trees. Local Git has no write credentials, so use GitHub connector Git-data operations for ordinary fast-forward branch updates; preserve parent ancestry and verify remote HEAD after each update.
+
+The earlier push was rejected by automatic approval review; explicit user authorization has resolved that limitation. Pre-push inspection found only `.github/workflows/windows.yml`: push branches are `main` and `staging/pr-29-restack-20261014`, tags `v*`. This work branch matches none, so its push does not trigger that workflow. PR runs cannot satisfy the new release job's event/ref gate. Review the workflow again if it changes before another push.

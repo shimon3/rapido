@@ -2,6 +2,24 @@
 
 Status: **proposed design for review, not implemented or validated**. Current per-user and portable builds retain the limitations in [the threat model](windows-executable-integrity-threat-model.md). This document does not approve deployment, acquire a certificate, modify Windows policies, or close #26.
 
+Implementation preparation: `windows_signature.py` now contains a standalone
+held-file Authenticode primitive with an explicit SHA-256 leaf-certificate pin
+collection. **It is not connected to runtime admission and does not implement
+this managed profile.** It uses cached chain-revocation checks excluding the
+root and refuses any nonzero trust status; it cannot establish revocation
+freshness or independently protect the caller's pin policy. It reads the signer
+from the successful verification state, closes that state on success/failure,
+and retains a read-only shared file handle through caller use. It does not bind
+that file to a running process or make a later pathname-based launch atomic.
+
+`scripts/test_windows_signature.ps1` creates disposable, locally trusted CI
+certificates and harmless signed PE fixtures only on GitHub-hosted Windows.
+Its finally block removes those exact certificate entries, keys and fixture
+files; no private key is exported and no fixture executable is launched.
+These fixtures exercise signature/pin/replacement behavior, not deployment
+enforcement, production signer identity, real revocation infrastructure or
+timestamped certificate renewal. The full admission matrix below remains open.
+
 ## Decision to review
 
 For the same-user on-disk replacement scenario, propose a separate, administrator-managed installation profile. Its authority must come from enforced OS/browser policy and administrator-protected files and configuration. A self-check inside a replaceable host cannot establish the initial trust boundary.
@@ -90,3 +108,8 @@ No runtime work should substitute path checks, DPAPI, self-attestation, an envir
 4. [Mozilla native messaging](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging)
 5. [Microsoft WinVerifyTrust](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-winverifytrust)
 6. [Microsoft code signing and App Control](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/app-control-for-business/deployment/use-code-signing-for-better-control-and-protection)
+7. [WINTRUST_DATA flags and verification state lifecycle](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/ns-wintrust-wintrust_data)
+8. [WINTRUST_FILE_INFO file handle](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/ns-wintrust-wintrust_file_info)
+9. [Provider data from verification state](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelperprovdatafromstatedata), [signer](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelpergetprovsignerfromchain), [certificate](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelpergetprovcertfromchain), [certificate layout](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/ns-wintrust-crypt_provider_cert), [CERT_CONTEXT](https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-cert_context)
+10. [CreateFileW sharing lifetime](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew)
+11. [New-SelfSignedCertificate (test certificates)](https://learn.microsoft.com/en-us/powershell/module/pki/new-selfsignedcertificate?view=windowsserver2025-ps), [Set-AuthenticodeSignature](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-authenticodesignature?view=powershell-5.1)
