@@ -258,6 +258,12 @@ jobs:
             $portableResult = Join-Path $env:RUNNER_TEMP 'rapido-portable-post-uninstall.json'
             $env:RAPIDO_DATA = Join-Path $env:RUNNER_TEMP 'rapido-portable-post-uninstall-data'
             $portable = Start-Process -FilePath (Join-Path $second 'Rapido.exe') -ArgumentList '--selftest','--selftest-out',$portableResult -PassThru -Wait
+            if (Test-Path -LiteralPath $portableResult) {
+              $one = (Get-Content -LiteralPath $portableResult -Raw | ConvertFrom-Json | ConvertTo-Json -Compress -Depth 4) -replace "`r|`n", " "
+              Write-Host "::notice title=Portable selftest::$one"
+            } else { Write-Host "Portable selftest: no result file" }
+            $portableLog = Join-Path $env:RAPIDO_DATA 'rapido.log'
+            if ($portable.ExitCode -ne 0 -and (Test-Path -LiteralPath $portableLog)) { Write-Host "--- rapido.log ---"; Get-Content -LiteralPath $portableLog -Tail 80 }
             if ($portable.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $portableResult)) {
               throw "Portable Rapido self-test failed after installed copy uninstall: $($portable.ExitCode)"
             }
