@@ -36,12 +36,11 @@ propriétaire, après relecture des PR et essais sur Windows 10/11.
   `.mov`…). Les flux (YouTube, m3u8/DASH), les sources `blob:` et les lecteurs
   intégrés affichent « Capture vidéo désactivée (bêta) » : ce chemin attend un
   canal sécurisé.
-- **Firefox : « Enregistrer sous ».** Firefox ne prévient l'extension qu'une
-  fois le téléchargement lancé. L'extension le met aussitôt en pause pendant
-  qu'elle interroge Rapido, puis l'annule si Rapido le prend ou le reprend
-  sinon. Un très petit fichier peut toutefois finir avant la pause : il reste
-  alors dans Firefox, avec un message qui l'explique. Le clic droit
-  « Télécharger … avec Rapido » passe toujours directement par Rapido.
+- **Firefox : « Enregistrer sous » non capturé.** Firefox télécharge le fichier
+  pendant que sa boîte « Enregistrer sous » est ouverte et ne prévient
+  l'extension qu'après validation : le fichier est déjà complet et reste dans
+  Firefox, avec un message qui l'explique. Dans Firefox, utilisez le clic droit
+  « Télécharger … avec Rapido » ou un clic direct sur le lien du fichier.
 - **Boîte d'enregistrement du navigateur.** Dans Chrome et Edge, quand Rapido
   prend un « Enregistrer sous », la boîte du navigateur reste ouverte : il faut
   l'annuler.
