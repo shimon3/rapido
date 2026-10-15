@@ -22,7 +22,7 @@ https://github.com/shimon3/rapido/actions/runs/38685767705
 - Artifact `11949821998` was downloaded and inspected: 394 portable entries, 46 installed-distribution records, 121 package license texts plus Python 3.12.10 LICENSE and project LICENSE. All referenced license hashes match. The archive SHA-256 matches GitHub metadata.
 - `docs/beta-build-inventory-20261015.json` preserves complete observed versions/license evidence; `docs/beta-artifact-verification-20261015.json` preserves artifact hashes/inspection results. No full compliance verdict is claimed.
 
-A final documentation-only evidence checkpoint follows this code with [skip ci]. Runtime code/tests/workflow remain identical to the validated SHA. Do not claim the documentation HEAD itself ran CI; exact-head/integration checks remain required before any future authorized merge/release.
+Documentation checkpoint `a83859e` follows this code with [skip ci]. Runtime code/tests/workflow remain identical to the validated SHA. Do not claim the documentation HEAD itself ran CI; exact-head/integration checks remain required before any future authorized merge/release.
 
 ## Completed during this session
 
@@ -30,6 +30,12 @@ A final documentation-only evidence checkpoint follows this code with [skip ci].
 2. PR inventory revealed #11 engine guards absent from #32. PR #33 selectively carries them without old workflows: persisted ETag/Last-Modified/probe Date, correct strong If-Range, resource/range/body-size rejection, disk-full/quota/short-write abort, unbuffered writes, bounded 429/503 Retry-After. Partial URL refresh requires the same usable validator, restores metadata on refusal and pauses scheduler state while probing. Dynamic splitting validates the originally requested range while clipping writes to current segment ownership. 21 focused engine tests; Linux extended checks 40 passed/13 Windows skips.
 3. Actual #181 ZIP initially had only four license texts. Added build-only `scripts/collect_license_evidence.py`, with four focused tests, package-root confinement, immutable-output protection, version/license inventory, copied-text hashes, Python license requirement and explicit compliance_verified=false. Evidence is build environment (test/build tools included), not exact shipped modules/native compliance.
 4. proxy_tools 0.1.0 sdist lacks LICENSE; metadata says MIT, module header says BSD. Verified PyPI archive hash and exact normalized module match against upstream commit `db43f1e35d4f90a65c5a4d56d9e9af88212ec6e6`. Preserved authentic BSD text/provenance under `packaging/licenses/proxy_tools-0.1.0/`; supplement applies only to exact version/module hash, retaining conflict as review-required. #183 actual inventory confirms the supplement and conflict flag. pystray 0.19.5 metadata is LGPLv3; certifi 2026.7.22 metadata is MPL-2.0. Never call all dependencies MIT.
+
+## Current targeted work — payload reconciliation
+
+Added build-only `scripts/collect_payload_evidence.py`: lists actual executable CArchive/PYZ entries, both embedded/on-disk base_library ZIP module names, and hashes bundle files/native entries. Python distribution candidates match exact installed RECORD module names; native candidates require identical size/SHA-256. Unknown/ambiguous entries remain explicit. No DLL/code execution, absolute runner paths, integrity-policy or compliance verdict. Excludes separately generated third-party evidence from recursive file inventory. Chrome extension copy moves before evidence collection so both installer/portable payloads are covered.
+
+Local targeted collector/license/extension tests pass; existing CI #183 binaries were parsed directly without running them (desktop 2383 entries, host 124, each base_library 155; host 55 binary entries). Windows validation and actual distribution correlation are pending for the next commit; do not claim #183 tested this new script.
 
 ## Remaining blockers and next task
 
@@ -51,4 +57,4 @@ Local venv `/workspace/scratch/a15d48cb1e30/rapido-test-venv/bin/python`; Node o
 
 Local Git lacks write credentials. Use GitHub Git-data connector: tree based on current tree, commit with correct parent, create branch or update_ref with expected_sha and force=false. Verify remote HEAD; fetch, compare local index/remote content, then soft-reset local HEAD only when identical. Never overwrite concurrent work.
 
-Only workflow is `.github/workflows/windows.yml`: this work branch has no push trigger; PR build token is read-only. On the reviewed branches release requires explicit tag push plus successful build; their PR/dispatch runs cannot publish, no deployment step. These guards are NOT yet on main: main still has its historical auto-release behavior and must not be triggered. Any future authorized integration must preserve the tag-only guard before running on main. Do not change main/tags or weaken tests. Final checkpoint should be only docs/evidence; preserve tested code identity.
+Only workflow is `.github/workflows/windows.yml`: this work branch has no push trigger; PR build token is read-only. On the reviewed branches release requires explicit tag push plus successful build; their PR/dispatch runs cannot publish, no deployment step. These guards are NOT yet on main: main still has its historical auto-release behavior and must not be triggered. Any future authorized integration must preserve the tag-only guard before running on main. Do not change main/tags or weaken tests. Current change is build-time payload evidence only; preserve runtime code and retain exact validation identities.
