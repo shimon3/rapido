@@ -7,9 +7,9 @@ garde-fous de publication sur tag explicite avant toute exécution sur `main`.
 
 ## Dernière validation
 
-CI #196 réussie sur `c68ac60f6c23e783b1c82b5319180d33140b085a` :
-[run Windows](https://github.com/shimon3/rapido/actions/runs/38707014474).
-221 régressions, 5 fixtures signées ignorées après exécution dédiée, 110 sous-tests,
+CI #197 réussie sur `d882f644ef195a8ad2f2a42da0a53946b5e86c43` :
+[run Windows](https://github.com/shimon3/rapido/actions/runs/38715835112).
+225 régressions, 5 fixtures signées ignorées après exécution dédiée, 120 sous-tests,
 1 avertissement. Exécution dédiée : 15 tests de signature, dont 5 tests réels de
 PE signés, 1 test réel de fichier non signé et 9 tests de politique/unitaires.
 Les deux exécutions se recoupent. Sondes WebView2, compilations, installateur/portable,
@@ -31,6 +31,12 @@ aléatoire ; le background distribué reste intact. Le harnais n'active pas l'ac
 système WebDriver et n'affaiblit aucune préférence de sécurité. #195 a validé Firefox 156.0.1 ; #196 valide
 séparément 157.0.1, installateur Mozilla contrôlé par SHA-512 et signature, version
 installée et version WebDriver vérifiées. [Preuves](native-launcher-validation-20261015.json).
+
+#197 valide aussi le refus des manifestes ambigus/corrompus (JSON strict, fichier
+régulier, limite 16 KiB), la poursuite du nettoyage des autres navigateurs et la
+revérification des propriétaires avant écriture du registre. Les modifications
+après ce dernier contrôle et les écritures partiellement échouées restent hors
+garantie ; il ne s'agit pas d'une transaction atomique ni d'une clôture de #26.
 
 ## Dépendances et artefact inspecté — #190
 

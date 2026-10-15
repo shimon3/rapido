@@ -8,13 +8,13 @@ First stable Windows beta, essential corrections only. Branch `work/beta-engine-
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
 
-## Current focus — native registration ownership
+## Completed focus — native registration ownership
 
 Reproduced: non-object manifest JSON raised AttributeError/TypeError during ownership checks; duplicate keys/non-JSON numbers/oversized descriptions could be accepted; a foreign manifest or registry owner introduced after preflight could be adopted/overwritten. `native_registration.py` now reads regular manifests with a 16-KiB bound, rejects invalid/ambiguous/non-object/deep/invalid-UTF8 JSON and preserves such files during uninstall while continuing other cleanup.
 
 Registration stages all manifest files, then revalidates all manifests and registry owners before its first registry write. Tests inject foreign changes after preflight and assert rejection without registry writes. This is best-effort revalidation, NOT an atomic transaction or a same-user trust anchor: changes after the final check and partial registry-write failures remain outside this guarantee. Own newly staged files can remain after failure for repair/uninstall; no risky rollback deletes potentially replaced files.
 
-Local focused: 28 passed /7 Windows-fixture skips /18 subtests; full Linux 194 passed /36 Windows-fixture skips /116 subtests /1 existing warning. Real Windows registry test now also corrupts a Chrome manifest with JSON null, preserves it, completes Firefox cleanup and preserves a foreign Edge owner under a unique test-only host name. Windows CI pending; #196 below validates previous code. Workflow reviewed unchanged: one workflow, PR build read-only, release requires explicit tag push, no deployment. Main SHA checked unchanged.
+Local focused: 28 passed /7 Windows-fixture skips /18 subtests; full Linux 194 passed /36 Windows-fixture skips /116 subtests /1 existing warning. Real Windows registry test now also corrupts a Chrome manifest with JSON null, preserves it, completes Firefox cleanup and preserves a foreign Edge owner under a unique test-only host name. CI #197 SUCCESS on d882f644ef195a8ad2f2a42da0a53946b5e86c43: 225 passed /5 signed-fixture skips /120 subtests /1 warning; real registry cleanup, packaged lifecycle and Firefox 157.0.1 passed. Release skipped. User chose a pause/handoff after this validated step; licences have not been started in this segment. Resume from docs/claude-handoff-20261015.md. Workflow reviewed unchanged: one workflow, PR build read-only, release requires explicit tag push, no deployment. Main SHA checked unchanged.
 
 ## Completed focus — native launcher paths and Firefox
 
@@ -26,24 +26,24 @@ Diagnostics/restart facts: #192 exposed Firefox's privileged-context DOM rejecti
 
 Evidence: `docs/native-launcher-validation-20261015.json`. Final local full suite: 190 passed /36 Windows-fixture skips /106 subtests /1 existing warning; launcher/registration/Firefox targeted: 28 passed /7 skips /3 subtests. Browser/release checks after fixture pin: 9 passed /11 subtests. Workflows checked before pushes; publication remains explicit-tag-only on this branch.
 
-## Latest validated code — CI #196 SUCCESS
+## Latest validated code — CI #197 SUCCESS
 
-`c68ac60f6c23e783b1c82b5319180d33140b085a`:
-https://github.com/shimon3/rapido/actions/runs/38707014474
+`d882f644ef195a8ad2f2a42da0a53946b5e86c43`:
+https://github.com/shimon3/rapido/actions/runs/38715835112
 
-- 221 general regression tests passed, 5 signed-fixture skips after separate execution, 110 subtests, 1 warning.
+- 225 general regression tests passed, 5 signed-fixture skips after separate execution, 120 subtests, 1 warning.
 - Dedicated signature execution: 15 passed/no skips — 9 policy/unit tests, 1 real unsigned-file test, 5 real signed-PE fixture tests. Counts overlap general suite; never call all 15 real signed fixtures or sum as unique tests.
 - Python 3.13.16/OpenSSL 3.5.9 baseline and pip check passed. All 41 exact installed versions/PyPI responses passed the new gate; no active advisory or yank returned then. Not complete vulnerability coverage.
 - Both actual WebView2 confirmation probes, desktop/native compilation, real-window engine/yt-dlp test, native protocol, installer/portable coexistence and real Firefox 157.0.1 passed. Build token Contents:read; release skipped.
 - Runner Windows Server 2025, not Windows 10/11 certification. Immediate PowerShell exits after failed pip/Selenium installs prevent masking by later commands.
 
-A documentation-only checkpoint follows with [skip ci]; do not claim that documentation HEAD itself ran CI. Code/tests/workflow identical to validated c68ac60. Future authorized integration needs exact-head/integration checks.
+A documentation-only checkpoint follows with [skip ci]; do not claim that documentation HEAD itself ran CI. Code/tests/workflow identical to validated d882f64. Future authorized integration needs exact-head/integration checks.
 
 ## Latest independently inspected artifact — #190
 
 Artifact `11954004962`, code `b6a5740`, CI run `38696191089`. Archive digest matched GitHub:
 `46713a203094f27e1b5600358701df2d056c25d9bca75c7092612594bd4929fc`.
-154 payload file hashes/exact membership, 55 embedded native-host binary hashes, 117 package license-text hashes, Python license and unchanged project LICENSE checked. 41 versions match constraints; embedded advisory report has 41 verified responses. Five SDK DLLs and both original SDK text hashes checked; no pytest/_pytest module names. Later ZIPs, including #195/#196, were not independently downloaded/inspected; do not attach #190 hashes to them.
+154 payload file hashes/exact membership, 55 embedded native-host binary hashes, 117 package license-text hashes, Python license and unchanged project LICENSE checked. 41 versions match constraints; embedded advisory report has 41 verified responses. Five SDK DLLs and both original SDK text hashes checked; no pytest/_pytest module names. Later ZIPs, including #195/#196/#197, were not independently downloaded/inspected; do not attach #190 hashes to them.
 
 Current #190 evidence: `docs/beta-payload-inspection-20261015.json`, `docs/beta-build-inventory-20261015.json`, `docs/beta-native-version-resources-20261015.json`, `docs/dependency-advisory-snapshot-20261015.json`.
 Full manifest: `third-party/payload.json` inside artifact. Module distribution candidates match RECORD names (not bytecode identity); native candidates match bytes; unknown/ambiguous entries remain visible. PE VERSIONINFO strings are declarative, not signer verification. Historical `beta-artifact-verification` and `critical-actions-validation` JSON files concern #183/#189 respectively. Current review/difficulty/conditional effort plan: `docs/beta-readiness-20261015.md`.
