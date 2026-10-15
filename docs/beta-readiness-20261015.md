@@ -134,7 +134,7 @@ La licence Python 3.13.16 de l'artefact a été vérifiée avec son empreinte.
 
 | Élément | Source vérifiée / point à terminer |
 | --- | --- |
-| Code Rapido | `LICENSE` contient MIT avec le titulaire **Samuel Tuil** ; l'installateur affiche Samuel Bentouza. Conserver les attributions existantes tant que la titularité n'est pas clarifiée. Le pipeline copie désormais ce LICENSE sans modification dans le dossier distribué. |
+| Code Rapido | `LICENSE` (MIT), installateur et ressources de version indiquent **Samuel Bentouza**, nom légal confirmé par le propriétaire le 2026-10-15 (Tuil remplacé). Le pipeline copie désormais ce LICENSE sans modification dans le dossier distribué. |
 | Python et modules Python | `requirements.txt` reste large pour le développement ; les 41 versions du build Windows sont désormais figées et contrôlées. Les fichiers/modules et leurs notices sont inventoriés ; les obligations natives restent à vérifier. La licence propre de Rapido ne remplace pas celles des dépendances. |
 | Pillow | Le [texte amont](https://github.com/python-pillow/Pillow/blob/main/LICENSE) identifie MIT-CMU. Vérifier aussi les bibliothèques natives effectivement contenues dans la wheel choisie. |
 | FastAPI, HTTPX, pywebview | Sources amont consultées : [FastAPI](https://github.com/fastapi/fastapi/blob/master/LICENSE), [HTTPX](https://github.com/encode/httpx/blob/master/LICENSE.md), [pywebview](https://github.com/r0x0r/pywebview/blob/master/LICENSE). Ce sont des repères de revue, pas la liste complète du bundle ni une validation de chaque version installée. |

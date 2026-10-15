@@ -54,7 +54,7 @@ Preuves actuelles : artefact **#190**, pas les ZIP #195–197. Archive #190 `119
 
 Fichiers de référence : `docs/beta-readiness-20261015.md`, `docs/beta-build-inventory-20261015.json`, `docs/beta-payload-inspection-20261015.json`, `docs/dependency-advisory-snapshot-20261015.json` et `packaging/licenses/`. Les noms de modules candidats par RECORD ne prouvent pas l'identité du bytecode ; VERSIONINFO ne prouve pas le signataire.
 
-Conserver le LICENSE existant : Samuel Tuil y figure, tandis que l'installateur indique Samuel Bentouza. L'autorité pour modifier les droits/provenance n'a pas été établie. Ne pas inventer une validation de similarité avec IDM.
+Titulaire confirmé par le propriétaire le 15 octobre 2026 : Samuel Bentouza (LICENSE, installateur, ressources de version alignés). Ne pas inventer une validation de similarité avec IDM.
 
 Ensuite : vraies VM Windows 10/11 propres, Chrome/Edge/Firefox et chemins privés/cookies/absence d'hôte/redémarrage/mise à jour/erreurs/clavier, Defender, version bêta distincte et réparation/rollback. Ces étapes restent ouvertes. Pas de nouvelle fonctionnalité non essentielle ; #8/#9 différées. Préparer les PR pour revue, attendre l'accord avant fusion.
 

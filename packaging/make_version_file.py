@@ -13,7 +13,7 @@ print(f"""VSVersionInfo(
       StringStruct('FileDescription', 'Rapido - gestionnaire de telechargement'),
       StringStruct('FileVersion', '{v}'),
       StringStruct('InternalName', 'Rapido'),
-      StringStruct('LegalCopyright', 'MIT License'),
+      StringStruct('LegalCopyright', 'Copyright (c) 2026 Samuel Bentouza. MIT License.'),
       StringStruct('OriginalFilename', 'Rapido.exe'),
       StringStruct('ProductName', 'Rapido'),
       StringStruct('ProductVersion', '{v}')])]),

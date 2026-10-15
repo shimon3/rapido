@@ -8,6 +8,14 @@ First stable Windows beta, essential corrections only. Branch `work/beta-engine-
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
 
+## Completed focus — cffi libffi notice, WebBrowserInterop provenance, rights holder (Claude, e6f6ccd + next)
+
+cffi 2.1.1: shipped `_cffi_backend` (21b7160d…be8d) = official cp313 win_amd64 wheel; imports no libffi DLL; Windows x64 setup.py compiles bundled `src/c/libffi_x86_x64` (identical to upstream tag v2.1.1 commit fd33e770). Verbatim leading MIT notices of the 6 compiled files shipped in `packaging/licenses/cffi-2.1.1/LIBFFI-NOTICES.txt`. pywebview WebBrowserInterop.x64/x86.dll byte-identical to binaries committed at pywebview tag 6.2.1 (2fc63cd6), sources `interop/mshtml` under repo BSD-3; build from that source not reproduced. [CI #201](https://github.com/shimon3/rapido/actions/runs/38721595000) SUCCESS on e6f6ccd: 230 passed /5 skipped /120 subtests; collector OK; release skipped.
+
+Rights holder: owner confirmed on 2026-10-15 that the legal name is **Samuel Bentouza**. LICENSE changed from "Samuel Tuil" to "Samuel Bentouza"; exe LegalCopyright now "Copyright (c) 2026 Samuel Bentouza. MIT License."; installer AppPublisher already Bentouza. Validation: CI on the commit following e6f6ccd (see git log / Actions).
+
+Remaining licence items needing owner/legal input: Microsoft runtime redistribution terms, proxy_tools MIT/BSD, LGPL relinking adequacy.
+
 ## Completed focus — pydantic_core Rust crate notices (Claude, 6f1f7cd)
 
 Official sdist (SHA-256 e50d7b94…6e09) `Cargo.lock` (ac24753c…452d) lists 99 crates.io packages; each `.crate` downloaded from static.crates.io matched its lockfile checksum. Top-level LICENSE/COPYING/NOTICE/COPYRIGHT/UNLICENSE files (171, 54 unique, LF-normalized) stored in `packaging/licenses/pydantic_core-2.50.1/texts/<sha256>.txt` with `crates.json` index (declared licenses) and NOTICE.md. Shipped `.pyd` = official cp313 win_amd64 wheel (6c320aa8…3f7c). Collector requires module hash, self-certifying text names and exact index/text set equality, else build stops. Superset (build-only/other-platform crates); r-efi 5.2.0 and wit-bindgen-rt 0.39.0 have no license file (UEFI/wasm only). Wheel-from-this-lockfile and dual-license choice not established. [CI #200](https://github.com/shimon3/rapido/actions/runs/38720604527) SUCCESS: 230 passed /5 skipped /120 subtests /1 warning; signatures 15 passed; collector OK; release skipped.
@@ -84,7 +92,7 @@ Sources: https://docs.pypi.org/api/json/ ; https://pip.pypa.io/en/stable/user_gu
 ## Remaining priorities / real gates
 
 1. Finish exact runtime/native vulnerability/attribution/source/replacement/license review: LGPL/MPL notices now shipped (e890163) but legal adequacy unreviewed; proxy MIT/BSD discrepancy, embedded codecs and platform runtimes. Collection, pins and empty registry lists are not compliance/security clearance.
-2. Provenance: repo LICENSE says Samuel Tuil, installer publisher Samuel Bentouza. Preserve existing rights; no authority to invent ownership or claim IDM similarity clearance.
+2. Provenance: rights holder Samuel Bentouza confirmed by owner and aligned (LICENSE, installer, version resource). No IDM similarity clearance claimed.
 3. #26 requires independently protected production policy/installation, signer/version lifecycle, enforced browser selection and PyInstaller dependency protection before admission. No production signer/managed anchor supplied. No claim against injection, mapped writers or all ancestor races; keep issue open.
 4. Clean Windows 10/11 VM matrix plus Chrome/Edge/Firefox private/cookie/absent-host/restart/upgrade/manual capture/error/keyboard paths. Do not use user's PC or substitute Server CI.
 5. Defender, distinct beta version, repair/rollback and integration review before distribution. #8/#9 nonessential features deferred. No beta approved. Prior 5–10 effective-day estimate is conditional, excludes full #26 and external certificate/VM/provenance delays; not a delivery promise.
