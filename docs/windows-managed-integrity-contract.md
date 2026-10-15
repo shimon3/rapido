@@ -12,6 +12,12 @@ from the successful verification state, closes that state on success/failure,
 and retains a read-only shared file handle through caller use. It does not bind
 that file to a running process or make a later pathname-based launch atomic.
 
+Additional handle checks reject non-disk inputs, directories, leaf reparse
+points and a resolved final path different from the requested path, both before
+trust verification and before admission. The final-path check is deliberately
+conservative: junction/short-name aliases are not accepted as equivalent paths.
+It is not a claim that every ancestor race or mapped-writer case is prevented.
+
 `scripts/test_windows_signature.ps1` creates disposable, locally trusted CI
 certificates and harmless signed PE fixtures only on GitHub-hosted Windows.
 Its finally block removes those exact certificate entries, keys and fixture
@@ -113,3 +119,4 @@ No runtime work should substitute path checks, DPAPI, self-attestation, an envir
 9. [Provider data from verification state](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelperprovdatafromstatedata), [signer](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelpergetprovsignerfromchain), [certificate](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelpergetprovcertfromchain), [certificate layout](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/ns-wintrust-crypt_provider_cert), [CERT_CONTEXT](https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-cert_context)
 10. [CreateFileW sharing lifetime](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew)
 11. [New-SelfSignedCertificate (test certificates)](https://learn.microsoft.com/en-us/powershell/module/pki/new-selfsignedcertificate?view=windowsserver2025-ps), [Set-AuthenticodeSignature](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-authenticodesignature?view=powershell-5.1)
+12. [GetFinalPathNameByHandleW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew), [GetFileInformationByHandleEx](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getfileinformationbyhandleex), [FILE_ATTRIBUTE_TAG_INFO](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_attribute_tag_info), [GetFileType](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfiletype), [reparse-point operations](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-points-and-file-operations)

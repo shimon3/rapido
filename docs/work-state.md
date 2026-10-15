@@ -35,9 +35,11 @@ Overview used the tracked file inventory, README, recent commits, threat-model/r
 
 ## Current targeted task
 
-Contract drafted. Current task: a standalone held-file Authenticode verifier and isolated Windows signed-fixture validation for #26. It requires explicit SHA-256 leaf certificate pins and is NOT connected to runtime admission. Same-user compromise is not fixed by this primitive.
+Resume 2026-10-15: #26/PR #32 handle hardening. Added held-handle disk type, attribute and resolved-path checks before verification and admission. Added Windows fixtures for actual NTFS junctions, leaf symlinks, and replacement by an independent child process while held and after release. No runtime admission wiring; same-user compromise remains unresolved.
 
 Files: `windows_signature.py`, `tests/test_windows_signature.py`, `scripts/test_windows_signature.ps1`, `.github/workflows/windows.yml`, `tests/test_workflow_release_policy.py`, contract and checkpoint.
+
+Focused new checks on Linux: **9 passed, 6 Windows/fixture skips, 36 subtests passed**. Windows validation pending for these new changes. Workflow unchanged: dedicated branch push has no trigger; its draft PR triggers read-only builds with release gated to explicit tag pushes only. Next: inspect this revision's real Windows CI, then examine remaining PRs/licensing and produce the beta task/effort list.
 
 ## Validation and handoff
 

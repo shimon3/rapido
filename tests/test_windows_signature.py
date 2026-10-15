@@ -3,6 +3,9 @@ import ctypes
 import hashlib
 import json
 import os
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,11 +29,24 @@ class FakeAPI:
 
     def CreateFileW(self, path, access, share, security, disposition, flags, template):
         self.events.append(("open", path, access, share, disposition))
+        self.open_flags = flags
         return 123
 
     def CloseHandle(self, handle):
         self.events.append(("handle-close", handle))
         return 1
+
+    def GetFileType(self, handle):
+        return 1
+
+    def GetFileInformationByHandleEx(self, handle, info_class, raw, size):
+        attributes = ctypes.cast(raw, ctypes.POINTER(signature._AttributeTagInfo)).contents
+        attributes.FileAttributes = 0x80
+        return 1
+
+    def GetFinalPathNameByHandleW(self, handle, buffer, size, flags):
+        buffer.value = "\\\\?\\" + PATH
+        return len(buffer.value)
 
     def WinVerifyTrust(self, hwnd, action, raw):
         data = ctypes.cast(raw, ctypes.POINTER(signature._TrustData)).contents
@@ -81,6 +97,7 @@ class SignaturePolicyTests(unittest.TestCase):
                 api.events.append(("use",))
         self.assertEqual(api.events[-2:], [("use",), ("handle-close", 123)])
         self.assertEqual(api.events[0], ("open", PATH, 0x80000000, 1, 3))
+        self.assertEqual(api.open_flags, 0x00200080)
         self.assertEqual(api.events[1], ("trust", 1, 0x1080, 2, 123))
         self.assertIn(("signer", 0, False), api.events)
         self.assertIn(("trust", 2, 0x1080, 2, 123), api.events)
@@ -101,6 +118,57 @@ class SignaturePolicyTests(unittest.TestCase):
         with patch.object(signature, "_libraries", return_value=(api, api)), self.assertRaises(PermissionError):
             with signature.verified_signed_file(PATH, certificate_sha256=["0" * 64]):
                 self.fail("wrong signer admitted")
+        self.assertEqual(api.events[-1], ("handle-close", 123))
+
+    def test_redirected_or_uninspectable_input_denied_before_trust(self):
+        for failure in ("type", "attributes", "link", "directory", "path", "long", "redirect"):
+            api = FakeAPI()
+            original_attributes = api.GetFileInformationByHandleEx
+
+            def attributes(handle, info_class, raw, size):
+                original_attributes(handle, info_class, raw, size)
+                info = ctypes.cast(raw, ctypes.POINTER(signature._AttributeTagInfo)).contents
+                if failure == "link":
+                    info.FileAttributes |= 0x400
+                    info.ReparseTag = 0xA000000C
+                elif failure == "directory":
+                    info.FileAttributes |= 0x10
+                return 0 if failure == "attributes" else 1
+
+            def final_path(handle, buffer, size, flags):
+                buffer.value = r"\\?\C:\Other\Rapido.exe" if failure == "redirect" else "\\\\?\\" + PATH
+                return 0 if failure == "path" else size if failure == "long" else len(buffer.value)
+
+            with self.subTest(failure=failure), \
+                    patch.object(signature, "_libraries", return_value=(api, api)), \
+                    patch.object(api, "GetFileType", return_value=2 if failure == "type" else 1), \
+                    patch.object(api, "GetFileInformationByHandleEx", side_effect=attributes), \
+                    patch.object(api, "GetFinalPathNameByHandleW", side_effect=final_path):
+                with self.assertRaises(PermissionError):
+                    with signature.verified_signed_file(PATH, certificate_sha256=[PIN]):
+                        self.fail("redirected/uninspectable file admitted")
+            self.assertFalse(any(event[0] == "trust" for event in api.events))
+            self.assertEqual(api.events[-1], ("handle-close", 123))
+
+    def test_path_change_during_trust_denies_admission_and_cleans_up(self):
+        api = FakeAPI()
+        original = api.GetFinalPathNameByHandleW
+        calls = 0
+
+        def final_path(handle, buffer, size, flags):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return original(handle, buffer, size, flags)
+            buffer.value = r"\\?\C:\Changed\Rapido.exe"
+            return len(buffer.value)
+
+        with patch.object(signature, "_libraries", return_value=(api, api)), \
+                patch.object(api, "GetFinalPathNameByHandleW", side_effect=final_path), \
+                self.assertRaises(PermissionError):
+            with signature.verified_signed_file(PATH, certificate_sha256=[PIN]):
+                self.fail("changed path admitted")
+        self.assertIn(("trust", 2, 0x1080, 2, 123), api.events)
         self.assertEqual(api.events[-1], ("handle-close", 123))
 
     def test_incomplete_provider_data_and_exceptions_deny_and_release_resources(self):
@@ -176,3 +244,54 @@ class WindowsSignedFixtureTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(PermissionError):
                 with signature.verified_signed_file(self.folder / name, certificate_sha256=[self.pin]):
                     self.fail("unauthorized image admitted")
+
+    def test_other_process_cannot_replace_held_image_then_replacement_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir=self.folder) as directory:
+            path = Path(directory) / "Rapido.exe"
+            replacement = Path(directory) / "replacement.exe"
+            shutil.copyfile(self.folder / "signed.exe", path)
+            shutil.copyfile(self.folder / "unsigned.exe", replacement)
+            script = (
+                "import os,sys\n"
+                "try: os.replace(sys.argv[1],sys.argv[2])\n"
+                "except OSError as error:\n"
+                " print(error.winerror)\n"
+                " sys.exit(0 if error.winerror == 32 else 2)\n"
+                "sys.exit(3)\n"
+            )
+            with signature.verified_signed_file(path, certificate_sha256=[self.pin]):
+                result = subprocess.run([sys.executable, "-c", script, str(replacement), str(path)],
+                                        capture_output=True, text=True, timeout=10,
+                                        creationflags=subprocess.CREATE_NO_WINDOW)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stdout.strip(), "32")
+            os.replace(replacement, path)
+            with self.assertRaises(PermissionError):
+                with signature.verified_signed_file(path, certificate_sha256=[self.pin]):
+                    self.fail("replacement between verifications admitted")
+
+    def test_actual_junction_alias_to_valid_signed_file_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir=self.folder) as directory:
+            alias = Path(directory) / "junction"
+            subprocess.run(["cmd", "/d", "/c", "mklink", "/J", str(alias), str(self.folder)],
+                           capture_output=True, text=True, check=True, timeout=10)
+            try:
+                self.assertTrue(alias.is_junction())
+                with self.assertRaises(PermissionError):
+                    with signature.verified_signed_file(alias / "signed.exe", certificate_sha256=[self.pin]):
+                        self.fail("junction alias admitted")
+            finally:
+                alias.rmdir()
+
+    def test_actual_leaf_symlink_to_valid_signed_file_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir=self.folder) as directory:
+            alias = Path(directory) / "linked.exe"
+            try:
+                alias.symlink_to(self.folder / "signed.exe")
+            except OSError as error:
+                if getattr(error, "winerror", None) == 1314:
+                    self.skipTest("Runner lacks symbolic-link privilege")
+                raise
+            with self.assertRaises(PermissionError):
+                with signature.verified_signed_file(alias, certificate_sha256=[self.pin]):
+                    self.fail("leaf symlink admitted")

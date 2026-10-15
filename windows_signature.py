@@ -25,6 +25,10 @@ class _FileInfo(ctypes.Structure):
                 ("hFile", PTR), ("pgKnownSubject", PTR)]
 
 
+class _AttributeTagInfo(ctypes.Structure):
+    _fields_ = [("FileAttributes", DWORD), ("ReparseTag", DWORD)]
+
+
 class _TrustData(ctypes.Structure):
     _fields_ = [("cbStruct", DWORD), ("pPolicyCallbackData", PTR),
                 ("pSIPClientData", PTR), ("dwUIChoice", DWORD),
@@ -86,6 +90,12 @@ def _libraries():
     kernel.CreateFileW.restype = PTR
     kernel.CloseHandle.argtypes = [PTR]
     kernel.CloseHandle.restype = ctypes.c_int32
+    kernel.GetFileType.argtypes = [PTR]
+    kernel.GetFileType.restype = DWORD
+    kernel.GetFileInformationByHandleEx.argtypes = [PTR, ctypes.c_int32, PTR, DWORD]
+    kernel.GetFileInformationByHandleEx.restype = ctypes.c_int32
+    kernel.GetFinalPathNameByHandleW.argtypes = [PTR, ctypes.c_wchar_p, DWORD, DWORD]
+    kernel.GetFinalPathNameByHandleW.restype = DWORD
     trust.WinVerifyTrust.argtypes = [PTR, PTR, ctypes.POINTER(_TrustData)]
     trust.WinVerifyTrust.restype = ctypes.c_int32  # LONG, never HRESULT success rules.
     trust.WTHelperProvDataFromStateData.argtypes = [PTR]
@@ -95,6 +105,32 @@ def _libraries():
     trust.WTHelperGetProvCertFromChain.argtypes = [PTR, DWORD]
     trust.WTHelperGetProvCertFromChain.restype = ctypes.POINTER(_ProviderCertPrefix)
     return kernel, trust
+
+
+def _check_opened_file(kernel, handle, expected_path):
+    """Inspect the held object; reject redirected or uninspectable disk input.
+
+    This detects resolved junction/alias targets, not every possible ancestor
+    race. Protected deployment and a separate process-image binding are required.
+    """
+    if kernel.GetFileType(handle) != 1:  # FILE_TYPE_DISK, not devices or pipes
+        raise PermissionError("Signature input must be a disk file")
+    attributes = _AttributeTagInfo()
+    if not kernel.GetFileInformationByHandleEx(handle, 9, ctypes.byref(attributes),
+                                              ctypes.sizeof(attributes)):
+        raise PermissionError("Cannot inspect signature input attributes")
+    if attributes.FileAttributes & (0x400 | 0x10) or attributes.ReparseTag:
+        raise PermissionError("Reparse points and directories are not signature inputs")
+    final = ctypes.create_unicode_buffer(32768)
+    length = kernel.GetFinalPathNameByHandleW(handle, final, len(final), 0)
+    utf16_length = len(final.value.encode("utf-16-le", errors="surrogatepass")) // 2
+    if not 0 < length < len(final) or length != utf16_length:
+        raise PermissionError("Cannot inspect signature input path")
+    resolved = final.value
+    if resolved.startswith("\\\\?\\"):
+        resolved = resolved[4:]
+    if ntpath.normcase(resolved) != ntpath.normcase(expected_path):
+        raise PermissionError("Signature input path resolves to another location")
 
 
 def _certificate(trust, state):
@@ -125,10 +161,12 @@ def verified_signed_file(path, *, certificate_sha256):
     """
     path, pins = _inputs(path, certificate_sha256)
     kernel, trust = _libraries()
-    handle = kernel.CreateFileW(path, 0x80000000, 1, None, 3, 0x80, None)
+    # OPEN_REPARSE_POINT: inspect a leaf link itself instead of following it.
+    handle = kernel.CreateFileW(path, 0x80000000, 1, None, 3, 0x80 | 0x00200000, None)
     if not handle or handle == ctypes.c_void_p(-1).value:
         raise OSError("Cannot hold signature input file")
     try:
+        _check_opened_file(kernel, handle, path)
         info = _FileInfo(ctypes.sizeof(_FileInfo), path, handle, None)
         data = _TrustData()
         data.cbStruct = ctypes.sizeof(data)
@@ -152,6 +190,7 @@ def verified_signed_file(path, *, certificate_sha256):
             # Required even when VERIFY fails or signer extraction raises.
             data.dwStateAction = 2  # WTD_STATEACTION_CLOSE
             trust.WinVerifyTrust(ctypes.c_void_p(-1), action, ctypes.byref(data))
+        _check_opened_file(kernel, handle, path)
         yield VerifiedSignature(path, fingerprint)
     finally:
         kernel.CloseHandle(handle)
