@@ -37,6 +37,7 @@ jobs:
           pip install -r requirements.txt pywebview pyinstaller pytest
 
       - name: Isolated Authenticode fixtures (no production signing)
+        timeout-minutes: 3
         shell: powershell
         run: .\scripts\test_windows_signature.ps1
 
