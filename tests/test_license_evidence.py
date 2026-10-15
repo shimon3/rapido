@@ -22,6 +22,43 @@ class Distribution:
 
 
 class LicenseEvidenceTests(unittest.TestCase):
+    def test_webview_sdk_requires_every_binary_and_both_original_text_identities(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            carrier = root / "pywebview.dist-info/LICENSE"
+            carrier.parent.mkdir()
+            carrier.write_bytes(b"Carrier license")
+            files = {"webview/lib/Core.dll": b"core fixture", "webview/lib/Loader.dll": b"loader fixture"}
+            expected = {}
+            for relative, data in files.items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                expected[relative] = hashlib.sha256(data).hexdigest()
+            dist = Distribution(root, "pywebview", ["pywebview.dist-info/LICENSE"])
+            dist.version = "6.2.1"
+            with patch.object(evidence, "WEBVIEW2_SDK_FILES", expected):
+                report = collect(root / "accepted", distributions=[dist], python_license=root / "missing")
+                item = report["packages"][0]
+                self.assertEqual(len(item["files"]), 3)
+                self.assertEqual(len(item["supplemental_components"][0]["matched_installed_files"]), 2)
+                self.assertFalse(item["supplemental_components"][0]["complete_legal_review"])
+                self.assertEqual({f["sha256"] for f in item["files"] if f.get("component")},
+                                 set(evidence.WEBVIEW2_SDK_TEXTS.values()))
+                (root / "webview/lib/Loader.dll").write_bytes(b"different loader")
+                rejected = collect(root / "bad-binary", distributions=[dist], python_license=root / "missing")
+                self.assertIn("webview2-sdk-notice-identity-unverified", rejected["packages"][0]["problems"])
+                self.assertEqual(len(rejected["packages"][0]["files"]), 1)
+                (root / "webview/lib/Loader.dll").write_bytes(files["webview/lib/Loader.dll"])
+                with patch.dict(evidence.WEBVIEW2_SDK_TEXTS, {"NOTICE.txt": "0" * 64}):
+                    rejected = collect(root / "bad-text", distributions=[dist], python_license=root / "missing")
+                self.assertEqual(len(rejected["packages"][0]["files"]), 1)
+                self.assertIn("webview2-sdk-notice-identity-unverified", rejected["packages"][0]["problems"])
+                dist.version = "6.3.0"
+                rejected = collect(root / "unreviewed-version", distributions=[dist], python_license=root / "missing")
+                self.assertEqual(len(rejected["packages"][0]["files"]), 1)
+                self.assertIn("webview2-sdk-notice-identity-unverified", rejected["packages"][0]["problems"])
+
     def test_supplement_requires_exact_module_identity_and_keeps_conflict_visible(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

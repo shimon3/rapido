@@ -60,6 +60,14 @@ Current backend correction retains the old task until completion, issues cancell
 
 Current validation summary: `docs/critical-actions-validation-20261015.json`. Destructive UI POSTs are intercepted during WebView2 probes; real temporary-file/task backend tests separately verify cancellation ordering and completed-file preservation. No physical keyboard or end-to-end destructive UI/API interaction certification is implied.
 
+## Current task — reviewed build versions and SDK notices
+
+Read 41 exact version endpoints in PyPI JSON on 2026-10-15; no advisories/yanks returned. `docs/dependency-advisory-snapshot-20261015.json` is a dated scoped observation, NOT a vulnerability-free/native-library/license verdict. New `scripts/check_dependency_advisories.py` validates response identity/schema/withdrawal dates, bounds retries and fails on unverified metadata, active advisories, any release-file yank or installed-version drift. Unknown inventory names are not queried. 33 targeted advisory/license/payload/release-policy tests + 12 subtests pass; real local API run verified all 41 responses.
+
+`packaging/constraints-windows-build.txt` pins all 41 observed build-environment versions (including pip); install uses runtime/build constraints and pip check. Exact versions only: no artifact hashes or byte reproducibility claimed. Isolated build tools not listed and later Selenium smoke dependencies remain outside this version matrix. CI is pending for these changes.
+
+Official NuGet `Microsoft.Web.WebView2 1.0.3856.49` package downloaded; all five SDK DLLs in actual #187 artifact match exact package entries. Original LICENSE.txt/NOTICE.txt preserved under packaging/licenses with package/text/native hashes and provenance. Collector adds both SDK texts only after checking pywebview 6.2.1, all five installed DLL identities and both text hashes; mismatch stops the Windows build. Actual #187 DLL bytes passed this new collector locally. WebBrowserInterop files, independent SDK/runtime signing, source obligations and overall compatibility are not cleared by this match.
+
 ## Remaining gates and next task
 
 - Review exact runtime/native attribution, embedded library notices, LGPL/MPL/source/replacement requirements and proxy_tools MIT/BSD discrepancy. Inventory collection is done; compliance is not established. Dependency vulnerability review must cover exact observed versions/native components, not only pip names. Python pin is a reviewed baseline requiring future maintenance, not perpetual security assurance.

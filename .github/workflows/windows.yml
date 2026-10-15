@@ -31,14 +31,18 @@ jobs:
           # Reviewed Windows baseline; 3.12 resolves to the old 3.12.10 binaries.
           python-version: "3.13.16"
           cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            packaging/constraints-windows-build.txt
 
       - name: Verify reviewed Python and OpenSSL build baseline
         run: python scripts/check_build_runtime.py
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pywebview pyinstaller pytest
+          python -m pip install --upgrade -c packaging/constraints-windows-build.txt pip
+          python -m pip install -r requirements.txt -c packaging/constraints-windows-build.txt --build-constraint packaging/constraints-windows-build.txt pywebview pyinstaller pytest
+          python -m pip check
 
       - name: Isolated Authenticode fixtures (no production signing)
         timeout-minutes: 3
@@ -101,6 +105,10 @@ jobs:
 
       - name: Collect build-environment license evidence
         run: python scripts/collect_license_evidence.py --output dist/Rapido/third-party
+
+      - name: Check reviewed versions and current PyPI advisories
+        timeout-minutes: 3
+        run: python scripts/check_dependency_advisories.py --inventory dist/Rapido/third-party/inventory.json --constraints packaging/constraints-windows-build.txt --output dist/Rapido/third-party/advisories.json
 
       - name: Inspect bundled modules and native library evidence
         run: python scripts/collect_payload_evidence.py --bundle dist/Rapido --forbid-module pytest --forbid-module _pytest

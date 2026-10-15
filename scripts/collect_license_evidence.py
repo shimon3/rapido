@@ -21,6 +21,15 @@ PROXY_TOOLS_MODULE_SHA256 = "d1539d95e1a713c068ca81d42e047b2c76568964cf277596d4e
 PROXY_TOOLS_LICENSE_SHA256 = "a428fb8a2e762af3eb0a6edbbb88e9b42ccfee80fd9b423958bcacf9b9abbfe4"
 PROXY_TOOLS_SOURCE = "https://github.com/jtushman/proxy_tools/blob/db43f1e35d4f90a65c5a4d56d9e9af88212ec6e6/LICENSE.txt"
 
+WEBVIEW2_SDK_FILES = {'webview/lib/Microsoft.Web.WebView2.Core.dll': '8219a3135436c147f8eb02fb831e99596103eebc18b6d7b794ca93f4c67018a2',
+ 'webview/lib/Microsoft.Web.WebView2.WinForms.dll': 'c48f8d729dc531288d2c53a6241effe7922ed1b947850b2442008a945c098c48',
+ 'webview/lib/runtimes/win-arm64/native/WebView2Loader.dll': '0937030efc718f3da77c5e0978fb5046e381d0bb7b01acaad31a535a1b588a33',
+ 'webview/lib/runtimes/win-x64/native/WebView2Loader.dll': 'eb5335edeaa6f2122c044e82aab2351dc8c9b4e0fe5e578c71922fb61be285e7',
+ 'webview/lib/runtimes/win-x86/native/WebView2Loader.dll': '04814b2c59314c6452d61b821a4a3a5c5f8e8577b55b985f6a7a4b59f8907ec5'}
+WEBVIEW2_SDK_TEXTS = {'LICENSE.txt': '0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55',
+ 'NOTICE.txt': '106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90'}
+WEBVIEW2_SDK_SOURCE = 'https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.3856.49/microsoft.web.webview2.1.0.3856.49.nupkg'
+
 
 def _supplement_known_missing_text(dist, root, output, item):
     # The published 0.1.0 sdist omits LICENSE. Its module says BSD while its
@@ -52,6 +61,42 @@ def _supplement_known_missing_text(dist, root, output, item):
                           "source": PROXY_TOOLS_SOURCE,
                           "installed_module_sha256_lf": PROXY_TOOLS_MODULE_SHA256})
     item["problems"].append("upstream-BSD-text-supplemented-metadata-MIT-review-required")
+
+
+
+def _supplement_webview2_sdk(dist, root, output, item):
+    if re.sub(r"[-_.]+", "-", item["name"]).lower() != "pywebview":
+        return
+    try:
+        if item["version"] != "6.2.1":
+            raise ValueError("Unreviewed SDK carrier version")
+        for relative, expected in WEBVIEW2_SDK_FILES.items():
+            source = Path(dist.locate_file(relative))
+            source.resolve().relative_to(root)
+            with source.open("rb") as stream:
+                if hashlib.file_digest(stream, "sha256").hexdigest() != expected:
+                    raise ValueError("Different SDK file identity")
+        originals = Path(__file__).resolve().parents[1] / "packaging/licenses/Microsoft.Web.WebView2-1.0.3856.49"
+        texts = {}
+        for name, expected in WEBVIEW2_SDK_TEXTS.items():
+            data = (originals / name).read_bytes().replace(b"\r\n", b"\n")
+            if hashlib.sha256(data).hexdigest() != expected:
+                raise ValueError("Different SDK text identity")
+            texts[name] = data
+    except (OSError, ValueError):
+        item["problems"].append("webview2-sdk-notice-identity-unverified")
+        return
+    for name, data in texts.items():
+        target = "packages/pywebview/Microsoft.Web.WebView2-1.0.3856.49/" + name
+        destination = output / target
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+        item["files"].append({"path": target, "sha256": hashlib.sha256(data).hexdigest(),
+                              "source": WEBVIEW2_SDK_SOURCE + "!/" + name,
+                              "component": "Microsoft.Web.WebView2 1.0.3856.49"})
+    item["supplemental_components"] = [{"name": "Microsoft.Web.WebView2", "version": "1.0.3856.49",
+        "source": WEBVIEW2_SDK_SOURCE, "complete_legal_review": False,
+        "matched_installed_files": [{"path": p, "sha256": h} for p, h in WEBVIEW2_SDK_FILES.items()]}]
 
 
 def _license_path(record):
@@ -111,6 +156,7 @@ def collect(output, *, distributions=None, python_license=None):
             _supplement_known_missing_text(dist, root, output, item)
         if not item["files"]:
             item["problems"].append("license-text-not-collected")
+        _supplement_webview2_sdk(dist, root, output, item)
         packages.append(item)
 
     python_license = Path(python_license) if python_license is not None else Path(sys.base_prefix) / "LICENSE.txt"
@@ -145,6 +191,8 @@ def main():
     args = parser.parse_args()
     report = collect(args.output)
     print(f"License evidence collected for {len(report['packages'])} installed distributions; compliance review remains required.")
+    if any("webview2-sdk-notice-identity-unverified" in p["problems"] for p in report["packages"]):
+        raise SystemExit("WebView2 SDK notices unverified: review carrier/version/binary/text identity before building")
     if not report["python"]["license_collected"]:
         raise SystemExit("Python interpreter license missing: refusing an incomplete evidence bundle")
 
