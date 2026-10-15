@@ -2,6 +2,45 @@
 
 État vérifié le 15 octobre 2026. **Bêta publique non approuvée.** Aucun accord de fusion/publication n'est impliqué par ce document. Pas de nouvelle fonctionnalité prévue.
 
+## Dernière version validée — CI #183
+
+Code testé : `c33041ab36a68632625734f9824bb297b206217c`, PR #33 dépendante de #32.
+[CI #183](https://github.com/shimon3/rapido/actions/runs/38685767705) entièrement
+réussie : **179 tests de régression**, 5 fixtures ignorées après leur exécution
+séparée, 88 sous-tests et 1 avertissement ; les **15 tests Authenticode dédiés**
+ont tous réussi. Compilation, fenêtres réelles, installateur/désinstallateur,
+coexistence portable et Firefox réel réussis. Job release ignoré, aucune fusion
+ou publication.
+
+Ces garde-fous de CI sont sur les branches en revue. `main` n'a pas été modifié
+et conserve son ancien mécanisme de publication automatique : une future
+intégration devra préserver le garde-fou « tag explicite uniquement » avant
+toute exécution sur `main`. Aucun déclenchement de ce mécanisme n'est autorisé ici.
+
+Inspection du ZIP final téléchargé : **394 entrées**, **46 distributions**,
+**121 textes de licence de packages**, LICENSE Python 3.12.10 et licence Rapido
+présents. Aucune distribution de cet inventaire ne manque de texte collecté.
+Les empreintes de tous les textes référencés ont été recalculées et vérifiées.
+Le complément proxy_tools est présent et sa contradiction MIT/BSD reste
+signalée ; `compliance_verified=false` reste explicite. Cela ne clôture pas la
+revue des obligations LGPL/MPL ou des DLL natives.
+
+| Artefact #183 | SHA-256 vérifiée |
+| --- | --- |
+| Archive GitHub Actions | `f7dd0c3e0df5635abe1111438a19c38cbaed848f7af584464f521e59493e7f70` |
+| Rapido-1.2.2-portable.zip | `c9d28a1ea20b12689e157d9f08d4addb160606883967165315f143b4e5c0e049` |
+| Rapido-Setup-1.2.2.exe | `a335e783b4fd88630acedd71782b6e16cf02ac5501af7b6da15a11ff4e7b59f9` |
+
+Preuves conservées : [inventaire exact de compilation](beta-build-inventory-20261015.json)
+et [résultat d'inspection des artefacts](beta-artifact-verification-20261015.json).
+Leur périmètre reste l'environnement de compilation, avec ses outils de test,
+pas une certification exhaustive du contenu natif du logiciel distribué.
+L'archive est un artefact CI de revue, toujours étiqueté 1.2.2 dans les binaires ;
+une version bêta distincte et approuvée reste à préparer avant diffusion.
+
+Les sections suivantes conservent les étapes antérieures et la liste du travail
+restant. Les empreintes antérieures ne désignent pas ce dernier build.
+
 ## Ce qui est vérifié
 
 - Moteur consolidé PR #33, code `0dd20fc3d52457b0a33dd2f5bbfe6494f1fc9dee` : [CI Windows #181](https://github.com/shimon3/rapido/actions/runs/38684202772) réussie. 175 régressions réussies, 5 fixtures ignorées après exécution dédiée ; les 15 tests Authenticode dédiés ont tous réussi. Compilation, fenêtres, installateur/portable et Firefox réel réussis ; release ignorée.
@@ -54,8 +93,7 @@ Le rapport indique `scope=installed-build-environment` et
 identifier exactement les modules distribués ou résoudre les obligations des
 DLL natives. Le build refuse l'absence du LICENSE Python ; les autres textes
 manquants sont signalés pour revue. Le collecteur a passé trois tests ciblés et
-un essai réel sur 25 distributions Linux (36 textes collectés). Validation et
-inspection Windows de ce nouvel empaquetage encore nécessaires.
+un essai réel sur 25 distributions Linux (36 textes collectés). Validation Windows et inspection effective sont désormais établies par #183 ci-dessus ; la conformité juridique complète reste non attestée.
 
 ### Inspection Windows #182
 
@@ -75,7 +113,7 @@ exactement au module d'un commit amont dont le fichier BSD est accessible.
 Le texte authentique et sa [provenance](../packaging/licenses/proxy_tools-0.1.0/PROVENANCE.md)
 sont désormais conservés dans le dépôt. Le collecteur ne les applique qu'à la
 version et à l'empreinte exacte de ce module et garde le conflit MIT/BSD signalé
-pour revue. Cette modification supplémentaire nécessite sa propre CI.
+pour revue. Cette modification supplémentaire est désormais validée et inspectée dans #183 ci-dessus.
 
 L'inventaire réel confirme également `pystray 0.19.5` avec métadonnées LGPLv3 et
 textes COPYING/COPYING.LGPL collectés, ainsi que `certifi 2026.7.22` avec
