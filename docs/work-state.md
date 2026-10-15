@@ -57,7 +57,25 @@ CI hardening: build token now read-only. The sole write-enabled release job requ
 
 Draft [PR #32](https://github.com/shimon3/rapido/pull/32) created against PR #29's branch. Implementation commit `65e4e043116d5844fdead7835e8a6d8b6979d506` is confirmed remotely; local/index/remote trees matched. Windows CI #176 (run `38673085039`) reached the isolated signing step but remained there for several minutes; in-progress logs returned 404, so its exact cause is unconfirmed. The harness now uses the disposable VM's machine root store instead of per-user root-store consent, logs each stage and has a 3-minute step timeout. Required verification policy is unchanged. Certificates/keys/fixtures are removed by finally cleanup; forced runner termination relies on disposal of the GitHub-hosted VM.
 
-Next: validate the revised harness on Windows; do not claim the primitive validated until the signed fixtures and full CI pass. Then review/select the concrete enforcement profile for #26 before runtime admission wiring. Required inputs remain production signer lifecycle and a supported managed browser/OS deployment profile, including PyInstaller payload coverage and Firefox selection evidence. Until then #26 stays open; no automatic downgrade from managed mode is acceptable.
+## Latest validated result
+
+Implementation HEAD: `eb450864681769f24412e3efb2137cb9c0217415`.
+[Windows CI #177](https://github.com/shimon3/rapido/actions/runs/38673512236) **SUCCESS**; build job `116221787998`. Logs confirmed:
+
+- Real signed PE/incorrect trusted signer/tamper/unsigned/file-lock tests: **10 passed, 32 subtests passed**, no skips. Exact temporary certificates/private keys/files removed by the harness.
+- Complete regression suite: **152 passed, 2 skipped, 1 warning, 81 subtests passed**. The two skips are signed-fixture tests in the ordinary suite after fixture cleanup; both ran in the prior dedicated step.
+- Desktop and native-host compilation, real-window self-test, installer registration/unregistration, foreign-process/portable coexistence, real Firefox handoff, packaging and artifact upload all succeeded.
+- Build token's actual log reports `Contents: read`; the separate release job `116222898250` was **skipped**. No release or deployment performed.
+
+This final checkpoint changes documentation only and uses `[skip ci]` to avoid repeating the same packaging pipeline; executable code, tests and workflow remain byte-for-byte those validated at the implementation HEAD above. Do not claim this documentation commit itself ran CI; rerun exact-head/integration checks before any future authorized merge/release.
+
+## Remaining work and restart
+
+Next #26 gate: review/select the concrete enforcement profile before runtime admission wiring. Required inputs remain production signer lifecycle and a supported managed browser/OS deployment profile, including PyInstaller payload coverage and Firefox selection evidence. No production certificate or enforced installation policy is configured or assumed. The verifier alone cannot close #26. No automatic downgrade from managed mode is acceptable.
+
+Open-issue inventory checked after CI: #3 (API/extension S2/S3), #26 (independent trust), #28 (installer process scope). #3/#28 corrections already exist in the dependent draft stack through #29; they remain unmerged. Do not redo stack reconciliation or close findings that remain present on main. Next code task must address an unvalidated admission requirement from the managed contract, not duplicate existing draft fixes.
+
+CI #176 (`38673085039`, old commit `65e4e04`) stalled in the old per-user signing harness and is not validation evidence. Its job has the existing 30-minute bound. The available connector exposes no cancellation operation; no cancellation is claimed. The corrected harness passed in #177 with a 3-minute step bound.
 
 Never use `main` or publication tags for this work. Initial checkpoint successfully saved remotely as `6c90a7a1863d594c802fedea06e823597d8f4cd6`; Git fetch confirmed identical local/remote trees. Local Git has no write credentials, so use GitHub connector Git-data operations for ordinary fast-forward branch updates; preserve parent ancestry and verify remote HEAD after each update.
 
