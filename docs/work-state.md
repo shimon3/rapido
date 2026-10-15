@@ -1,12 +1,18 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: 6f1f7cd, CI #200. Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-15 (Claude). Latest validated code: 1c07ac2, CI #203. Start here; do not repeat repository overview or completed PR reconciliation.
 
 ## Goal and authority
 
 First stable Windows beta, essential corrections only. Branch `work/beta-engine-guards-20261015`, draft PR #33 targets draft PR #32's `work/security-26-followup-20261015` (dependent on #29).
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
+
+## Completed focus — distinct beta version 1.3.0-beta.1 (Claude, 1c07ac2)
+
+Owner chose `1.3.0-beta.1`. Single source `rapido_version.py`: beta N -> numeric X.Y.Z.N, final -> X.Y.Z.100 (final newer than its betas). engine.VERSION, exe version resource (numeric filevers, text ProductVersion), installer (VersionInfoVersion numeric via /DAppFileVersion, product text version), Chromium manifest `version` 1.3.0.1 + `version_name` (Firefox build drops it), update check (remote stays final-only via /releases/latest). Workflow: passes numeric file version; release job (still tag-only, unchanged condition) would mark a beta as prerelease and never latest. Rights holder change validated by [CI #202](https://github.com/shimon3/rapido/actions/runs/38722272069) (230 passed). [CI #203](https://github.com/shimon3/rapido/actions/runs/38722975650) SUCCESS on 1c07ac2: 236 passed /5 skipped /126 subtests /1 warning; installer built as Rapido-Setup-1.3.0-beta.1.exe with /DAppFileVersion=1.3.0.1; install/uninstall and portable coexistence passed; release skipped. No tag/release created.
+
+Pending owner decisions: beta scope without full #26 (recommended, not yet confirmed), Windows 10/11 VM location, legal questions (Microsoft runtimes, proxy_tools, pystray LGPL).
 
 ## Completed focus — cffi libffi notice, WebBrowserInterop provenance, rights holder (Claude, e6f6ccd + next)
 
