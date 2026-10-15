@@ -3,6 +3,10 @@
 Status: design review only. **No executable attestation is implemented by this document.**
 Applies to Rapido.exe, RapidoNativeHost.exe, launcher manifests and HKCU native-messaging entries on Windows.
 
+The [proposed managed integrity contract](windows-managed-integrity-contract.md)
+turns this gate into deployment requirements and observable Windows acceptance
+tests. It remains a proposal: no managed mode or trust anchor is implemented.
+
 ## Boundaries and attacker capabilities
 
 | Attacker / deployment | What existing checks establish | What remains unprotected |
