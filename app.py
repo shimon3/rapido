@@ -27,6 +27,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 
+import rapido_version
 from engine import (Manager, IS_WINDOWS, VERSION, FROZEN, RES_DIR, EXE_DIR,
                     CREATE_NEW_CONSOLE)
 
@@ -692,11 +693,9 @@ async def check_updates():
         latest, url = await asyncio.to_thread(_latest_rapido_release)
     except Exception:
         raise HTTPException(status_code=502, detail="Impossible de vérifier les mises à jour GitHub")
-    def numbers(value: str):
-        match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", value)
-        return tuple(map(int, match.groups())) if match else None
-    current = numbers(VERSION)
-    remote = numbers(latest)
+    # A final release is newer than its betas (rapido_version.numeric).
+    current = rapido_version.numeric(VERSION)
+    remote = rapido_version.numeric(latest)
     if current is None or remote is None:
         raise HTTPException(status_code=502, detail="Format de version inconnu")
     return {"current": VERSION, "latest": latest, "update_available": remote > current, "url": url}

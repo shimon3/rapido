@@ -19,6 +19,7 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
       release: ${{ steps.ver.outputs.release }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
     timeout-minutes: 30
     steps:
       # Actions epinglees sur un commit precis (une etiquette comme "v4" peut etre deplacee)
@@ -67,6 +68,9 @@ jobs:
             echo "::error::Le tag ($GITHUB_REF) ne correspond pas a engine.VERSION ($V)"; exit 1
           fi
           python packaging/make_version_file.py "$V" > packaging/version_info.txt
+          # Windows needs 4 integers; betas are published as prereleases only.
+          echo "file_version=$(python -c "import rapido_version as r; print(r.dotted('$V'))")" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$(python -c "import rapido_version as r; print(str(r.is_prerelease('$V')).lower())")" >> "$GITHUB_OUTPUT"
           # Only an explicit publication tag push can request a release.
           # Main, PRs and workflow_dispatch never publish implicitly.
           if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/tags/v* ]]; then
@@ -165,7 +169,7 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
-          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" packaging\rapido.iss
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DAppFileVersion=${{ steps.ver.outputs.file_version }}" packaging\rapido.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install and uninstall browser native-host registrations
@@ -312,7 +316,9 @@ jobs:
         with:
           tag_name: v${{ needs.build.outputs.version }}
           target_commitish: ${{ github.sha }}
-          make_latest: true
+          # A beta never becomes "latest", so installed final versions are not offered it.
+          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.build.outputs.prerelease == 'true' && 'false' || 'true' }}
           name: Rapido ${{ needs.build.outputs.version }}
           files: |
             dist/Rapido-Setup-*.exe

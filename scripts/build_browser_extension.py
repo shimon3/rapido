@@ -32,6 +32,8 @@ def build(browser: str, destination: Path) -> None:
         pass
     else:
         manifest.pop("key", None)
+        # Chromium-only display label; the numeric version stays authoritative.
+        manifest.pop("version_name", None)
         manifest["background"] = {"scripts": ["background.js"]}
         manifest["browser_specific_settings"] = {
             "gecko": {"id": "rapido-capture@rapido.local"}

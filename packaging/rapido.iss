@@ -2,7 +2,11 @@
 ; Compile par GitHub Actions :  ISCC.exe /DAppVersion=1.0.0 packaging\rapido.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.2.2"
+  #define AppVersion "1.3.0-beta.1"
+#endif
+; Windows exige 4 entiers : voir rapido_version.dotted (beta N -> .N, finale -> .100)
+#ifndef AppFileVersion
+  #define AppFileVersion "1.3.0.1"
 #endif
 
 [Setup]
@@ -25,7 +29,8 @@ OutputBaseFilename=Rapido-Setup-{#AppVersion}
 SetupIconFile=rapido.ico
 UninstallDisplayIcon={app}\Rapido.exe
 UninstallDisplayName=Rapido
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#AppFileVersion}
+VersionInfoProductTextVersion={#AppVersion}
 VersionInfoDescription=Installation de Rapido
 Compression=lzma2/max
 SolidCompression=yes
