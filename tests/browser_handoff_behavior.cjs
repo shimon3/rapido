@@ -59,7 +59,13 @@ async function scenario(mode) {
       onDeterminingFilename:mode.startsWith("firefox") ? undefined : event(),
       async cancel(){calls.push("cancel");if (["cancel-failed","completed-after-native"].includes(mode)) throw new Error("Cannot cancel");},
       async erase(){calls.push("erase");if (mode === "erase-failed") throw new Error("Cannot erase");},
-      async search(){return mode === "cancel-noop-complete" ? [{state:"complete"}] : [{state:"interrupted"}];},
+      async pause(){calls.push("pause");if (mode === "pause-refused") throw new Error("Cannot pause");},
+      async resume(){calls.push("resume");},
+      async search(){
+        if (mode === "cancel-noop-complete") return [{state:"complete"}];
+        // Paused copies report canResume, except for a non-resumable server.
+        return [{state:"interrupted",paused:true,canResume:mode !== "not-resumable"}];
+      },
       async download(){calls.push("restart");}},
     webRequest:{onHeadersReceived:{addListener(fn){mediaListener=fn;}}}, tabs:{onRemoved:event(),onUpdated:event(),async sendMessage(id,msg,opts){notices.push({id,msg,opts});},async query(){return [{id:5,incognito:false}];}},
     contextMenus:{onClicked:{addListener(fn){menuClick=fn;}},create(){}}
@@ -170,6 +176,23 @@ async function scenario(mode) {
   }
   await task;
   assert(!calls.includes("restart"), "original request must never be replaced");
+  // Every path where Rapido does not take over must give the paused copy back.
+  if (["missing","rejected","bad-capabilities","legacy","cancel-failed","completed-after-native"].includes(mode)) {
+    assert(calls.includes("pause"),mode+": the browser copy must be paused while Rapido is asked");
+    assert(calls.lastIndexOf("resume") > calls.indexOf("pause"),mode+": a paused download must be resumed");
+  }
+  if (["success","pending","commit-ack-lost","erase-failed"].includes(mode)) {
+    assert(calls.indexOf("pause") < calls.indexOf("capture_prepare"),"pause must precede the native round trip");
+    assert(!calls.includes("resume"),"a captured download must not be resumed in the browser");
+  }
+  if (mode === "not-resumable") {
+    assert(calls.indexOf("resume") < calls.indexOf("capture_prepare"),"a non-resumable pause must be undone at once");
+    assert(calls.includes("capture_commit"));
+  }
+  if (mode === "pause-refused") {
+    assert(!calls.includes("resume"));
+    assert(calls.includes("capture_commit"),"handoff still works when pausing is refused");
+  }
   if (["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","firefox-container","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","legacy"].includes(mode)) {
     assert(!calls.includes("cancel"), mode);
     assert(!calls.includes("erase"), mode);
@@ -200,7 +223,7 @@ async function scenario(mode) {
   }
 }
 (async()=>{
-  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed","legacy","commit-unavailable","commit-ack-lost","public-video","video-menu","session-menu","cancel-noop-complete","direct-video","direct-video-menu","direct-video-session","blob-video"]) {
+  for (const mode of ["missing","rejected","private-referrer","private-target","cookie-error","bad-capabilities","incognito","incognito-menu","pending","success","firefox-event","firefox-filename","firefox-container","firefox-container-menu","firefox-private-store","firefox-missing-store","firefox-unknown-store","firefox-default-cookie","private-media","firefox-container-media","firefox-container-video","incognito-video","public-media","firefox-public-media","cancel-failed","completed-after-native","completed","interrupted","erase-failed","legacy","commit-unavailable","commit-ack-lost","public-video","video-menu","session-menu","cancel-noop-complete","direct-video","direct-video-menu","direct-video-session","blob-video","not-resumable","pause-refused"]) {
     await scenario(mode);
     console.log("PASS "+mode);
   }

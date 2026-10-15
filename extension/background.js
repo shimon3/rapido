@@ -217,6 +217,17 @@ if (chrome.downloads.onDeterminingFilename?.addListener) {
   });
 }
 
+// Keep the pause only when the browser confirms the paused download can be
+// resumed; otherwise resume at once and fall back to the unpaused handoff.
+async function pauseForHandoff(id) {
+  try { await chrome.downloads.pause(id); } catch { return false; }
+  let current;
+  try { current = (await chrome.downloads.search({ id }))?.[0]; } catch {}
+  if (current?.paused === true && current.canResume === true) return true;
+  try { await chrome.downloads.resume(id); } catch {}
+  return false;
+}
+
 async function handleDownload(item, ext) {
   // Never export private-window URLs or consult the regular cookie jar for them.
   if (browserOwnedContext(item)) return;
@@ -233,6 +244,13 @@ async function handleDownload(item, ext) {
   if (handled.has(item.id)) return;
   handled.add(item.id);
 
+  // Firefox announces a download only once it is running (after "Save As")
+  // and the native round trip takes seconds, so a fast download could finish
+  // first. Pause the browser copy while Rapido is asked; resume it on every
+  // path where Rapido does not take over.
+  const paused = await pauseForHandoff(item.id);
+  const giveBack = async () => { if (paused) { try { await chrome.downloads.resume(item.id); } catch {} } };
+
   const name = (item.filename || "").split(/[\\/]/).pop();
   let ticket;
   try {
@@ -241,6 +259,7 @@ async function handleDownload(item, ext) {
     // cancel/erase followed by a fresh request that loses browser session state.
     ticket = await captureFile(url, item.referrer, name || undefined, true);
   } catch {
+    await giveBack();
     flash("!", "#b4541a");
     return;
   }
@@ -255,6 +274,7 @@ async function handleDownload(item, ext) {
     // A completed download or refused cancellation must retain its browser
     // history. Native acceptance alone is not proof of browser cancellation.
     try { await chrome.runtime.sendNativeMessage(NATIVE_HOST,{type:"capture_abort",ticket}); } catch {}
+    await giveBack();
     await notifyActive("browser_finished");
     return;
   }
