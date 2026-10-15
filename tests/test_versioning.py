@@ -81,6 +81,10 @@ class VersioningTests(unittest.TestCase):
         self.assertIn("prerelease: ${{ needs.build.outputs.prerelease == 'true' }}", release)
         self.assertIn("make_latest: ${{ needs.build.outputs.prerelease == 'true' && 'false' || 'true' }}", release)
         self.assertNotIn("make_latest: true", release)
+        self.assertIn("needs.build.outputs.prerelease == 'true' && '**Version bêta.** Non protégée contre un compte Windows déjà compromis (#26", release)
+        notes = (ROOT / "docs/beta-release-notes.md").read_text(encoding="utf-8")
+        self.assertIn(rapido_version.VERSION, notes)
+        self.assertIn("#26", notes)
         self.assertTrue(re.search(r'/DAppFileVersion=\$\{\{ steps\.ver\.outputs\.file_version \}\}', source))
 
 

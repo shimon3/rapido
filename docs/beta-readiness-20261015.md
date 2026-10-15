@@ -152,7 +152,7 @@ La licence Python 3.13.16 de l'artefact a été vérifiée avec son empreinte.
 | --- | --- | --- | --- | --- |
 | Terminé | Valider la branche moteur consolidée sur Windows | Moyenne | 0 h restantes pour ce correctif | CI #181 réussie sur `0dd20fc` ; les changements d'empaquetage suivants ont leur propre validation |
 | P0 | Revue finale sécurité/intégration des PR indispensables | Élevée | 1–2 j | Routes/IPC/persistance/handoff relus, conflits traités sur branche, critères #3/#28 couverts ; aucune fusion avant accord |
-| P0 | Définir la garantie réelle de la bêta pour #26 | Élevée | 0,5–1 j de revue | Distinguer bêta par utilisateur et installation administrée ; limites explicites, aucune prétention de protection contre le compte compromis |
+| Décidé | Garantie de la bêta pour #26 | — | 0 j | Décision du propriétaire du 2026-10-15 : bêta 1.3.0-beta.1 sans #26 complet, limite écrite dans `docs/beta-release-notes.md` et le texte de release ; #26 reste ouvert |
 | P0 | Inventaire du bundle, versions, notices et provenance | Moyenne à élevée | 0,5–1,5 j | Composants/versions/hashes/licences exacts, notices présentes, attributions clarifiées |
 | P0 | Tests propres Windows 10/11, Chrome/Edge/Firefox, comptes/installations isolés | Élevée | 1,5–3 j | Captures normales/privées/cookies, host absent, pause/reprise/redémarrage, mise à niveau et désinstallation ; sur VM dédiée, jamais le PC utilisateur |
 | P1 | Acceptation manuelle des dialogues, erreurs, clavier et parcours sans extension | Moyenne | 0,5–1 j | Automatisation WebView2 et redémarrage concurrent validés #189 ; reste la matrice de bureau et les parcours non couverts |

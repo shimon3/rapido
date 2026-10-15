@@ -53,3 +53,5 @@ partial registry-write failures and a same-user attacker remain residual risks.
 ## Release gate
 
 Do **not** mark issue #26 resolved or release as protected against same-user compromise until a reviewer approves an enforceable trust anchor, production/unsigned-mode policy and end-to-end Windows tests. Existing draft PRs #17–29 remain independently reviewable; do not merge them without explicit approval.
+
+Owner decision 2026-10-15: the 1.3.0-beta.1 beta ships **without** full #26 protection, with the limitation stated in `docs/beta-release-notes.md` and the beta release text. #26 stays open; this gate is unchanged for any claim of protection.

@@ -324,6 +324,8 @@ jobs:
             dist/Rapido-Setup-*.exe
             dist/Rapido-*-portable.zip
           body: |
+            ${{ needs.build.outputs.prerelease == 'true' && '**Version bêta.** Non protégée contre un compte Windows déjà compromis (#26, toujours ouvert). Lire docs/beta-release-notes.md avant installation.' || '' }}
+
             **Installer :** télécharge `Rapido-Setup-${{ needs.build.outputs.version }}.exe` et lance-le (pas besoin de droits administrateur).
 
             Windows peut afficher « Windows a protégé votre ordinateur » : le programme n'est pas signé numériquement.
