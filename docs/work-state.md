@@ -1,12 +1,20 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15. Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-15 (Claude). Latest validated code: e890163, CI #198. Start here; do not repeat repository overview or completed PR reconciliation.
 
 ## Goal and authority
 
 First stable Windows beta, essential corrections only. Branch `work/beta-engine-guards-20261015`, draft PR #33 targets draft PR #32's `work/security-26-followup-20261015` (dependent on #29).
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
+
+## Completed focus — LGPL/MPL source notices (Claude, e890163)
+
+pystray 0.19.5 (LGPLv3, wheel only on PyPI) and certifi 2026.7.22 (MPL-2.0): every wheel module file compared byte-for-byte (LF) with upstream tagged commits pystray `1907f8681d6d421517c63d94f425f9cdd74d0034` (tag v0.19.5) and certifi `5379b709be8a8595803a7bd907f87e302fc6ae1d` (tag 2026.07.22): 13/13 and 7/7 identical. Wheel already ships COPYING (GPLv3) + COPYING.LGPL; certifi's LICENSE only links to MPL, so verbatim MPL-2.0 text (mozilla.org, SHA-256 3f3d9e00…9d04) added. New `packaging/licenses/{pystray-0.19.5,certifi-2026.7.22}/SOURCE.md` give exact source URLs/hashes and pystray replacement path (public Rapido source + pinned constraints + workflow rebuild). Collector copies them into `third-party/packages/<pkg>/…` only when every installed source file matches the reviewed hashes; other version/modified source → `source-notice-identity-unverified` and build stops. Two new tests. No local tests run (user PC forbidden); validation = [CI #198](https://github.com/shimon3/rapido/actions/runs/38718058955) SUCCESS on e890163: 227 passed (225 + 2 new) /5 signed-fixture skips /120 subtests /1 warning; signatures 15 passed; collector 41 distributions with no source-notice stop on the real Windows install; advisory gate 41/41; packaged lifecycle steps passed; release job skipped. Artifact #198 not downloaded or independently inspected. Not a compliance verdict: LGPLv3 §4 relinking adequacy for PyInstaller bytecode, proxy_tools MIT/BSD, native/codec/runtime attributions and provenance (Tuil/Bentouza) remain open.
+
+#26 split recorded in `docs/windows-managed-integrity-contract.md` ("Realisable now vs absent external prerequisites"). #26 open.
+
+Claude environment: clone in session scratch folder, `core.longpaths=true` required. Git CLI push works via gh credentials (ordinary push, no force).
 
 ## Completed focus — native registration ownership
 
@@ -63,7 +71,7 @@ Sources: https://docs.pypi.org/api/json/ ; https://pip.pypa.io/en/stable/user_gu
 
 ## Remaining priorities / real gates
 
-1. Finish exact runtime/native vulnerability/attribution/source/replacement/license review: LGPL/MPL, proxy MIT/BSD discrepancy, embedded codecs and platform runtimes. Collection, pins and empty registry lists are not compliance/security clearance.
+1. Finish exact runtime/native vulnerability/attribution/source/replacement/license review: LGPL/MPL notices now shipped (e890163) but legal adequacy unreviewed; proxy MIT/BSD discrepancy, embedded codecs and platform runtimes. Collection, pins and empty registry lists are not compliance/security clearance.
 2. Provenance: repo LICENSE says Samuel Tuil, installer publisher Samuel Bentouza. Preserve existing rights; no authority to invent ownership or claim IDM similarity clearance.
 3. #26 requires independently protected production policy/installation, signer/version lifecycle, enforced browser selection and PyInstaller dependency protection before admission. No production signer/managed anchor supplied. No claim against injection, mapped writers or all ancestor races; keep issue open.
 4. Clean Windows 10/11 VM matrix plus Chrome/Edge/Firefox private/cookie/absent-host/restart/upgrade/manual capture/error/keyboard paths. Do not use user's PC or substitute Server CI.

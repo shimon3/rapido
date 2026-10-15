@@ -106,6 +106,36 @@ For each row record OS/browser version, effective policy, signer fixture identit
 
 No runtime work should substitute path checks, DPAPI, self-attestation, an environment variable or adjacent hash manifests for the independent anchor required by this issue.
 
+## Realisable now vs absent external prerequisites (2026-10-15)
+
+Status split for planning only. Nothing below closes #26.
+
+| Already done in this branch stack | Evidence |
+| --- | --- |
+| Kernel SID/process/parent/pipe identity, exact origins | Existing IPC tests, CI #197 |
+| Best-effort link/junction and registration-ownership guards | `native_paths`, `native_registration`, real registry/junction CI |
+| Held-file Authenticode primitive with explicit leaf pin | `windows_signature.py`, CI #179 (not wired to admission) |
+| User-facing statement that same-user replacement/injection is not covered | README "Not covered" paragraph |
+
+| Realisable without external input (each still partial) | Limit |
+| --- | --- |
+| Windows CI evidence of Edge/Chrome `NativeMessagingUserLevelHosts` effective policy against a conflicting HKCU fixture, on a disposable runner | Proves browser selection behaviour only; no protected install, signer or Firefox equivalent |
+| List of every file a signed catalog/App Control rule would have to cover, derived from the existing `third-party/payload.json` | Inventory only; no policy, catalog or enforcement |
+| Visible "unsigned development/CI build" marking distinct from any future production mode | Cosmetic separation; does not authenticate anything |
+| Fail-closed decision table and sanitized refusal reasons for the verifier, behind tests | Must not be wired as admission without a protected policy source |
+
+| External prerequisite, currently absent | Owner |
+| --- | --- |
+| Production code-signing identity, key custody, renewal/revocation plan | Project owner / certificate provider |
+| Administrator-protected installation profile and enforced (not audit) App Control policy, tested on a disposable VM with reboot | Owner decision + VM infrastructure |
+| Deployed Edge/Chrome enterprise policy for managed users; an enforceable Firefox equivalent (none identified) | Owner decision; Mozilla mechanism unknown |
+| Store- or policy-installed extension identities | Store accounts / policy |
+| Clean Windows 10/11 VM matrix | Infrastructure not yet provided |
+| Reviewer approval of this contract | Reviewer |
+
+Without the prerequisites in the last table, signature checks on user-writable
+files remain self-attestation and #26 stays open.
+
 ## Primary sources checked 2026-10-15
 
 1. [Microsoft Edge native messaging — discovery order and fallbacks](https://learn.microsoft.com/en-us/microsoft-edge/extensions/developer-guide/native-messaging)
