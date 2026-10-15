@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-15",
+  "code_sha": "2016be14c8be31f0c45de4b4d175760e8e8b5adc",
+  "ci_run": 38693975564,
+  "ci_url": "https://github.com/shimon3/rapido/actions/runs/38693975564",
+  "ci_conclusion": "success",
+  "build_job": 116286140923,
+  "release_conclusion": "skipped",
+  "runner_os": "Windows Server 2025",
+  "python": "3.13.16",
+  "openssl": "3.5.9",
+  "general_regression": {
+    "passed": 194,
+    "skipped": 5,
+    "subtests": 105,
+    "warnings": 1
+  },
+  "dedicated_signature": {
+    "passed": 15,
+    "skipped": 0,
+    "real_signed_pe_tests": 5,
+    "real_unsigned_test": 1,
+    "policy_unit_tests": 9,
+    "overlaps_general_suite": true
+  },
+  "webview2": {
+    "main_confirmations": {
+      "ok": true,
+      "intercepted_posts": 3
+    },
+    "popup_confirmations": {
+      "ok": true,
+      "intercepted_posts": 2
+    },
+    "destructive_posts_intercepted": true,
+    "synthetic_cancel_event": true,
+    "physical_keyboard_tested": false
+  },
+  "restart_regressions": {
+    "two_failed_before_fix": true,
+    "all_three_passed_after_fix": true,
+    "real_asyncio_tasks_and_temporary_files": true,
+    "cases": [
+      "concurrent requests wait for writer cleanup",
+      "caller cancellation does not interrupt cleanup or commit reset",
+      "completed file preserved"
+    ]
+  },
+  "limitations": [
+    "Windows Server CI is not Windows 10/11 acceptance.",
+    "No end-to-end destructive UI POST is executed by the UI probes.",
+    "Latest independently inspected full ZIP is #187, not this run.",
+    "#26 production signer/trust-policy/runtime admission remain unresolved.",
+    "No merge, publication tag, release or deployment authorized."
+  ],
+  "artifact_metadata": {
+    "artifact_id": 11953147709,
+    "digest_reported_by_github": "sha256:bf2dc576cb621193bb58a55ea9259ca4013c09e3af6489055fa5b5626adfb45c",
+    "independent_zip_inspection": false
+  }
+}

@@ -2,7 +2,41 @@
 
 État vérifié le 15 octobre 2026. **Bêta publique non approuvée.** Aucun accord de fusion/publication n'est impliqué par ce document. Pas de nouvelle fonctionnalité prévue.
 
-## Dernière version validée — CI #187
+## Dernière validation fonctionnelle — CI #189
+
+Code `2016be14c8be31f0c45de4b4d175760e8e8b5adc`,
+[CI Windows #189](https://github.com/shimon3/rapido/actions/runs/38693975564) réussie :
+194 régressions, 5 fixtures signées ignorées dans la suite générale après leur
+exécution dédiée, 105 sous-tests, 1 avertissement. L'exécution des signatures
+passe ses 15 tests dédiés (dont 5 tests réels de PE signés, avec recoupement des
+tests unitaires de la suite générale). Les sondes WebView2 des deux fenêtres,
+compilations, installateur/portable et Firefox passent ; release ignorée.
+
+Les confirmations de suppression, redémarrage, récupération de handoff et
+annulation de progression utilisent maintenant le dialogue intégré. Annuler est
+le choix initial ; Échap/événement cancel et fermeture externe refusent. Les
+appels répétés sont bloqués pendant une action et les éléments confirmés sont
+figés malgré le rafraîchissement. Suppr/Ctrl+A dans un champ ne pilotent plus la
+liste. Une erreur de mise en pause reste visible et ne ferme pas la fenêtre.
+
+Le chemin API simple de redémarrage attendait déjà l'annulation. Deux tests ont
+reproduit les défauts réels : appel concurrent qui dépassait l'ancien écrivain
+et annulation d'une requête qui interrompait le nettoyage puis réinitialisait.
+Le moteur garde désormais la tâche enregistrée jusqu'à sa fin, annule une seule
+fois et protège son nettoyage. Une requête interrompue est propagée sans
+réinitialisation ; le téléchargement reste en pause avec son état partiel. Les
+appels concurrents attendent l'ancien écrivain et le fichier terminé est conservé.
+
+[Preuves et périmètre](critical-actions-validation-20261015.json) : Node exerce
+les vrais helpers/handlers avec DOM simulé ; WebView2 exerce les vrais dialogues
+et handlers avec POST destructifs interceptés. Les tests backend utilisent de
+vraies tâches asyncio et des fichiers temporaires. L'événement cancel est
+synthétique : pas de validation d'une touche physique ni certification Windows
+10/11. Les anciens artefacts inspectés ci-dessous concernent #187, pas #189.
+L'inventaire et les collecteurs sont exécutés dans #189, mais aucune nouvelle
+inspection indépendante de son ZIP n'est revendiquée.
+
+## Référence de build inspectée — CI #187
 
 Code testé : `6ba9c229b3cfae3d106b71687553abe18c81a00f`, PR #33 dépendante de #32.
 [CI #187](https://github.com/shimon3/rapido/actions/runs/38691471314) réussie :
@@ -89,7 +123,7 @@ Inventaire de 26 PR ouvertes consulté via l'API GitHub ; vérification locale d
 | #11 | HEAD **absent** de #32. Les cinq garde-fous moteur n'étaient donc pas attestés présents ; lecture du code a confirmé leur absence. Repris sélectivement sur `work/beta-engine-guards-20261015`, avec tests et adaptation à la persistance privée actuelle. Aucun ancien workflow n'est réintroduit. |
 | #5 | HEAD non ancêtre. Le confinement des cookies a été repris dans la branche native (commits `8be504d`, `552d065` et protections ultérieures). Comparer les critères de #5 aux tests actuels avant de décider son sort ; ne pas compter son ancien statut comme preuve d'intégration. |
 | #4 | Ancienne conception documentaire, HEAD non ancêtre ; les modèles de menace actuels sont plus récents. Préserver la traçabilité, pas un blocage d'exécution à lui seul. |
-| #2 | Dialogues de confirmation et version 1.2.3, non intégrés. Vérifier les parcours annuler/supprimer/recommencer sur WebView2 avant de décider quels correctifs sont indispensables ; ne pas reprendre son ancien workflow publiant automatiquement. |
+| #2 | Confirmations reprises sélectivement et durcies dans #33, validées sur WebView2 par #188/#189. Aucun changement de version ni ancien workflow repris ; PR #2 reste non fusionnée. Acceptation manuelle Windows 10/11 et parcours de saisie/erreur encore à faire. |
 | #8, #9 | Langues et notifications de mises à jour : branches séparées non intégrées. Différer les ajouts non indispensables ; ne pas présenter les traductions comme terminées. Aucun téléchargement/exécution d'updater à ajouter. |
 
 ### Moteur : correction sélectionnée après la revue
@@ -174,7 +208,7 @@ Référence Python : [licence de Python 3.12 et composants incorporés](https://
 | P0 | Définir la garantie réelle de la bêta pour #26 | Élevée | 0,5–1 j de revue | Distinguer bêta par utilisateur et installation administrée ; limites explicites, aucune prétention de protection contre le compte compromis |
 | P0 | Inventaire du bundle, versions, notices et provenance | Moyenne à élevée | 0,5–1,5 j | Composants/versions/hashes/licences exacts, notices présentes, attributions clarifiées |
 | P0 | Tests propres Windows 10/11, Chrome/Edge/Firefox, comptes/installations isolés | Élevée | 1,5–3 j | Captures normales/privées/cookies, host absent, pause/reprise/redémarrage, mise à niveau et désinstallation ; sur VM dédiée, jamais le PC utilisateur |
-| P1 | Dialogues critiques, erreurs et parcours sans extension | Moyenne | 0,5–1 j | Annuler/Échap/supprimer/recommencer vérifiés dans les fenêtres réelles |
+| P1 | Acceptation manuelle des dialogues, erreurs, clavier et parcours sans extension | Moyenne | 0,5–1 j | Automatisation WebView2 et redémarrage concurrent validés #189 ; reste la matrice de bureau et les parcours non couverts |
 | P0 avant diffusion | Revue des artefacts, Defender, hashes, version bêta distincte et retour arrière | Moyenne | 0,5–1 j | Artefacts identifiés par commit, aucun secret/test-key, procédure de réparation/retrait documentée |
 | Décision externe | Identité/certificat de signature de production | Dépend du fournisseur | Non estimable ici ; intégration technique 0,5–1 j une fois les prérequis disponibles | Identité et renouvellement approuvés ; aucune clé de test utilisée en production |
 | Hors garantie bêta actuelle | Résoudre complètement #26 contre le remplacement par le même compte | Très élevée | Prototype/revue/matrice : au moins 5–10 j supplémentaires ; estimation à revoir après choix d'architecture | Ancre système indépendante, exécution/dépendances protégées et sélection navigateur imposée ; la signature seule ne suffit pas |
@@ -183,7 +217,7 @@ Pour une bêta au périmètre explicite, prévoir environ **5–10 journées eff
 
 ## Prochain ordre de travail
 
-1. Finir la validation Windows du moteur et corriger les échecs réels.
-2. Produire l'inventaire exact et les notices du bundle ; conserver les droits existants.
-3. Vérifier les parcours critiques et la matrice des VM de bureau, puis préparer une revue d'intégration.
+1. Revoir les vulnérabilités, notices natives et obligations de licence à partir des inventaires collectés ; conserver les droits existants.
+2. Compléter les parcours de saisie/erreur et la matrice de VM Windows 10/11 ; l'automatisation critique #189 est déjà validée.
+3. Définir les prérequis concrets de signature/ancre protégée pour #26, puis préparer la revue d'intégration.
 4. Soumettre les éléments concrets nécessitant une décision ; aucune fusion, tag, release ou publication automatique.
