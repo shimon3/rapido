@@ -6,7 +6,7 @@ from pathlib import Path
 from contextlib import contextmanager
 from unittest.mock import patch
 from windows_peer import ProcessIdentity
-from native_launcher import trusted_launcher, valid_origin, CHROMIUM_ORIGIN, FIREFOX_ID, parent_pid
+from native_launcher import trusted_launcher, valid_origin, CHROMIUM_ORIGIN, FIREFOX_ID, parent_pid, browser_images
 
 EXE=r"C:\Rapido\RapidoNativeHost.exe"
 APP=r"C:\Rapido\Rapido.exe"
@@ -14,6 +14,29 @@ SID="S-1-5-21-111-222-333-1001"
 
 
 class LauncherPolicyTests(unittest.TestCase):
+    def test_browser_allowlist_runs_known_folder_conversion(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from windows_peer import canonical_image
+        def folder(hwnd, identifier, token, flags, output):
+            output.value = r"C:\Users\fixture\AppData\Local" if identifier == 0x1c else r"C:\Program Files"
+            return 0
+        function = Mock(side_effect=folder)
+        with patch("native_launcher.ctypes.WinDLL", create=True,
+                   return_value=SimpleNamespace(SHGetFolderPathW=function)):
+            images = browser_images()
+        self.assertEqual(images[canonical_image(r"C:\Program Files\Mozilla Firefox\firefox.exe")], "firefox")
+        self.assertEqual(images[canonical_image(r"C:\Users\fixture\AppData\Local\Google\Chrome\Application\chrome.exe")], "chromium")
+        self.assertEqual([call.args[1] for call in function.call_args_list], [0x26, 0x2a, 0x1c])
+
+    @unittest.skipUnless(os.name == "nt", "Actual Windows known folders")
+    def test_real_windows_browser_allowlist_is_available_without_running_browsers(self):
+        import ntpath
+        images = browser_images()
+        self.assertGreaterEqual(len(images), 6)
+        self.assertEqual(set(images.values()), {"chromium", "firefox"})
+        self.assertTrue(all(ntpath.isabs(path) for path in images))
+
     def test_chromium_and_firefox_origins_are_exact(self):
         self.assertTrue(valid_origin("chromium",[CHROMIUM_ORIGIN],EXE))
         self.assertTrue(valid_origin("chromium",[CHROMIUM_ORIGIN,"--parent-window=0"],EXE))

@@ -10,6 +10,7 @@ import ctypes
 import os
 import ntpath
 import re
+from pathlib import Path
 from native_paths import has_linked_component
 from windows_peer import inspect_process, canonical_image
 
