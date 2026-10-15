@@ -10,7 +10,7 @@ import ctypes
 import os
 import ntpath
 import re
-from pathlib import Path
+from native_paths import has_linked_component
 from windows_peer import inspect_process, canonical_image
 
 CHROMIUM_ORIGIN = "chrome-extension://hlpkfnodjoglfdiekijebbppfgkjkbmp/"
@@ -85,7 +85,7 @@ def valid_origin(role, args, executable):
         try:
             # Refuse an explicitly linked manifest even if its lexical path matches.
             # This is defense-in-depth, not a solution for writable installation files.
-            if Path(args[0]).is_symlink():
+            if has_linked_component(args[0]):
                 return False
             manifest=canonical_image(args[0])
             expected=canonical_image(ntpath.join(ntpath.dirname(executable), "rapido-native-firefox.json"))
@@ -97,11 +97,11 @@ def valid_origin(role, args, executable):
 
 @contextmanager
 def trusted_launcher(executable, args, *, desktop_image=None):
-    # Direct symbolic links must not impersonate trusted executable paths.
-    # This is defense in depth; file replacement/junctions require a protected
-    # installation and an independent trust anchor.
+    # Apply the registration link policy at admission too, including ancestors.
+    # These best-effort checks do not prevent replacement/path races or replace
+    # a protected installation and independent trust anchor.
     desktop_path = desktop_image or ntpath.join(ntpath.dirname(executable), "Rapido.exe")
-    if Path(executable).is_symlink() or Path(desktop_path).is_symlink():
+    if has_linked_component(executable) or has_linked_component(desktop_path):
         raise PermissionError("Linked native executable path is not trusted")
     desktop = canonical_image(desktop_path)
     helper = canonical_image(executable)
@@ -120,6 +120,8 @@ def trusted_launcher(executable, args, *, desktop_image=None):
             role=browser_images().get(parent.image_path)
             if role is None:
                 raise PermissionError("Untrusted Native Messaging launcher")
+            if has_linked_component(parent.image_path):
+                raise PermissionError("Linked browser executable path is not trusted")
             break
         else:
             raise PermissionError("Unsupported helper parent chain")

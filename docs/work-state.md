@@ -8,6 +8,12 @@ First stable Windows beta, essential corrections only. Branch `work/beta-engine-
 Allowed: ordinary dedicated-branch pushes, draft PR updates, nonpublishing Actions. Forbidden: main edits, force-push, merges, publication tags/releases/deployments, tests on user's PC. Verify workflow before each push. One focused task; targeted tests first; preserve security checks. #30 reconciliation complete; #3/#26/#28 remain open.
 Main last verified `18e0997ed0e09ed73d3723faef0904f2c5964af0`; check again before changes.
 
+## Current focused correction — launcher path components
+
+Registration already rejected linked ancestors; runtime admission only rejected leaf symlinks. Shared `native_paths.has_linked_component` now applies the same best-effort symlink/junction check to the helper, desktop, recognized browser image and Firefox manifest. A regression first failed before the fix at process inspection; afterward the capture is refused before process inspection/pipe request. Windows-only tests use a real junction for both executables, the manifest and recognized browser path. No fixture executable is launched by these new tests.
+
+Local focused run: 33 passed, 12 Windows/signature-fixture skips, 36 subtests. Full Linux suite: 186 passed, 35 platform/fixture skips, 103 subtests, 1 existing deprecation warning. Windows CI for this correction is pending; #191 below validates the previous code. No independently protected policy, executable attestation or race-free path guarantee is added; #26 remains open. Workflows reviewed before push: one workflow, no work-branch push trigger, PR build read-only, publication job requires explicit tag push. Main SHA rechecked unchanged.
+
 ## Latest validated code — CI #191 SUCCESS
 
 `b9a7136ca21d93fe6e0adf811660c73158cd2154`:

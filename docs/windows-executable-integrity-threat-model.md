@@ -17,6 +17,12 @@ tests. It remains a proposal: no managed mode or trust anchor is implemented.
 | Elevated/admin attacker | No general protection claimed. | Administrator can modify installation, registry or running processes. |
 | Developer / unsigned CI binaries | Can test behavior and reject obvious malformed inputs. | No verified publisher identity unless a deliberately configured trusted signing policy exists. Do not silently call unsigned test artifacts trusted production releases. |
 
+Runtime launcher admission and registration share a best-effort path-component
+check: helper/desktop executable paths, recognized browser image paths and the
+Firefox manifest reject symlinks/junctions at the leaf or an ancestor. This does
+not authenticate file contents, prove protected ACLs, prevent later path swaps,
+or provide the independently protected trust anchor required below.
+
 **Non-goals:** DPAPI, SID/path matching, hashes placed beside the EXE, and direct symlink checks alone do not authenticate a publisher. Authenticating disk image does not prevent process injection, nor protect the process throughout its lifetime.
 
 ## Proposed trust policy — not yet approved or implemented

@@ -8,6 +8,7 @@ import json
 import os
 import re
 from pathlib import Path
+from native_paths import has_linked_component as _has_linked_component
 
 HOST = "com.rapido.bridge"
 CHROMIUM_ID = "hlpkfnodjoglfdiekijebbppfgkjkbmp"
@@ -17,18 +18,6 @@ BROWSERS = {
     "edge": (r"Software\Microsoft\Edge\NativeMessagingHosts", "rapido-native-edge.json"),
     "firefox": (r"Software\Mozilla\NativeMessagingHosts", "rapido-native-firefox.json"),
 }
-
-
-def _has_linked_component(path):
-    """Reject symlink/junction components before accepting manifest ownership.
-
-    This is a best-effort path check, not a race-free filesystem trust anchor.
-    """
-    candidate = Path(os.path.abspath(path))
-    for part in (candidate, *candidate.parents):
-        if part.is_symlink() or (os.name == "nt" and part.is_junction()):
-            return True
-    return False
 
 
 def _same_path(left, right):
