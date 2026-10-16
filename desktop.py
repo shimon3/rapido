@@ -78,6 +78,47 @@ def already_running():
         return "other"
 
 
+START_WAIT = 15        # secondes laissees a une instance qui demarre (WebView2 a froid)
+
+
+def wake_existing(deadline: float) -> bool:
+    """Demande a l'instance qui tourne de montrer sa fenetre, en reessayant tant
+    qu'elle demarre encore (canal natif pas pret, fenetre pas encore creee)."""
+    from native_pipe import request
+    while True:
+        try:
+            if request({"type":"show"}, server_images=[sys.executable], timeout=2).get("ok") is True:
+                return True
+        except Exception:
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.5)
+
+
+def wait_for_running(deadline: float) -> bool:
+    """Deux lancements simultanes : attendre que l'autre instance reponde."""
+    while time.monotonic() < deadline:
+        if already_running() is True:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def defer_to_running(args) -> int:
+    """Une instance tourne deja : la ramener au premier plan, un seul message au pire."""
+    if args.selftest:
+        print("selftest: Rapido tourne deja sur le port", PORT)
+        return 2
+    if args.tray:
+        return 0
+    if wake_existing(time.monotonic() + START_WAIT):
+        return 0
+    message_box("Rapido est deja ouvert mais ne repond pas.\n"
+                "Ferme-le dans le Gestionnaire des taches, puis relance Rapido.", True)
+    return 1
+
+
 def setup_logging(data_dir: Path):
     """Un .exe sans console n'a pas de sys.stdout : on ecrit dans un fichier."""
     if sys.stdout is not None and sys.stderr is not None:
@@ -100,19 +141,7 @@ def main() -> int:
     # ----- une seule instance : on reveille celle qui tourne deja -----
     state = already_running()
     if state is True:
-        if args.selftest:
-            print("selftest: Rapido tourne deja sur le port", PORT)
-            return 2
-        if not args.tray:
-            try:
-                from native_pipe import request
-                result = request({"type":"show"}, server_images=[sys.executable], timeout=2)
-                if result.get("ok") is not True:
-                    raise RuntimeError("Native instance refused")
-            except Exception:
-                message_box("L'instance locale n'a pas pu etre verifiee. Ferme l'ancienne instance puis relance Rapido.", True)
-                return 1
-        return 0
+        return defer_to_running(args)
     if state == "other":
         message_box(f"Le port {PORT} est deja utilise par un autre programme.\nRapido ne peut pas demarrer.", True)
         return 1
@@ -143,6 +172,9 @@ def main() -> int:
         listener.listen(128)
     except OSError:
         listener.close()
+        # Lance deux fois tres vite : l'autre instance a pris le port entre-temps.
+        if wait_for_running(time.monotonic() + START_WAIT):
+            return defer_to_running(args)
         message_box("Le port local n'a pas pu etre reserve exclusivement.", True)
         return 1
     server_thread = threading.Thread(target=lambda: server.run(sockets=[listener]),
