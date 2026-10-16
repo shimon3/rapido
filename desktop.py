@@ -218,6 +218,16 @@ def main() -> int:
 
     attach(main_win, BASE_URL + "/", rapido._LOCAL_AUTH)
     main_win.events.closing += on_main_closing
+
+    def start_watchdog():
+        form = getattr(main_win, "native", None)
+        if form is None or not hasattr(form, "BeginInvoke"):
+            return
+        from System import Action
+        dog = UiWatchdog(lambda ack: form.BeginInvoke(Action(ack)), dump_threads)
+        in_background(dog.run, name="rapido-ui-watchdog")
+
+    main_win.events.shown += start_watchdog
     # Registered before webview.start() so no window event can be missed.
     main_timeline = track_window_load(main_win) if args.selftest else None
 
@@ -225,8 +235,7 @@ def main() -> int:
         try:
             main_win.show()
             main_win.restore()
-            main_win.on_top = True       # passe devant les autres fenetres...
-            main_win.on_top = False      # ...sans rester epingle
+            bring_to_front(main_win)     # sur le fil graphique, sans rester epinglee
         except Exception as e:
             print("show_main:", e)
 
@@ -254,10 +263,7 @@ def main() -> int:
 
         def unpin():
             time.sleep(2.5)
-            try:
-                win.on_top = False
-            except Exception:
-                pass
+            set_topmost(win, False)
 
         def on_closed():
             popups.pop(token, None)
@@ -273,14 +279,17 @@ def main() -> int:
         win = popups.get(token)
         if win is None:
             return False
+        # Appele depuis le serveur local : ne pas attendre le fil graphique.
         if action == "close":
-            win.destroy()
+            in_background(win.destroy)
         else:
-            win.resize(width, height)
+            in_background(lambda: win.resize(width, height))
         return True
 
     rapido.UI.update(desktop=True, show_main=show_main, window_action=window_action)
-    rapido.manager.open_window = open_popup
+    # Le serveur demande une fenetre puis repond aussitot a l'extension.
+    rapido.manager.open_window = lambda path, width=540, height=480: in_background(
+        lambda: open_popup(path, width, height), name="rapido-popup")
     rapido.manager.on_exit = quit_all          # action "Quitter Rapido" a la fin de la file d'attente
 
     native_server = None
@@ -337,6 +346,81 @@ def _quiet(fn):
         fn()
     except Exception:
         pass
+
+
+def in_background(fn, name="rapido-ui"):
+    """Lance fn hors du fil appelant. Le serveur local (boucle asyncio) ne doit
+    jamais attendre le fil graphique : creer une fenetre prenait 1 a 8 s sur la
+    VM Windows 10 et la reponse a l'extension arrivait trop tard."""
+    threading.Thread(target=lambda: _quiet(fn), name=name, daemon=True).start()
+
+
+def on_ui_thread(win, action) -> bool:
+    """Execute action(form) sur le fil graphique WinForms, sans l'attendre.
+    pywebview 6.2.1 applique on_top (TopMost) depuis le fil appelant : modifier
+    une fenetre depuis un autre fil est une cause connue de blocages Windows."""
+    form = getattr(win, "native", None)
+    if form is None or not hasattr(form, "BeginInvoke"):
+        return False
+    from System import Action
+    form.BeginInvoke(Action(lambda: _quiet(lambda: action(form))))
+    return True
+
+
+def set_topmost(win, value: bool) -> bool:
+    def apply(form):
+        form.TopMost = value
+    return on_ui_thread(win, apply)
+
+
+def bring_to_front(win) -> bool:
+    """Passe devant les autres fenetres sans rester epinglee."""
+    def apply(form):
+        form.TopMost = True
+        form.TopMost = False
+        form.Activate()
+    return on_ui_thread(win, apply)
+
+
+class UiWatchdog:
+    """Si le fil graphique ne traite plus ses messages pendant `stall` secondes,
+    ecrit une fois la pile de chaque fil Python dans le journal (diagnostic des
+    blocages « Application Hang » vus le 15/10 21:29 et le 16/10 09:38)."""
+
+    def __init__(self, post, dump, *, interval=5.0, stall=10.0, clock=time.monotonic, sleep=time.sleep):
+        self.post, self.dump = post, dump
+        self.interval, self.stall = interval, stall
+        self.clock, self.sleep = clock, sleep
+        self.last_ack = clock()
+        self.reported = False
+        self.stopped = False
+
+    def _ack(self):
+        self.last_ack = self.clock()
+        self.reported = False
+
+    def tick(self):
+        try:
+            self.post(self._ack)
+        except Exception:
+            pass
+        if self.clock() - self.last_ack >= self.stall and not self.reported:
+            self.reported = True
+            self.dump(self.clock() - self.last_ack)
+
+    def run(self):
+        while not self.stopped:
+            self.tick()
+            self.sleep(self.interval)
+
+
+def dump_threads(stalled_for: float):
+    import faulthandler
+    print(f"--- fil graphique bloque depuis {stalled_for:.0f} s : piles des fils Python ---", flush=True)
+    try:
+        faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+    except Exception as e:
+        print("dump_threads:", e)
 
 
 def check_confirmation_ui(window, fixture_id, *, popup=False):
