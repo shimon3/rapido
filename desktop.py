@@ -31,6 +31,12 @@ _rapido = None
 
 WEBVIEW2_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 
+# The self-test thread starts with webview.start(), before WebView2 exists. The
+# first window's wait therefore covers the WebView2 cold start, which on CI
+# runners intermittently exceeded 30 s (loaded fired between 30 and 50 s).
+SELFTEST_FIRST_LOAD_TIMEOUT = 90
+SELFTEST_POPUP_LOAD_TIMEOUT = 30
+
 
 def parse_args():
     p = argparse.ArgumentParser(prog="Rapido")
@@ -72,6 +78,47 @@ def already_running():
         return "other"
 
 
+START_WAIT = 15        # secondes laissees a une instance qui demarre (WebView2 a froid)
+
+
+def wake_existing(deadline: float) -> bool:
+    """Demande a l'instance qui tourne de montrer sa fenetre, en reessayant tant
+    qu'elle demarre encore (canal natif pas pret, fenetre pas encore creee)."""
+    from native_pipe import request
+    while True:
+        try:
+            if request({"type":"show"}, server_images=[sys.executable], timeout=2).get("ok") is True:
+                return True
+        except Exception:
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.5)
+
+
+def wait_for_running(deadline: float) -> bool:
+    """Deux lancements simultanes : attendre que l'autre instance reponde."""
+    while time.monotonic() < deadline:
+        if already_running() is True:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def defer_to_running(args) -> int:
+    """Une instance tourne deja : la ramener au premier plan, un seul message au pire."""
+    if args.selftest:
+        print("selftest: Rapido tourne deja sur le port", PORT)
+        return 2
+    if args.tray:
+        return 0
+    if wake_existing(time.monotonic() + START_WAIT):
+        return 0
+    message_box("Rapido est deja ouvert mais ne repond pas.\n"
+                "Ferme-le dans le Gestionnaire des taches, puis relance Rapido.", True)
+    return 1
+
+
 def setup_logging(data_dir: Path):
     """Un .exe sans console n'a pas de sys.stdout : on ecrit dans un fichier."""
     if sys.stdout is not None and sys.stderr is not None:
@@ -94,19 +141,7 @@ def main() -> int:
     # ----- une seule instance : on reveille celle qui tourne deja -----
     state = already_running()
     if state is True:
-        if args.selftest:
-            print("selftest: Rapido tourne deja sur le port", PORT)
-            return 2
-        if not args.tray:
-            try:
-                from native_pipe import request
-                result = request({"type":"show"}, server_images=[sys.executable], timeout=2)
-                if result.get("ok") is not True:
-                    raise RuntimeError("Native instance refused")
-            except Exception:
-                message_box("L'instance locale n'a pas pu etre verifiee. Ferme l'ancienne instance puis relance Rapido.", True)
-                return 1
-        return 0
+        return defer_to_running(args)
     if state == "other":
         message_box(f"Le port {PORT} est deja utilise par un autre programme.\nRapido ne peut pas demarrer.", True)
         return 1
@@ -137,6 +172,9 @@ def main() -> int:
         listener.listen(128)
     except OSError:
         listener.close()
+        # Lance deux fois tres vite : l'autre instance a pris le port entre-temps.
+        if wait_for_running(time.monotonic() + START_WAIT):
+            return defer_to_running(args)
         message_box("Le port local n'a pas pu etre reserve exclusivement.", True)
         return 1
     server_thread = threading.Thread(target=lambda: server.run(sockets=[listener]),
@@ -181,12 +219,23 @@ def main() -> int:
     attach(main_win, BASE_URL + "/", rapido._LOCAL_AUTH)
     main_win.events.closing += on_main_closing
 
+    def start_watchdog():
+        form = getattr(main_win, "native", None)
+        if form is None or not hasattr(form, "BeginInvoke"):
+            return
+        from System import Action
+        dog = UiWatchdog(lambda ack: form.BeginInvoke(Action(ack)), dump_threads)
+        in_background(dog.run, name="rapido-ui-watchdog")
+
+    main_win.events.shown += start_watchdog
+    # Registered before webview.start() so no window event can be missed.
+    main_timeline = track_window_load(main_win) if args.selftest else None
+
     def show_main():
         try:
             main_win.show()
             main_win.restore()
-            main_win.on_top = True       # passe devant les autres fenetres...
-            main_win.on_top = False      # ...sans rester epingle
+            bring_to_front(main_win)     # sur le fil graphique, sans rester epinglee
         except Exception as e:
             print("show_main:", e)
 
@@ -214,10 +263,7 @@ def main() -> int:
 
         def unpin():
             time.sleep(2.5)
-            try:
-                win.on_top = False
-            except Exception:
-                pass
+            set_topmost(win, False)
 
         def on_closed():
             popups.pop(token, None)
@@ -233,14 +279,17 @@ def main() -> int:
         win = popups.get(token)
         if win is None:
             return False
+        # Appele depuis le serveur local : ne pas attendre le fil graphique.
         if action == "close":
-            win.destroy()
+            in_background(win.destroy)
         else:
-            win.resize(width, height)
+            in_background(lambda: win.resize(width, height))
         return True
 
     rapido.UI.update(desktop=True, show_main=show_main, window_action=window_action)
-    rapido.manager.open_window = open_popup
+    # Le serveur demande une fenetre puis repond aussitot a l'extension.
+    rapido.manager.open_window = lambda path, width=540, height=480: in_background(
+        lambda: open_popup(path, width, height), name="rapido-popup")
     rapido.manager.on_exit = quit_all          # action "Quitter Rapido" a la fin de la file d'attente
 
     native_server = None
@@ -265,7 +314,7 @@ def main() -> int:
             quit_all()
             return
         if args.selftest:
-            run_selftest(main_win, open_popup, result)
+            run_selftest(main_win, open_popup, result, main_timeline)
             quit_all()
 
     try:
@@ -299,12 +348,203 @@ def _quiet(fn):
         pass
 
 
-def run_selftest(main_win, open_popup, result: dict):
+def in_background(fn, name="rapido-ui"):
+    """Lance fn hors du fil appelant. Le serveur local (boucle asyncio) ne doit
+    jamais attendre le fil graphique : creer une fenetre prenait 1 a 8 s sur la
+    VM Windows 10 et la reponse a l'extension arrivait trop tard."""
+    threading.Thread(target=lambda: _quiet(fn), name=name, daemon=True).start()
+
+
+def on_ui_thread(win, action) -> bool:
+    """Execute action(form) sur le fil graphique WinForms, sans l'attendre.
+    pywebview 6.2.1 applique on_top (TopMost) depuis le fil appelant : modifier
+    une fenetre depuis un autre fil est une cause connue de blocages Windows."""
+    form = getattr(win, "native", None)
+    if form is None or not hasattr(form, "BeginInvoke"):
+        return False
+    from System import Action
+    form.BeginInvoke(Action(lambda: _quiet(lambda: action(form))))
+    return True
+
+
+def set_topmost(win, value: bool) -> bool:
+    def apply(form):
+        form.TopMost = value
+    return on_ui_thread(win, apply)
+
+
+def bring_to_front(win) -> bool:
+    """Passe devant les autres fenetres sans rester epinglee."""
+    def apply(form):
+        form.TopMost = True
+        form.TopMost = False
+        form.Activate()
+    return on_ui_thread(win, apply)
+
+
+class UiWatchdog:
+    """Si le fil graphique ne traite plus ses messages pendant `stall` secondes,
+    ecrit une fois la pile de chaque fil Python dans le journal (diagnostic des
+    blocages « Application Hang » vus le 15/10 21:29 et le 16/10 09:38)."""
+
+    def __init__(self, post, dump, *, interval=5.0, stall=10.0, clock=time.monotonic, sleep=time.sleep):
+        self.post, self.dump = post, dump
+        self.interval, self.stall = interval, stall
+        self.clock, self.sleep = clock, sleep
+        self.last_ack = clock()
+        self.reported = False
+        self.stopped = False
+
+    def _ack(self):
+        self.last_ack = self.clock()
+        self.reported = False
+
+    def tick(self):
+        try:
+            self.post(self._ack)
+        except Exception:
+            pass
+        if self.clock() - self.last_ack >= self.stall and not self.reported:
+            self.reported = True
+            self.dump(self.clock() - self.last_ack)
+
+    def run(self):
+        while not self.stopped:
+            self.tick()
+            self.sleep(self.interval)
+
+
+def dump_threads(stalled_for: float):
+    import faulthandler
+    print(f"--- fil graphique bloque depuis {stalled_for:.0f} s : piles des fils Python ---", flush=True)
+    try:
+        faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+    except Exception as e:
+        print("dump_threads:", e)
+
+
+def check_confirmation_ui(window, fixture_id, *, popup=False):
+    """Exercise actual DOM dialogs/handlers in WebView2; intercept destructive POSTs."""
+    script = r'''
+    window._confirmationCheck = null;
+    (async () => {
+      const check = (value, message) => { if(!value) throw Error(message); };
+      const dialog = document.querySelector('#confirmDialog');
+      const no = () => document.querySelector('#confirmNo').click();
+      const yes = () => document.querySelector('#confirmYes').click();
+      const escape = () => dialog.dispatchEvent(new Event('cancel', {cancelable:true}));
+      const calls = [];
+      let closes = 0, failPause = false;
+      const savedApi = api;
+      const savedClose = typeof closeWin === 'function' ? closeWin : null;
+      try {
+        let pending = askConfirm('<img src=x onerror=alert(1)>');
+        check(dialog.open && document.activeElement.id === 'confirmNo', 'default refusal focus');
+        check(!document.querySelector('#confirmMessage img'), 'message must remain text');
+        check(await askConfirm('re-entry') === false, 're-entry must refuse');
+        no(); check(await pending === false, 'cancel must refuse');
+        pending = askConfirm('Escape'); escape(); check(await pending === false, 'cancel event must refuse');
+        pending = askConfirm('external close'); dialog.close('confirmed'); check(await pending === false, 'external close must refuse');
+        pending = askConfirm('explicit approval'); yes(); check(await pending === true, 'explicit approval');
+        api = async (path, method='GET', body) => {
+          if(method === 'POST') {
+            calls.push({path, body});
+            if(failPause && path.endsWith('/pause')) throw Error('simulated pause failure');
+            return {};
+          }
+          return savedApi(path, method, body);
+        };
+        if(__POPUP__) {
+          clearInterval(timer);
+          dl = {...dl, status:'paused'};
+          renderProgress();
+          closeWin = () => { closes++; };
+          for(const refuse of [no, escape, () => dialog.close()]) {
+            pending = document.querySelector('#cancel').onclick();
+            refuse(); await pending;
+            check(calls.length === 0 && closes === 0, 'refusal must not pause or close');
+          }
+          pending = document.querySelector('#cancel').onclick();
+          await document.querySelector('#cancel').onclick();
+          yes(); await pending;
+          check(calls.length === 1 && closes === 1, 'approval must pause and close once');
+          failPause = true;
+          pending = document.querySelector('#cancel').onclick(); yes(); await pending;
+          check(closes === 1 && !document.querySelector('#actionError').hidden, 'pause failure must stay visible');
+        } else {
+          for(const action of ['redownload','delete','deletefile']) {
+            const before = calls.length;
+            const item = {id:__FIXTURE__, filename:'dialog fixture', status:'completed'};
+            pending = act(action, [item]); no(); await pending;
+            check(calls.length === before, 'main refusal must not mutate');
+            pending = act(action, [item]);
+            item.id = 'changed-after-dialog';
+            await act(action, [{id:'second-click'}]);
+            yes(); await pending;
+            check(calls.length === before + 1, 'approval must submit exactly once');
+            const request = calls[calls.length-1];
+            check(action === 'redownload' ? request.path === '/api/downloads/' + __FIXTURE__ + '/redownload' : request.body.ids[0] === __FIXTURE__, 'confirmed identity must stay frozen');
+          }
+        }
+        window._confirmationCheck = {ok:true, interceptedPosts:calls.length};
+      } catch(error) {
+        window._confirmationCheck = {ok:false, error:String(error)};
+      } finally {
+        api = savedApi;
+        if(savedClose) closeWin = savedClose;
+      }
+    })(); true
+    '''
+    script = script.replace('__POPUP__', 'true' if popup else 'false').replace('__FIXTURE__', json.dumps(fixture_id))
+    window.evaluate_js(script)
+    for _ in range(100):
+        outcome = window.evaluate_js('window._confirmationCheck')
+        if outcome is not None:
+            return outcome
+        time.sleep(.1)
+    return {"ok": False, "error": "Dialog UI self-test timed out"}
+
+
+def track_window_load(window, clock=time.monotonic) -> dict:
+    """Record when pywebview's shown/before_load/loaded first fire (seconds).
+
+    before_load fires on WebView2 NavigationCompleted and loaded after the
+    pywebview bridge is injected, so a slow run shows which phase was late.
+    """
+    start = clock()
+    timeline: dict[str, float] = {}
+
+    def mark(name):
+        def handler():
+            timeline.setdefault(name, round(clock() - start, 2))
+        return handler
+
+    window.events.shown += mark("shown")
+    window.events.before_load += mark("before_load")
+    window.events.loaded += mark("loaded")
+    return timeline
+
+
+def wait_main_loaded(main_win, result: dict, timeline: dict | None = None,
+                     timeout: float = SELFTEST_FIRST_LOAD_TIMEOUT) -> bool:
+    """Wait for the real loaded event of the trusted main page; never assume it."""
+    loaded = main_win.events.loaded.wait(timeout)
+    result["main_loaded"] = loaded
+    if timeline is not None:
+        result["main_load_timeline"] = dict(timeline)
+    if loaded:
+        result["main_url_ok"] = main_win.evaluate_js("location.href") == BASE_URL + "/"
+    else:
+        result["main_url_ok"] = False
+    return loaded
+
+
+def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None = None):
     """Verifie la fenetre, le moteur de telechargement, yt-dlp et les petites fenetres."""
     import webview
     try:
         result["renderer"] = webview.renderer
-        result["main_loaded"] = main_win.events.loaded.wait(30)
+        wait_main_loaded(main_win, result, main_timeline)
         time.sleep(1.5)
         result["main_title"] = main_win.evaluate_js("document.title")
         result["main_rows_html"] = main_win.evaluate_js("document.querySelector('#thead') !== null")
@@ -325,7 +565,7 @@ def run_selftest(main_win, open_popup, result: dict):
         result["yt_dlp"] = yt_dlp.version.__version__
 
         popup = open_popup(f"/w?view=progress&id={dl['id']}", 520, 360)
-        result["popup_loaded"] = popup.events.loaded.wait(30)
+        result["popup_loaded"] = popup.events.loaded.wait(SELFTEST_POPUP_LOAD_TIMEOUT)
         time.sleep(1.5)
         result["popup_title"] = popup.evaluate_js("document.title")
         result["popup_token"] = popup.evaluate_js("!!new URLSearchParams(location.search).get('w')")
@@ -333,6 +573,8 @@ def run_selftest(main_win, open_popup, result: dict):
         popup.evaluate_js("resize(600, 400)")
         time.sleep(1.5)
         result["popup_resized"] = abs(popup.width - 600) <= 20
+        result["main_confirmations"] = check_confirmation_ui(main_win, dl['id'])
+        result["popup_confirmations"] = check_confirmation_ui(popup, dl['id'], popup=True)
         result["csp"] = "script-src 'sha256-" in urllib.request.urlopen(BASE_URL + "/").headers.get(
             "Content-Security-Policy", "")
         # securite : un site web ne doit pas pouvoir piloter Rapido
@@ -416,13 +658,14 @@ def run_selftest(main_win, open_popup, result: dict):
 
 
         result["ok"] = bool(
-            result["renderer"] == "edgechromium" and result["main_loaded"]
+            result["renderer"] == "edgechromium" and result["main_loaded"] and result["main_url_ok"]
             and result["main_title"] == "Rapido" and status == "completed" and result["download_file_ok"]
             and result["popup_loaded"] and result["popup_token"] and result["popup_resized"]
             and result["settings_desktop"] and result["csp"] and result["guard_ok"]
             and result["dpapi_ok"] and result["motw_ok"] and result["ytdlp_process"]
             and result["webview_auth"] and result["unauthenticated_api"]
             and result["native_pipe"] and result["native_capture"] and result["native_handoff"]
+            and result["main_confirmations"].get("ok") and result["popup_confirmations"].get("ok")
         )
     except Exception as e:
         import traceback

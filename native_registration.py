@@ -7,28 +7,19 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 from pathlib import Path
+from native_paths import has_linked_component as _has_linked_component
 
 HOST = "com.rapido.bridge"
 CHROMIUM_ID = "hlpkfnodjoglfdiekijebbppfgkjkbmp"
 FIREFOX_ID = "rapido-capture@rapido.local"
+MAX_MANIFEST_BYTES = 16 * 1024
 BROWSERS = {
     "chrome": (r"Software\Google\Chrome\NativeMessagingHosts", "rapido-native-host.json"),
     "edge": (r"Software\Microsoft\Edge\NativeMessagingHosts", "rapido-native-edge.json"),
     "firefox": (r"Software\Mozilla\NativeMessagingHosts", "rapido-native-firefox.json"),
 }
-
-
-def _has_linked_component(path):
-    """Reject symlink/junction components before accepting manifest ownership.
-
-    This is a best-effort path check, not a race-free filesystem trust anchor.
-    """
-    candidate = Path(os.path.abspath(path))
-    for part in (candidate, *candidate.parents):
-        if part.is_symlink() or (os.name == "nt" and part.is_junction()):
-            return True
-    return False
 
 
 def _same_path(left, right):
@@ -101,17 +92,40 @@ class WindowsRegistry:
             pass
 
 
+def _manifest_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate native manifest key")
+        result[key] = value
+    return result
+
+
+def _manifest_constant(value):
+    raise ValueError("Non-JSON number in native manifest")
+
+
 def _owned_manifest(path, value):
     # Never follow an attacker-controlled manifest link when checking ownership.
-    if _has_linked_component(path):
-        return False
     try:
-        existing = json.loads(path.read_text(encoding="utf-8"))
+        if _has_linked_component(path) or not path.is_file():
+            return False
+        with path.open("rb") as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_MANIFEST_BYTES:
+                return False
+            raw = stream.read(MAX_MANIFEST_BYTES + 1)
+        if len(raw) > MAX_MANIFEST_BYTES:
+            return False
+        existing = json.loads(raw.decode("utf-8"), object_pairs_hook=_manifest_pairs,
+                              parse_constant=_manifest_constant)
+        if not isinstance(existing, dict):
+            return False
         expected = dict(value)
         existing.pop("description", None)
         expected.pop("description", None)
         return existing == expected
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return False
 
 
@@ -131,6 +145,17 @@ def register(executable, *, registry=None, name=HOST):
             with path.open("x", encoding="utf-8") as stream:
                 json.dump(value, stream, ensure_ascii=False, indent=2)
                 stream.write("\n")
+    # Recheck staged manifests and registry ownership before writing any value.
+    # This catches changes since preflight, not races after the final check.
+    # On failure, newly staged owned files may remain for repair/uninstall.
+    for key, path, value in specs.values():
+        if not _owned_manifest(path, value):
+            raise FileExistsError("Native-host manifest changed before registration")
+        for location in registry.locations(key):
+            current = registry.read(location)
+            if current is not None and not _same_path(current, path):
+                raise FileExistsError("Browser registration changed before registration")
+    for key, path, value in specs.values():
         for location in registry.locations(key):
             registry.write(location, str(path))
     return list(specs)

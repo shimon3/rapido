@@ -122,6 +122,90 @@ class RegistrationTests(unittest.TestCase):
         unregister(self.exe,registry=self.registry)
         self.assertFalse(path.exists())
 
+    def test_non_object_manifests_are_refused_without_breaking_other_cleanup(self):
+        for content in ('null', '[]', '"foreign"', '42', 'true'):
+            with self.subTest(content=content):
+                exe = prepare(self)
+                registry = FakeRegistry()
+                register(exe, registry=registry)
+                specs = manifests(exe)
+                path = specs["chrome"][1]
+                path.write_text(content, encoding="utf-8")
+                before = dict(registry.values)
+                with self.assertRaises(FileExistsError):
+                    register(exe, registry=registry)
+                self.assertEqual(registry.values, before)
+                unregister(exe, registry=registry)
+                self.assertFalse(registry.values)
+                self.assertEqual(path.read_text(encoding="utf-8"), content)
+                self.assertFalse(specs["edge"][1].exists())
+                self.assertFalse(specs["firefox"][1].exists())
+
+    def test_ambiguous_invalid_and_oversized_manifests_are_not_adopted_or_deleted(self):
+        for kind in ("duplicate_path", "non_json_number", "oversized", "deep_json", "invalid_utf8"):
+            with self.subTest(kind=kind):
+                exe = prepare(self)
+                registry = FakeRegistry()
+                _, path, value = manifests(exe)["chrome"]
+                content = json.dumps(value)
+                if kind == "duplicate_path":
+                    content = '{"path":"C:/foreign.exe",' + content[1:]
+                elif kind == "non_json_number":
+                    value["description"] = float("nan")
+                    content = json.dumps(value)
+                elif kind == "oversized":
+                    value["description"] = "x" * 20000
+                    content = json.dumps(value)
+                elif kind == "deep_json":
+                    content = "[" * 1100 + "]" * 1100
+                raw = b"\xff" if kind == "invalid_utf8" else content.encode("utf-8")
+                path.write_bytes(raw)
+                with self.assertRaises(FileExistsError):
+                    register(exe, registry=registry)
+                self.assertFalse(registry.values)
+                unregister(exe, registry=registry)
+                self.assertEqual(path.read_bytes(), raw)
+
+    def test_late_foreign_manifest_is_rejected_before_registry_writes(self):
+        specs = manifests(self.exe)
+        last_key, last_path, _ = specs["firefox"]
+        last_location = self.registry.locations(last_key)[-1]
+        original_read = self.registry.read
+        injected = False
+        def read(location):
+            nonlocal injected
+            value = original_read(location)
+            if location == last_location and not injected:
+                last_path.write_text('{"foreign":true}', encoding="utf-8")
+                injected = True
+            return value
+        self.registry.read = read
+        with self.assertRaises(FileExistsError):
+            register(self.exe, registry=self.registry)
+        self.assertFalse(self.registry.values)
+        self.assertEqual(json.loads(last_path.read_text()), {"foreign": True})
+
+    def test_late_foreign_registry_owner_is_not_overwritten(self):
+        specs = manifests(self.exe)
+        chrome_key, chrome_path, _ = specs["chrome"]
+        victim = self.registry.locations(chrome_key)[0]
+        last_key = specs["firefox"][0]
+        last_location = self.registry.locations(last_key)[-1]
+        original_read = self.registry.read
+        foreign = str(chrome_path.with_name("foreign-owner.json"))
+        injected = False
+        def read(location):
+            nonlocal injected
+            value = original_read(location)
+            if location == last_location and not injected:
+                self.registry.values[victim] = foreign
+                injected = True
+            return value
+        self.registry.read = read
+        with self.assertRaises(FileExistsError):
+            register(self.exe, registry=self.registry)
+        self.assertEqual(self.registry.values, {victim: foreign})
+
     def test_linked_manifest_is_not_adopted_or_deleted(self):
         _,path,value=manifests(self.exe)["chrome"]
         target=path.with_name("external-manifest.json")
@@ -292,8 +376,15 @@ class RealRegistrationTests(unittest.TestCase):
             key,path,_=specs["edge"]
             other=str(path.with_name("other-install.json"))
             registry.write(registry.locations(key)[0],other)
+            corrupted = specs["chrome"][1]
+            corrupted.write_text("null", encoding="utf-8")
             unregister(exe,registry=registry,name=name)
             self.assertEqual(registry.read(registry.locations(key)[0]),other)
+            self.assertEqual(corrupted.read_text(encoding="utf-8"), "null")
+            for browser in ("chrome", "firefox"):
+                for location in registry.locations(specs[browser][0]):
+                    self.assertIsNone(registry.read(location))
+            self.assertFalse(specs["firefox"][1].exists())
         finally:
             import winreg
             for key,_,_ in specs.values():

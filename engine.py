@@ -15,6 +15,8 @@ import asyncio
 import contextlib
 import ctypes
 import datetime as dt
+import errno
+import email.utils
 import json
 import os
 import platform
@@ -33,6 +35,55 @@ from urllib.parse import unquote, urlparse
 
 import httpx
 
+class ResourceChanged(IOError):
+    """Remote bytes no longer match the resource originally probed."""
+
+
+class ServerBackoff(IOError):
+    def __init__(self, status: int, delay: float):
+        self.delay = delay
+        super().__init__(f"HTTP {status}: server requested retry")
+
+
+def retry_after_seconds(value: str | None) -> float:
+    """Accept Retry-After seconds or HTTP dates; cap untrusted delays at 60 s."""
+    if not value:
+        return 0.0
+    try:
+        seconds = float(value.strip())
+        if not (0 <= seconds < float("inf")):
+            return 0.0
+        return min(seconds, 60.0)
+    except (ValueError, AttributeError, OverflowError):
+        pass
+    try:
+        when = email.utils.parsedate_to_datetime(value)
+        if when.tzinfo is None:
+            return 0.0
+        now = dt.datetime.now(dt.timezone.utc)
+        return min(60.0, max(0.0, (when - now).total_seconds()))
+    except (ValueError, TypeError, OverflowError):
+        return 0.0
+
+
+def if_range_validator(dl: "Download") -> str:
+    """RFC 9110: strong ETag, or no ETag plus a provably strong date.
+
+    A weak/malformed ETag must not be replaced by a Last-Modified If-Range.
+    For a date validator, the probe Date must be at least 60 s newer.
+    """
+    if dl.etag:
+        return dl.etag if re.fullmatch(r'"[\x21\x23-\x7e\x80-\xff]*"', dl.etag) else ""
+    try:
+        modified = email.utils.parsedate_to_datetime(dl.last_modified)
+        dated = email.utils.parsedate_to_datetime(dl.validator_date)
+        if modified.tzinfo is not None and dated.tzinfo is not None and (dated - modified).total_seconds() >= 60:
+            return dl.last_modified
+    except (ValueError, TypeError, OverflowError):
+        pass
+    return ""
+
+
 CHUNK = 256 * 1024            # taille des blocs lus sur le reseau
 MIN_SEGMENT = 1024 * 1024     # on ne decoupe pas en morceaux de moins de 1 Mo
 MAX_RETRIES = 5               # echecs consecutifs (sans progression) avant abandon
@@ -41,7 +92,7 @@ RETRY_DELAY = 1.0             # multiplicateur des pauses entre essais (2, 4, 8,
 SAVE_EVERY = 2.0              # secondes entre deux sauvegardes de l'etat
 PENDING_TTL = 30 * 60         # une capture non confirmee disparait apres 30 min
 IS_WINDOWS = platform.system() == "Windows"
-VERSION = "1.2.2"
+from rapido_version import VERSION  # source unique de la version
 FROZEN = getattr(sys, "frozen", False)                       # True dans Rapido.exe (PyInstaller)
 RES_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))   # fichiers embarques (html, icone)
 EXE_DIR = Path(sys.executable).parent if FROZEN else Path(__file__).parent
@@ -208,6 +259,9 @@ class Download:
     path: str = ""              # chemin final
     size: int = -1              # -1 = inconnue
     resumable: bool = False
+    etag: str = ""
+    last_modified: str = ""
+    validator_date: str = ""
     connections: int = 8
     status: str = "queued"      # pending | queued | downloading | paused | completed | error
     later: bool = False         # dans la file d'attente (attend le planificateur / "Demarrer la file")
@@ -684,23 +738,34 @@ class Manager:
     async def refresh_address(self, dl_id: str, new_url: str):
         """Remplace un lien expire par un nouveau lien vers le meme fichier."""
         dl = self.downloads[dl_id]
-        was_running = dl.status == "downloading"
+        was_active = dl.status in ("downloading", "queued")
+        if was_active:
+            # Keep the scheduler from starting the old/new URL while the probe
+            # yields. Failed refreshes remain safely paused.
+            dl.status = "paused"
         await self._cancel_task(dl_id)
         if dl.kind == "http" and dl.size > 0:
-            old_url, dl.url = dl.url, new_url
+            previous = (dl.url, dl.etag, dl.last_modified, dl.validator_date, dl.resumable)
+            validator = if_range_validator(dl)
+            dl.url = new_url
             try:
                 size, resumable, _ = await self._probe(dl)
+                if size != dl.size:
+                    raise ValueError(f"Taille differente ({size} au lieu de {dl.size})")
+                if dl.downloaded and (not resumable or not validator or if_range_validator(dl) != validator):
+                    raise ValueError("Identite du fichier non confirmee : recommencer depuis zero")
             except Exception as e:
-                dl.url = old_url
-                raise ValueError(f"Nouveau lien injoignable : {e}")
-            if size != dl.size:
-                dl.url = old_url
-                raise ValueError(f"Taille differente ({size} au lieu de {dl.size}) : ce n'est pas le meme fichier")
+                dl.url, dl.etag, dl.last_modified, dl.validator_date, dl.resumable = previous
+                self.save(force=True)
+                raise ValueError(f"Nouveau lien refuse : {e}") from e
             dl.resumable = resumable
         else:
+            if dl.kind == "http" and dl.downloaded:
+                self.save(force=True)
+                raise ValueError("Identite du fichier non confirmee : recommencer depuis zero")
             dl.url = new_url
         dl.error = ""
-        if was_running or dl.status == "error":
+        if was_active or dl.status == "error":
             dl.status = "queued"
         self.save(force=True)
         self.wake()
@@ -743,13 +808,30 @@ class Manager:
         proc = self._procs.get(dl_id)
         if proc is not None and proc.is_alive():
             proc.terminate()
-        t = self.tasks.pop(dl_id, None)
-        if t and not t.done():
-            t.cancel()
+        # Keep the old task registered until cleanup really finishes. Another
+        # request must await the same writer before deleting/resetting its file.
+        t = self.tasks.get(dl_id)
+        if t is not None:
             try:
-                await t
-            except (asyncio.CancelledError, Exception):
-                pass
+                if not t.done():
+                    if not t.cancelling():
+                        t.cancel()
+                    try:
+                        # Cancelling an API caller must not cancel the writer's
+                        # cleanup a second time or allow that caller to reset it.
+                        await asyncio.shield(t)
+                    except asyncio.CancelledError:
+                        if asyncio.current_task().cancelling():
+                            dl = self.downloads.get(dl_id)
+                            if dl is not None and dl.status == "downloading":
+                                dl.status, dl.speed = "paused", 0
+                                self.save(force=True)
+                            raise
+                    except Exception:
+                        pass
+            finally:
+                if t.done() and self.tasks.get(dl_id) is t:
+                    self.tasks.pop(dl_id, None)
 
     # ---------- limitation de debit (globale) ----------
     async def _throttle(self, nbytes: int):
@@ -784,7 +866,7 @@ class Manager:
     # ---------- fichiers classiques ----------
     async def _probe(self, dl: Download):
         """Recupere taille, nom de fichier et support des Range avec une requete bytes=0-0."""
-        headers = {**dl.headers, "Range": "bytes=0-0"}
+        headers = {**dl.headers, "Range": "bytes=0-0", "Accept-Encoding": "identity"}
         async with self.client.stream("GET", dl.url, headers=headers) as r:
             r.raise_for_status()
             final_url = str(r.url)
@@ -796,6 +878,9 @@ class Manager:
             else:
                 size = int(r.headers.get("content-length", -1) or -1)
                 resumable = False
+            dl.etag = r.headers.get("etag", "")
+            dl.last_modified = r.headers.get("last-modified", "")
+            dl.validator_date = r.headers.get("date", "")
             name = filename_from_headers(r.headers, final_url)
             ctype = r.headers.get("content-type", "")
             if "." not in name and "/" in ctype:
@@ -867,7 +952,9 @@ class Manager:
 
     async def _download_segments(self, dl: Download):
         part_path = dl.path + ".part"
-        fh = open(part_path, "r+b")
+        # Advance saved progress only after FileIO actually accepts the bytes;
+        # a buffered writer could report success before a later ENOSPC flush.
+        fh = open(part_path, "r+b", buffering=0)
         speed_task = asyncio.create_task(self._measure_speed(dl))
         pending = [s for s in dl.segments if not s.finished]
         workers = [asyncio.create_task(self._segment_worker(dl, s, fh)) for s in pending]
@@ -917,23 +1004,40 @@ class Manager:
         attempt = 0
         while not seg.finished:
             headers = dict(dl.headers)
+            if dl.resumable:
+                headers["Accept-Encoding"] = "identity"
             pos = seg.start + seg.done
+            requested_end = seg.end
             before = seg.done
             if dl.resumable:
-                headers["Range"] = f"bytes={pos}-{seg.end}"
+                headers["Range"] = f"bytes={pos}-{requested_end}"
+                validator = if_range_validator(dl)
+                if validator:
+                    headers["If-Range"] = validator
             try:
                 dl.active_connections += 1
                 async with self.client.stream("GET", dl.url, headers=headers) as r:
+                    if r.status_code in (429, 503):
+                        raise ServerBackoff(r.status_code, retry_after_seconds(r.headers.get("retry-after")))
                     r.raise_for_status()
                     if dl.resumable:
+                        got_etag = r.headers.get("etag", "")
+                        if dl.etag and got_etag and got_etag != dl.etag:
+                            raise ResourceChanged("ETag changed during resumable download")
+                        got_modified = r.headers.get("last-modified", "")
+                        if dl.last_modified and got_modified and got_modified != dl.last_modified:
+                            raise ResourceChanged("Last-Modified changed during resumable download")
                         if r.status_code != 206:
                             raise IOError("Le serveur a cesse d'accepter la reprise (Range)")
                         # E2 : la plage recue doit commencer exactement la ou on l'a demandee,
                         # sinon les octets seraient ecrits au mauvais endroit du fichier
-                        m = re.match(r"\s*bytes\s+(\d+)-(\d+)/", r.headers.get("content-range", ""))
-                        if not m or int(m.group(1)) != pos or int(m.group(2)) > seg.end:
-                            raise IOError(f"Plage inattendue du serveur : {r.headers.get('content-range')!r} "
-                                          f"au lieu de {pos}-{seg.end}")
+                        m = re.fullmatch(r"\s*bytes\s+(\d+)-(\d+)/(\d+)\s*", r.headers.get("content-range", ""))
+                        if (not m or int(m.group(1)) != pos or
+                                int(m.group(2)) < int(m.group(1)) or
+                                int(m.group(2)) > requested_end or int(m.group(3)) != dl.size):
+                            raise ResourceChanged(f"Plage inattendue du serveur : {r.headers.get('content-range')!r} "
+                                          f"au lieu de {pos}-{requested_end}")
+                        response_end = int(m.group(2))
                         # E5 : des octets compresses ne correspondent plus aux positions du fichier
                         if r.headers.get("content-encoding", "identity").lower() not in ("identity", ""):
                             raise IOError("Le serveur compresse une plage d'octets : impossible de la reprendre")
@@ -941,14 +1045,20 @@ class Manager:
                     else:
                         chunks = r.aiter_bytes(CHUNK)
                     async for chunk in chunks:
+                        if not chunk:
+                            continue
                         if dl.resumable:
+                            if len(chunk) > response_end - (seg.start + seg.done) + 1:
+                                raise ResourceChanged("Response body exceeds its declared byte range")
                             # le segment a pu etre raccourci par _supervise
                             room = seg.end - (seg.start + seg.done) + 1
                             if room <= 0:
                                 break
                             chunk = chunk[:room]
                         fh.seek(seg.start + seg.done)
-                        fh.write(chunk)
+                        written = fh.write(chunk)
+                        if written != len(chunk):
+                            raise OSError(errno.ENOSPC, "Incomplete write to download file")
                         seg.done += len(chunk)
                         await self._throttle(len(chunk))
                         self.save()
@@ -967,12 +1077,19 @@ class Manager:
                 raise IOError("Le serveur n'envoie plus de donnees pour ce segment")
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                # une coupure apres avoir progresse ne compte pas comme un echec
-                attempt = 1 if seg.done > before else attempt + 1
-                if attempt > MAX_RETRIES or not dl.resumable:
+            except Exception as exc:
+                # Disk-full and changed resources must never be retried as network errors.
+                if isinstance(exc, (ResourceChanged, OSError)) and (
+                    isinstance(exc, ResourceChanged) or getattr(exc, "errno", None) in (errno.ENOSPC, errno.EDQUOT)
+                ):
                     raise
-                await asyncio.sleep(min(2 ** attempt, 20) * RETRY_DELAY)
+                attempt = 1 if seg.done > before else attempt + 1
+                if attempt > MAX_RETRIES or (not dl.resumable and not isinstance(exc, ServerBackoff)):
+                    raise
+                delay = min(2 ** attempt, 20) * RETRY_DELAY
+                if isinstance(exc, ServerBackoff):
+                    delay = max(delay, exc.delay)
+                await asyncio.sleep(delay)
             finally:
                 dl.active_connections = max(0, dl.active_connections - 1)
 

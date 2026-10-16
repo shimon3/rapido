@@ -67,15 +67,63 @@ table.conn td{padding:2px 4px;border-bottom:1px solid var(--line)}
 .done-row{display:flex;gap:12px;align-items:center;margin-bottom:12px}
 .done-row b{font-size:15px}
 .hidden{display:none!important}
+.confirm-dialog{width:min(410px,calc(100% - 24px));border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:0;font:inherit}
+.confirm-dialog::backdrop{background:#17231d77}
+.confirm-text{padding:16px;white-space:pre-line;overflow-wrap:anywhere;max-height:55vh;overflow:auto}
+.confirm-actions{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}
+.action-error{padding:8px 16px;color:var(--err);overflow-wrap:anywhere}
 </style>
 </head>
 <body>
 <div class="head"><img src="/favicon.ico" alt=""><h1 id="title">Rapido</h1></div>
 <div class="body" id="body"></div>
+<div class="action-error" id="actionError" role="alert" hidden></div>
 <div class="foot" id="foot"></div>
+<dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+  <div class="head"><h1 id="confirmTitle">Confirmation</h1></div>
+  <div class="confirm-text" id="confirmMessage"></div>
+  <div class="confirm-actions"><button type="button" id="confirmNo" autofocus>Annuler</button><button type="button" class="primary" id="confirmYes">Confirmer</button></div>
+</dialog>
 
 <script>
 const $ = s => document.querySelector(s);
+/* ---------- confirmation ---------- */
+// A pending dialog belongs to one action. Re-entry must never steal its answer.
+let confirmationPending = false;
+function askConfirm(message){
+  const dialog = $("#confirmDialog");
+  if(confirmationPending || !dialog || dialog.open) return Promise.resolve(false);
+  confirmationPending = true;
+  return new Promise(resolve => {
+    let answer = false, settled = false;
+    const finish = () => {
+      if(settled) return;
+      settled = true;
+      dialog.onclose = dialog.oncancel = null;
+      $("#confirmYes").onclick = $("#confirmNo").onclick = null;
+      confirmationPending = false;
+      resolve(answer === true);
+    };
+    const choose = value => {
+      answer = value === true;
+      try{ dialog.close(); }catch{ answer = false; finish(); }
+    };
+    $("#confirmMessage").textContent = message;
+    $("#confirmYes").onclick = () => choose(true);
+    $("#confirmNo").onclick = () => choose(false);
+    dialog.oncancel = event => { event.preventDefault(); choose(false); };
+    // An external close is a refusal; only the explicit button sets answer=true.
+    dialog.onclose = finish;
+    try{ dialog.showModal(); $("#confirmNo").focus(); }
+    catch{ answer = false; finish(); }
+  });
+}
+
+function showActionError(error){
+  $("#actionError").textContent = error.message;
+  $("#actionError").hidden = false;
+}
+/* ---------- window parameters ---------- */
 const params = new URLSearchParams(location.search);
 // l'identifiant vient de l'adresse de la page : on n'accepte qu'un identifiant Rapido
 // (hexadecimal), sinon une adresse piegee pourrait detourner les appels a l'API
@@ -269,12 +317,17 @@ function renderProgress(){
       <button id="cancel">Annuler</button>`;
     $("#pr").onclick = async () => {
       if(pausedBusy) return; pausedBusy = true;
-      try{ await api(`/api/downloads/${ID}/${running ? "pause" : "resume"}`, "POST"); await tick(); } finally{ pausedBusy = false; }
+      try{ $("#actionError").hidden = true; await api(`/api/downloads/${ID}/${running ? "pause" : "resume"}`, "POST"); await tick(); } catch(error){ showActionError(error); } finally{ pausedBusy = false; }
     };
     $("#hide").onclick = closeWin;
     $("#cancel").onclick = async () => {
-      if(!confirm("Arrêter ce téléchargement ? Il restera dans la liste, en pause.")) return;
-      await api(`/api/downloads/${ID}/pause`, "POST"); closeWin();
+      if(pausedBusy) return; pausedBusy = true;
+      try{
+        $("#actionError").hidden = true;
+        if(!await askConfirm("Arrêter ce téléchargement ? Il restera dans la liste, en pause.")) return;
+        await api(`/api/downloads/${ID}/pause`, "POST"); closeWin();
+      }catch(error){ showActionError(error); }
+      finally{ pausedBusy = false; }
     };
   }
 }

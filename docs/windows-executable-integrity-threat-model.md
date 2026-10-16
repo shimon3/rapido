@@ -17,6 +17,26 @@ tests. It remains a proposal: no managed mode or trust anchor is implemented.
 | Elevated/admin attacker | No general protection claimed. | Administrator can modify installation, registry or running processes. |
 | Developer / unsigned CI binaries | Can test behavior and reject obvious malformed inputs. | No verified publisher identity unless a deliberately configured trusted signing policy exists. Do not silently call unsigned test artifacts trusted production releases. |
 
+Runtime launcher admission and registration share a best-effort path-component
+check: helper/desktop executable paths, recognized browser image paths and the
+Firefox manifest reject symlinks/junctions at the leaf or an ancestor. This does
+not authenticate file contents, prove protected ACLs, prevent later path swaps,
+or provide the independently protected trust anchor required below.
+
+Chrome and Edge start native hosts through `cmd.exe /d /s /c` by default (observed on
+Windows 10 22H2 with Edge 155). Admission accepts exactly one System32 `cmd.exe`
+(resolved from the System known folder, not `%ComSpec%`) between the helper and a
+recognized Chromium browser, with the same SID and creation-order checks; any other
+shell position, a second relay or a Firefox/desktop parent above it is refused. The
+shell's command line is not inspected, so this adds no protection against a
+same-user process that starts `cmd.exe` itself (#26 residual risk).
+
+Registration ownership checks accept only an unambiguous JSON object from a
+regular manifest of at most 16 KiB. Corrupt/ambiguous files are preserved during
+cleanup. All staged manifests and registry owners are rechecked before registry
+updates. This is not an atomic filesystem/registry transaction: later changes,
+partial registry-write failures and a same-user attacker remain residual risks.
+
 **Non-goals:** DPAPI, SID/path matching, hashes placed beside the EXE, and direct symlink checks alone do not authenticate a publisher. Authenticating disk image does not prevent process injection, nor protect the process throughout its lifetime.
 
 ## Proposed trust policy — not yet approved or implemented
@@ -41,3 +61,5 @@ tests. It remains a proposal: no managed mode or trust anchor is implemented.
 ## Release gate
 
 Do **not** mark issue #26 resolved or release as protected against same-user compromise until a reviewer approves an enforceable trust anchor, production/unsigned-mode policy and end-to-end Windows tests. Existing draft PRs #17–29 remain independently reviewable; do not merge them without explicit approval.
+
+Owner decision 2026-10-15: the 1.3.0-beta.1 beta ships **without** full #26 protection, with the limitation stated in `docs/beta-release-notes.md` and the beta release text. #26 stays open; this gate is unchanged for any claim of protection.

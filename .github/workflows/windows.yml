@@ -19,6 +19,7 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
       release: ${{ steps.ver.outputs.release }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
     timeout-minutes: 30
     steps:
       # Actions epinglees sur un commit precis (une etiquette comme "v4" peut etre deplacee)
@@ -28,13 +29,24 @@ jobs:
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
-          python-version: "3.12"
+          # Reviewed Windows baseline; 3.12 resolves to the old 3.12.10 binaries.
+          python-version: "3.13.16"
           cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            packaging/constraints-windows-build.txt
+
+      - name: Verify reviewed Python and OpenSSL build baseline
+        run: python scripts/check_build_runtime.py
 
       - name: Install dependencies
+        shell: pwsh
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pywebview pyinstaller pytest
+          python -m pip install --upgrade -c packaging/constraints-windows-build.txt pip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip install -r requirements.txt -c packaging/constraints-windows-build.txt --build-constraint packaging/constraints-windows-build.txt pywebview pyinstaller pytest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip check
 
       - name: Isolated Authenticode fixtures (no production signing)
         timeout-minutes: 3
@@ -56,6 +68,9 @@ jobs:
             echo "::error::Le tag ($GITHUB_REF) ne correspond pas a engine.VERSION ($V)"; exit 1
           fi
           python packaging/make_version_file.py "$V" > packaging/version_info.txt
+          # Windows needs 4 integers; betas are published as prereleases only.
+          echo "file_version=$(python -c "import rapido_version as r; print(r.dotted('$V'))")" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$(python -c "import rapido_version as r; print(str(r.is_prerelease('$V')).lower())")" >> "$GITHUB_OUTPUT"
           # Only an explicit publication tag push can request a release.
           # Main, PRs and workflow_dispatch never publish implicitly.
           if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/tags/v* ]]; then
@@ -75,6 +90,7 @@ jobs:
           --collect-submodules uvicorn
           --hidden-import pystray._win32
           --hidden-import ytworker
+          --exclude-module pytest --exclude-module _pytest
           desktop.py
 
       - name: Build native messaging host (console)
@@ -86,10 +102,23 @@ jobs:
         run: |
           python scripts/build_browser_extension.py edge dist/Rapido/extension-edge
           python scripts/build_browser_extension.py firefox dist/Rapido/extension-firefox
+          Copy-Item -Recurse extension dist/Rapido/extension
 
       - name: Bundle native host with the desktop executable
         shell: pwsh
-        run: Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
+        run: |
+          Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
+          Copy-Item -LiteralPath LICENSE -Destination dist/Rapido/LICENSE
+
+      - name: Collect build-environment license evidence
+        run: python scripts/collect_license_evidence.py --output dist/Rapido/third-party
+
+      - name: Check reviewed versions and current PyPI advisories
+        timeout-minutes: 3
+        run: python scripts/check_dependency_advisories.py --inventory dist/Rapido/third-party/inventory.json --constraints packaging/constraints-windows-build.txt --output dist/Rapido/third-party/advisories.json
+
+      - name: Inspect bundled modules and native library evidence
+        run: python scripts/collect_payload_evidence.py --bundle dist/Rapido --forbid-module pytest --forbid-module _pytest
 
       - name: Self-test (real window, engine, yt-dlp)
         timeout-minutes: 4
@@ -140,7 +169,7 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
-          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" packaging\rapido.iss
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DAppFileVersion=${{ steps.ver.outputs.file_version }}" packaging\rapido.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install and uninstall browser native-host registrations
@@ -229,6 +258,12 @@ jobs:
             $portableResult = Join-Path $env:RUNNER_TEMP 'rapido-portable-post-uninstall.json'
             $env:RAPIDO_DATA = Join-Path $env:RUNNER_TEMP 'rapido-portable-post-uninstall-data'
             $portable = Start-Process -FilePath (Join-Path $second 'Rapido.exe') -ArgumentList '--selftest','--selftest-out',$portableResult -PassThru -Wait
+            if (Test-Path -LiteralPath $portableResult) {
+              $one = (Get-Content -LiteralPath $portableResult -Raw | ConvertFrom-Json | ConvertTo-Json -Compress -Depth 4) -replace "`r|`n", " "
+              Write-Host "::notice title=Portable selftest::$one"
+            } else { Write-Host "Portable selftest: no result file" }
+            $portableLog = Join-Path $env:RAPIDO_DATA 'rapido.log'
+            if ($portable.ExitCode -ne 0 -and (Test-Path -LiteralPath $portableLog)) { Write-Host "--- rapido.log ---"; Get-Content -LiteralPath $portableLog -Tail 80 }
             if ($portable.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $portableResult)) {
               throw "Portable Rapido self-test failed after installed copy uninstall: $($portable.ExitCode)"
             }
@@ -242,18 +277,24 @@ jobs:
             if (Test-Path -LiteralPath $second) { Remove-Item -LiteralPath $second -Recurse -Force }
           }
 
+      - name: Install reviewed Firefox version for browser regression
+        timeout-minutes: 3
+        shell: pwsh
+        run: .\scripts\install_ci_firefox.ps1
+
       - name: Real Firefox native bridge and browser handoff
         timeout-minutes: 6
         shell: pwsh
         run: |
           python -m pip install selenium==4.51.0
-          python -m scripts.firefox_native_smoke --bundle dist/Rapido --data "$env:RUNNER_TEMP/rapido-firefox-data" --probe "$env:RUNNER_TEMP/rapido-firefox-probe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $firefox = Join-Path $env:ProgramFiles 'Mozilla Firefox/firefox.exe'
+          python -m scripts.firefox_native_smoke --bundle dist/Rapido --data "$env:RUNNER_TEMP/rapido-firefox-data" --probe "$env:RUNNER_TEMP/rapido-firefox-probe" --firefox $firefox --expected-browser-version 157.0.1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Portable zip
         shell: pwsh
         run: |
-          Copy-Item -Recurse extension dist\Rapido\extension
           Compress-Archive -Path dist\Rapido -DestinationPath "dist\Rapido-${{ steps.ver.outputs.version }}-portable.zip"
           Get-ChildItem dist -File | ForEach-Object { Write-Host "::notice title=Fichier::$($_.Name) - $([math]::Round($_.Length/1MB,1)) Mo" }
 
@@ -281,12 +322,16 @@ jobs:
         with:
           tag_name: v${{ needs.build.outputs.version }}
           target_commitish: ${{ github.sha }}
-          make_latest: true
+          # A beta never becomes "latest", so installed final versions are not offered it.
+          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.build.outputs.prerelease == 'true' && 'false' || 'true' }}
           name: Rapido ${{ needs.build.outputs.version }}
           files: |
             dist/Rapido-Setup-*.exe
             dist/Rapido-*-portable.zip
           body: |
+            ${{ needs.build.outputs.prerelease == 'true' && '**Version bêta.** Non protégée contre un compte Windows déjà compromis (#26, toujours ouvert). Lire docs/beta-release-notes.md avant installation.' || '' }}
+
             **Installer :** télécharge `Rapido-Setup-${{ needs.build.outputs.version }}.exe` et lance-le (pas besoin de droits administrateur).
 
             Windows peut afficher « Windows a protégé votre ordinateur » : le programme n'est pas signé numériquement.

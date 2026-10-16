@@ -1,0 +1,47 @@
+{
+  "archive_sha256": "f7dd0c3e0df5635abe1111438a19c38cbaed848f7af584464f521e59493e7f70",
+  "assets": [
+    {
+      "file": "Rapido-1.2.2-portable.zip",
+      "size": 42220140,
+      "sha256": "c9d28a1ea20b12689e157d9f08d4addb160606883967165315f143b4e5c0e049"
+    },
+    {
+      "file": "Rapido-Setup-1.2.2.exe",
+      "size": 44768528,
+      "sha256": "a335e783b4fd88630acedd71782b6e16cf02ac5501af7b6da15a11ff4e7b59f9"
+    }
+  ],
+  "inventory": {
+    "entries": 394,
+    "packages": 46,
+    "texts": 121,
+    "python_version": "3.12.10",
+    "missing_texts": [],
+    "problems": [
+      {
+        "name": "proxy_tools",
+        "problems": [
+          "upstream-BSD-text-supplemented-metadata-MIT-review-required"
+        ]
+      }
+    ],
+    "proxy": {
+      "name": "proxy_tools",
+      "version": "0.1.0",
+      "license_expression": "",
+      "license_metadata": "MIT",
+      "files": [
+        {
+          "path": "packages/proxy-tools/UPSTREAM-LICENSE.txt",
+          "sha256": "a428fb8a2e762af3eb0a6edbbb88e9b42ccfee80fd9b423958bcacf9b9abbfe4",
+          "source": "https://github.com/jtushman/proxy_tools/blob/db43f1e35d4f90a65c5a4d56d9e9af88212ec6e6/LICENSE.txt",
+          "installed_module_sha256_lf": "d1539d95e1a713c068ca81d42e047b2c76568964cf277596d4e19efb22f476be"
+        }
+      ],
+      "problems": [
+        "upstream-BSD-text-supplemented-metadata-MIT-review-required"
+      ]
+    }
+  }
+}
