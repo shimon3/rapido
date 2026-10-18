@@ -165,7 +165,7 @@ function Test-RapidoSignature {
     path = $full
     sha256 = (Get-RapidoFileSha256 $full)
     ok = ($reasons.Count -eq 0)
-    reasons = @($reasons)
+    reasons = [string[]]$reasons.ToArray()
     status = $signature.Status.ToString()
     signer_subject = $subject
     signer_certificate_sha256 = $signerPin

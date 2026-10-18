@@ -159,7 +159,7 @@ try {
     unsigned_sha256 = $before
     stage1_payload = @($stage1)
     stage3_installer = @($stage3)
-    negative_cases = @($cases)
+    negative_cases = $cases.ToArray()
     manifest_entries = $manifest.Count
     manifest_sha256_of_installer = ($manifest | Where-Object { $_.path -like 'Rapido-Setup-*.exe' }).sha256
   }

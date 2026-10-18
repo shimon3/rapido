@@ -106,14 +106,15 @@ try {
   if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
 }
 
-$report = [ordered]@{
-  schema = 1
-  candidate_matches_approved = ($problems.Count -eq 0)
-  approved_version = $approved.version
-  approved_commit = $approved.commit
-  problems = @($problems)
-  signatures = @($signatures)
-}
+# Built key by key: Windows PowerShell 5.1 rejected the equivalent literal
+# ("Argument types do not match") and this form pinpoints any failing value.
+$report = [ordered]@{}
+$report['schema'] = 1
+$report['candidate_matches_approved'] = [bool]($problems.Count -eq 0)
+$report['approved_version'] = [string]$approved.version
+$report['approved_commit'] = [string]$approved.commit
+$report['problems'] = [string[]]$problems.ToArray()
+$report['signatures'] = [object[]]$signatures.ToArray()
 if ($ReportPath) { $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $ReportPath -Encoding UTF8 }
 if ($problems.Count) {
   Write-Host "Candidate REJECTED: $($problems.Count) problem(s)"
