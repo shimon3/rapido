@@ -109,6 +109,7 @@ jobs:
         run: |
           Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
           Copy-Item -LiteralPath LICENSE -Destination dist/Rapido/LICENSE
+          Copy-Item -LiteralPath THIRD-PARTY-NOTICES.md -Destination dist/Rapido/THIRD-PARTY-NOTICES.md
 
       - name: Collect build-environment license evidence
         run: python scripts/collect_license_evidence.py --output dist/Rapido/third-party
