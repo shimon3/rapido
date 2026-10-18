@@ -6,7 +6,13 @@ certificate, private key, secret, legal approval, tag, or release authorization.
 ## What is already enforced
 
 - Pull-request and ordinary build jobs have read-only GitHub contents access.
-- Only an explicit `v*` tag can enter the release job.
+- A `v*` tag is necessary but no longer sufficient: the release job also
+  requires the build output `publishable=true`. That output is deliberately
+  hard-coded to `false` until a reviewed production-signing implementation
+  changes the workflow.
+- Every CI artifact is named `UNPUBLISHED-*`, expires after 14 days, and contains
+  `ci-artifact-provenance.json` with `official_release=false` and
+  `production_signed=false`.
 - Build dependencies are pinned and checked.
 - Windows CI exercises Authenticode verification with disposable test
   certificates that are removed after the job.
@@ -37,7 +43,9 @@ Record outside the repository:
 A protected GitHub release environment should require manual approval and
 limit production signing credentials to explicit version-tag builds. Pull
 requests, `main`, previews, and manual test builds must not receive those
-credentials.
+credentials. Enabling publication requires a reviewed code change that replaces
+the hard-coded `publishable=false`; a repository variable or tag alone must not
+bypass this gate.
 
 ## Gate B — signing order and verification
 
@@ -108,3 +116,7 @@ one. Do not mark licence compliance complete solely because CI is green.
 
 Until those items exist, keep #26 open and do not describe Rapido as protected
 against a compromised Windows account.
+
+The operational publication checklist is in `docs/beta-publication-checklist.md`.
+The current supplier comparison for Samuel Bentouza in Israel is in
+`docs/authenticode-options-israel.md`.

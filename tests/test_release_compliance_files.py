@@ -8,6 +8,8 @@ WORKFLOW = ROOT / ".github" / "workflows" / "windows.yml"
 SIGNING_PLAN = ROOT / "scripts" / "windows_signing_plan.ps1"
 MSIX_STUDY = ROOT / "docs" / "msix-browser-compatibility.md"
 UPDATE_CONTRACT = ROOT / "docs" / "update-security-contract.md"
+PUBLICATION_CHECKLIST = ROOT / "docs" / "beta-publication-checklist.md"
+AUTHENTICODE_OPTIONS = ROOT / "docs" / "authenticode-options-israel.md"
 
 
 def test_third_party_notice_exposes_evidence_and_copyleft_sources():
@@ -69,3 +71,35 @@ def test_automatic_updates_remain_gated_on_production_signing():
     assert "exact publisher" in text
     assert "Windows 10 and Windows 11" in text
     assert "current manual update link is\nthe safe beta behavior" in text
+
+
+def test_unsigned_ci_artifacts_cannot_reach_the_release_job():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    release = workflow.split("\n  release:\n", 1)[1]
+    assert "publishable: ${{ steps.ver.outputs.publishable }}" in workflow
+    assert 'echo "publishable=false"' in workflow
+    assert "needs.build.outputs.publishable == 'true'" in release
+    assert "UNPUBLISHED-Rapido-" in workflow
+    assert "ci-artifact-provenance.json" in workflow
+    assert "official_release = $false" in workflow
+    assert "production_signed = $false" in workflow
+    assert "retention-days: 14" in workflow
+    assert "Exécuter quand même" not in release
+
+
+def test_publication_checklist_keeps_external_gates_open():
+    text = PUBLICATION_CHECKLIST.read_text(encoding="utf-8")
+    assert "CI #237" in text
+    assert "Windows 10" in text and "Windows 11" in text
+    assert "Chrome" in text and "Edge" in text and "Firefox" in text
+    assert "human legal review" in text
+    assert "Do not publish" in text
+
+
+def test_authenticode_options_do_not_claim_a_purchase_or_eligibility():
+    text = AUTHENTICODE_OPTIONS.read_text(encoding="utf-8")
+    assert "No certificate has been purchased" in text
+    assert "Samuel Bentouza" in text
+    assert "Israel" in text
+    assert "eligibility must be confirmed" in text
+    assert "SHA-256" in text and "RFC 3161" in text
