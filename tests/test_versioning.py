@@ -1,4 +1,5 @@
 """One beta version everywhere, ordered before its final release."""
+import io
 import json
 from pathlib import Path
 import re
@@ -74,6 +75,42 @@ class VersioningTests(unittest.TestCase):
              patch.object(app, "VERSION", "1.3.0-beta.1"):
             reply = asyncio.run(app.check_updates())
         self.assertFalse(reply["update_available"])
+
+    def test_update_metadata_only_uses_exact_official_installer(self):
+        from unittest.mock import patch
+        import app
+
+        tag = "v1.3.0"
+        expected = "https://github.com/shimon3/rapido/releases/download/v1.3.0/Rapido-Setup-1.3.0.exe"
+        payload = {
+            "tag_name": tag,
+            "assets": [
+                {
+                    "name": "Rapido-Setup-1.2.2.exe",
+                    "browser_download_url": "https://github.com/shimon3/rapido/releases/download/v1.3.0/Rapido-Setup-1.2.2.exe",
+                },
+                {
+                    "name": "Rapido-Setup-1.3.0.exe",
+                    "browser_download_url": "https://example.invalid/Rapido-Setup-1.3.0.exe",
+                },
+            ],
+        }
+
+        def response(*_args, **_kwargs):
+            return io.StringIO(json.dumps(payload))
+
+        with patch.object(app.urllib.request, "urlopen", side_effect=response):
+            version, url = app._latest_rapido_release()
+        self.assertEqual(version, "1.3.0")
+        self.assertEqual(url, "https://github.com/shimon3/rapido/releases/tag/v1.3.0")
+
+        payload["assets"].append({
+            "name": "Rapido-Setup-1.3.0.exe",
+            "browser_download_url": expected,
+        })
+        with patch.object(app.urllib.request, "urlopen", side_effect=response):
+            version, url = app._latest_rapido_release()
+        self.assertEqual((version, url), ("1.3.0", expected))
 
     def test_workflow_marks_betas_as_prereleases_never_latest(self):
         source = (ROOT / ".github/workflows/windows.yml").read_text(encoding="utf-8")
