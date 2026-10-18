@@ -1,6 +1,57 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: cf72cd2, CI #216 (self-test load-wait fixed in 2d77b06/6437b82; one portable post-uninstall self-test failure still unexplained). Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-18 (Codex). Latest validated product code: 8a7877f, CI #221.
+Start here; do not repeat repository overview or completed PR reconciliation.
+
+## Completed focus — loopback retry and Windows 11 lifecycle (Codex, `8a7877f`)
+
+- Draft PR #34 now retries transient `URLError`/`OSError` failures in the
+  self-test's unauthenticated loopback probes while still requiring a real HTTP
+  403. Ten focused tests passed locally (one skipped).
+- Non-publishing CI #221 succeeded: 268 passed /5 skipped /136 subtests; the
+  release job was skipped. The artifact digest was
+  `e96bfedf6b7a2d0e6da018ba44f9cb3864df3963911b909078ac52f505ad6a16`.
+- The exact artifact completed upgrade, installed and portable graphical
+  self-tests, uninstall, portable post-uninstall self-test, and reinstall on an
+  authorized Windows 11 Home build 26200 PC. User-history bytes stayed
+  unchanged. The uninstaller removed values/files but left an empty directory
+  and empty Edge/Firefox leaf keys; only those verified-empty remnants were
+  removed with explicit owner approval.
+- Firefox 157.0.1 passed the real native handoff and host-absent fallback
+  scenario. Edge 155 returned the four expected native capabilities and public
+  settings in an isolated profile.
+- Official Chrome 155 no longer accepts `--load-extension`. Branded-Chrome
+  isolated profiles reached Developer mode and Load unpacked, but the remote
+  connection could not complete the Windows directory-picker gesture. No real
+  Chrome bridge success is claimed; normal Chrome profiles were untouched.
+- Chrome for Testing loaded the extension but privileged native requests were
+  refused because its executable path is outside the trusted browser allowlist,
+  which is the intended security boundary.
+- Full evidence and remaining gaps are in
+  [Windows 11 PC verification — 2026-10-18](windows-11-pc-verification-20261018.md).
+- Issue #26 remains open: the binaries are unsigned and no independently
+  protected trust anchor was added.
+
+## Completed focus — PR #34 popup serialization and Windows 10 validation (Codex, `f62c5c1`)
+
+- Draft PR #34 adds serialized popup-task handling and controlled shutdown.
+- Non-publishing CI #218 passed on the tested code commit: 263 tests passed,
+  five skipped, one warning, and 136 subtests.
+- The CI artifact was exercised on the authorized Windows 10 VM through upgrade,
+  graphical self-test, uninstall, portable post-uninstall self-test, and
+  reinstall. The user history hash stayed unchanged.
+- Firefox 158 and Edge 155 completed real isolated native-messaging handshakes
+  and reported the expected public capabilities. Edge also returned its public
+  capture settings without starting a download. Chrome 155 rejected both the
+  command-line development load and a copied-profile route, so no Chrome bridge
+  success is claimed.
+- Full evidence, hashes, limitations, and remaining gaps are recorded in
+  [Windows 10 VM verification — 2026-10-18](windows-10-vm-verification-20261018.md).
+- Issue #26 remains unresolved: the non-publishing artifacts are unsigned and
+  the same-user trust boundary has not gained an independently protected anchor.
+
+The documentation commit following `f62c5c1` does not change the tested product
+code. No merge, release, tag, publication, or change to `main` was performed.
 
 ## Goal and authority
 
@@ -137,3 +188,4 @@ Local venv `/workspace/scratch/a15d48cb1e30/rapido-test-venv/bin/python` is Pyth
 Git-data argument map: create_tree(repository_full_name, base_tree_sha, tree_elements); create_commit(repository_full_name, tree_sha, parent_sha, message); update_ref(repository_full_name, branch_name, sha, expected_sha, force=false). fetch_pr(repo_full_name, pr_number) returns structuredContent.pull_request; job logs are structuredContent.content. Filter outputs; do not print full PR diffs/logs.
 Git CLI lacks write credentials: GitHub Git-data tree/commit with correct parent, update_ref expected_sha/force=false, verify remote SHA. Fetch, compare staged content to FETCH_HEAD, soft-reset only if identical. Never overwrite concurrent work.
 Only `.github/workflows/windows.yml`: this work branch has no push trigger, PR build read-only. Reviewed workflow releases only on explicit publication-tag push plus build success; no deploy. Guards are NOT on main, which still has historical auto-release. Any future authorized integration must preserve tag-only guard before running main; none authorized now.
+

@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import sys
 import tempfile
 import threading
@@ -66,6 +67,29 @@ def api(path: str, body: dict | None = None, timeout: float = 3):
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode() or "null")
+
+
+def forbidden_response(request, *, timeout: float, attempts: int = 3,
+                       retry_delay: float = .1) -> bool:
+    """Require an actual 403, retrying transient loopback transport failures.
+
+    Windows can occasionally abort a newly opened loopback connection before
+    urllib receives the HTTP response.  A reset is not proof that the API guard
+    worked, so only a real 403 passes; transport failures merely get retried.
+    """
+    if attempts < 1:
+        raise ValueError("attempts must be positive")
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout):
+                return False
+        except urllib.error.HTTPError as error:
+            return error.code == 403
+        except (urllib.error.URLError, OSError):
+            if attempt + 1 == attempts:
+                return False
+            time.sleep(retry_delay)
+    return False
 
 
 def already_running():
@@ -196,6 +220,7 @@ def main() -> int:
     # ----- fenetres -----
     quitting = threading.Event()
     notified = threading.Event()
+    popup_tasks = SerialTaskQueue("rapido-popup-queue")
     tray = None
 
     main_win = webview.create_window(
@@ -241,6 +266,7 @@ def main() -> int:
 
     def quit_all():
         quitting.set()
+        popup_tasks.stop()
         for w in list(webview.windows):
             try:
                 w.destroy()
@@ -251,6 +277,8 @@ def main() -> int:
 
     def open_popup(path: str, width: int = 540, height: int = 480):
         """Petites fenetres : capture, choix de qualite video, progression, termine."""
+        if quitting.is_set():
+            return None
         import secrets
         dl_id = path.split("id=")[-1].split("&")[0]
         token = secrets.token_hex(16)
@@ -259,11 +287,12 @@ def main() -> int:
             on_top=True, background_color="#F3F4F1",
         )
         attach(win, f"{BASE_URL}{path}&w={token}", rapido._LOCAL_AUTH)
+        if quitting.is_set():
+            # La fermeture a commence pendant la creation WinForms synchrone.
+            # Ne jamais laisser cette fenetre tardive garder la boucle GUI en vie.
+            _quiet(win.destroy)
+            return None
         popups[token] = win
-
-        def unpin():
-            time.sleep(2.5)
-            set_topmost(win, False)
 
         def on_closed():
             popups.pop(token, None)
@@ -271,7 +300,12 @@ def main() -> int:
             threading.Thread(target=lambda: _quiet(lambda: api(f"/api/downloads/{dl_id}/cancel-capture", {})),
                              daemon=True).start()
 
-        win.events.shown += lambda: threading.Thread(target=unpin, daemon=True).start()
+        win.events.shown += lambda: threading.Thread(
+            target=unpin_after_delay,
+            args=(win, quitting, lambda: popups.get(token) is win),
+            name="rapido-popup-unpin",
+            daemon=True,
+        ).start()
         win.events.closed += on_closed
         return win
 
@@ -281,15 +315,13 @@ def main() -> int:
             return False
         # Appele depuis le serveur local : ne pas attendre le fil graphique.
         if action == "close":
-            in_background(win.destroy)
-        else:
-            in_background(lambda: win.resize(width, height))
-        return True
+            return popup_tasks.submit(win.destroy)
+        return popup_tasks.submit(lambda: win.resize(width, height))
 
     rapido.UI.update(desktop=True, show_main=show_main, window_action=window_action)
     # Le serveur demande une fenetre puis repond aussitot a l'extension.
-    rapido.manager.open_window = lambda path, width=540, height=480: in_background(
-        lambda: open_popup(path, width, height), name="rapido-popup")
+    rapido.manager.open_window = lambda path, width=540, height=480: popup_tasks.submit(
+        lambda: open_popup(path, width, height))
     rapido.manager.on_exit = quit_all          # action "Quitter Rapido" a la fin de la file d'attente
 
     native_server = None
@@ -321,6 +353,7 @@ def main() -> int:
         webview.start(on_start, private_mode=True)
     finally:
         quitting.set()
+        popup_tasks.stop()
         if tray is not None:
             try:
                 tray.stop()
@@ -348,6 +381,56 @@ def _quiet(fn):
         pass
 
 
+class SerialTaskQueue:
+    """Execute les operations graphiques lentes dans l'ordre, sur un seul fil.
+
+    Une rafale de captures ne doit pas creer un fil bloque par fenetre pendant
+    que WinForms traite les creations une par une. ``stop`` refuse les nouvelles
+    operations et ignore celles qui attendaient encore : une fermeture de
+    Rapido ne peut donc pas etre suivie par l'apparition tardive d'une fenetre.
+    """
+
+    _STOP = object()
+
+    def __init__(self, name="rapido-ui-queue"):
+        self._queue = queue.Queue()
+        self._lock = threading.Lock()
+        self._stopped = threading.Event()
+        self._thread = threading.Thread(target=self._run, name=name, daemon=True)
+        self._thread.start()
+
+    def submit(self, fn) -> bool:
+        with self._lock:
+            if self._stopped.is_set():
+                return False
+            self._queue.put(fn)
+            return True
+
+    def stop(self, timeout=0.0) -> bool:
+        with self._lock:
+            if not self._stopped.is_set():
+                self._stopped.set()
+                self._queue.put(self._STOP)
+        if timeout:
+            self._thread.join(timeout)
+        return not self._thread.is_alive()
+
+    def _run(self):
+        import traceback
+        while True:
+            task = self._queue.get()
+            try:
+                if task is self._STOP:
+                    return
+                if not self._stopped.is_set():
+                    task()
+            except Exception:
+                # setup_logging redirige ceci vers rapido.log dans l'executable.
+                traceback.print_exc()
+            finally:
+                self._queue.task_done()
+
+
 def in_background(fn, name="rapido-ui"):
     """Lance fn hors du fil appelant. Le serveur local (boucle asyncio) ne doit
     jamais attendre le fil graphique : creer une fenetre prenait 1 a 8 s sur la
@@ -362,9 +445,22 @@ def on_ui_thread(win, action) -> bool:
     form = getattr(win, "native", None)
     if form is None or not hasattr(form, "BeginInvoke"):
         return False
-    from System import Action
-    form.BeginInvoke(Action(lambda: _quiet(lambda: action(form))))
-    return True
+    try:
+        from System import Action
+        form.BeginInvoke(Action(lambda: _quiet(lambda: action(form))))
+        return True
+    except Exception:
+        # A delayed operation can race a window closing.  WinForms rejects
+        # BeginInvoke once its native handle has been destroyed; shutdown must
+        # not leave an unhandled daemon-thread exception behind.
+        return False
+
+
+def unpin_after_delay(win, stopping: threading.Event, still_open, delay=2.5) -> bool:
+    """Release popup topmost state unless shutdown/close won the delay race."""
+    if stopping.wait(delay) or not still_open():
+        return False
+    return set_topmost(win, False)
 
 
 def set_topmost(win, value: bool) -> bool:
@@ -578,13 +674,9 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         result["csp"] = "script-src 'sha256-" in urllib.request.urlopen(BASE_URL + "/").headers.get(
             "Content-Security-Policy", "")
         # securite : un site web ne doit pas pouvoir piloter Rapido
-        try:
-            urllib.request.urlopen(urllib.request.Request(
-                BASE_URL + "/api/show", data=b"{}", method="POST",
-                headers={"Content-Type": "application/json", "Origin": "https://evil.example"}), timeout=3)
-            result["guard_ok"] = False
-        except urllib.error.HTTPError as e:
-            result["guard_ok"] = e.code == 403
+        result["guard_ok"] = forbidden_response(urllib.request.Request(
+            BASE_URL + "/api/show", data=b"{}", method="POST",
+            headers={"Content-Type": "application/json", "Origin": "https://evil.example"}), timeout=3)
         # yt-dlp tourne dans un processus separe (sinon Rapido gele pendant l'analyse YouTube)
         import asyncio
         import app as rapido
@@ -614,11 +706,7 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         for path, body in (("/api/settings",None), ("/api/state",None), ("/api/capture",{"url":BASE_URL+"/favicon.ico"})):
             req = urllib.request.Request(BASE_URL+path, data=None if body is None else json.dumps(body).encode(),
                 method="GET" if body is None else "POST", headers={"Content-Type":"application/json"})
-            try:
-                urllib.request.urlopen(req, timeout=2)
-                result["unauthenticated_api"] = False
-            except urllib.error.HTTPError as error:
-                result["unauthenticated_api"] &= error.code == 403
+            result["unauthenticated_api"] &= forbidden_response(req, timeout=2)
         # The actual packaged native host must authenticate the actual desktop pipe.
         import subprocess, struct
         def native_message(value):
@@ -677,3 +765,4 @@ if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
     sys.exit(main())
+
