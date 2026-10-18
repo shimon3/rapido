@@ -77,3 +77,24 @@ Si SmartScreen bloque l'installateur, la consigne est : relever l'écran
 
 Aucune machine Windows 11 n'est identifiée ni autorisée pour cette
 validation. Le PC principal est exclu.
+
+## Second relevé après désinstallation (compte `samue`, 12:23 UTC)
+
+Identité reconfirmée : même clé ED25519 et `DESKTOP-F2ALUG9`. Lecture seule.
+
+| Point | Constat | Statut |
+| --- | --- | --- |
+| Programme, processus, démarrage automatique, entrée de désinstallation | Absents | ✔ |
+| `%USERPROFILE%\.rapido`, dossiers de test dans Téléchargements, menu Démarrer | Absents | ✔ |
+| Clés HKCU `NativeMessagingHosts\com.rapido.bridge` (Chrome, Edge, Firefox) | **Présentes mais vides** (aucune valeur) | À supprimer. À surveiller au contrôle E5 du candidat |
+| Extension Chrome | Toujours enregistrée dans `Secure Preferences`, chemin `...\Programs\Rapido\extension` (dossier supprimé) | À retirer dans `chrome://extensions` |
+| Extension Edge « Rapido - Capture » 1.3.0.1 | Toujours enregistrée dans `Preferences` | À retirer dans `edge://extensions` |
+| Firefox | Aucune mention dans `extensions.json` | ✔ |
+| Bureau | `Rapido-1.3.0-beta.1-windows.zip` (ancien artefact) et `rapido_vm.pub` | Supprimer l'ancien ZIP |
+| `%TEMP%` | 9 dossiers contenant `EBWebView` (anciennes sessions WebView2) | À supprimer (non bloquant) |
+| Compte de test standard | Aucun : seul `samue` (administrateur) est actif | **Bloquant pour B1** |
+| Navigateurs | Inchangés : Chrome 155.0.8059.80, Edge 155.0.4283.45, Firefox 158.0 | À mettre à jour |
+
+Constat utile pour le produit : la désinstallation de l'ancienne build (CI #218)
+a laissé des clés de registre vides et les extensions de navigateur. Le
+contrôle E5 sur le candidat dira si le problème existe toujours.
