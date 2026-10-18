@@ -1,6 +1,28 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-15 (Claude). Latest validated code: cf72cd2, CI #216 (self-test load-wait fixed in 2d77b06/6437b82; one portable post-uninstall self-test failure still unexplained). Start here; do not repeat repository overview or completed PR reconciliation.
+Updated 2026-10-18 (Codex). Latest validated product code: f62c5c1, CI #218.
+The following commit is documentation-only. Start here; do not repeat repository
+overview or completed PR reconciliation.
+
+## Completed focus — PR #34 popup serialization and Windows 10 validation (Codex, `f62c5c1`)
+
+- Draft PR #34 adds serialized popup-task handling and controlled shutdown.
+- Non-publishing CI #218 passed on the tested code commit: 263 tests passed,
+  five skipped, one warning, and 136 subtests.
+- The CI artifact was exercised on the authorized Windows 10 VM through upgrade,
+  graphical self-test, uninstall, portable post-uninstall self-test, and
+  reinstall. The user history hash stayed unchanged.
+- Firefox 158 completed a real isolated native-messaging handshake and reported
+  the expected public capabilities. Isolated Chrome and Edge command-line
+  extension loading was blocked before native messaging, so no success is
+  claimed for those browsers.
+- Full evidence, hashes, limitations, and remaining gaps are recorded in
+  [Windows 10 VM verification — 2026-10-18](windows-10-vm-verification-20261018.md).
+- Issue #26 remains unresolved: the non-publishing artifacts are unsigned and
+  the same-user trust boundary has not gained an independently protected anchor.
+
+The documentation commit following `f62c5c1` does not change the tested product
+code. No merge, release, tag, publication, or change to `main` was performed.
 
 ## Goal and authority
 
