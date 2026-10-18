@@ -68,4 +68,4 @@ def test_automatic_updates_remain_gated_on_production_signing():
     assert "does not silently download or execute" in text
     assert "exact publisher" in text
     assert "Windows 10 and Windows 11" in text
-    assert "current manual update link is the safe beta behavior" in text
+    assert "current manual update link is\nthe safe beta behavior" in text
