@@ -92,7 +92,7 @@ Identité reconfirmée : même clé ED25519 et `DESKTOP-F2ALUG9`. Lecture seule.
 | Firefox | Aucune mention dans `extensions.json` | ✔ |
 | Bureau | `Rapido-1.3.0-beta.1-windows.zip` (ancien artefact) et `rapido_vm.pub` | Supprimer l'ancien ZIP |
 | `%TEMP%` | 9 dossiers contenant `EBWebView` (anciennes sessions WebView2) | À supprimer (non bloquant) |
-| Compte de test standard | Aucun : seul `samue` (administrateur) est actif | **Bloquant pour B1** |
+| Compte de test standard | Aucun : seul `samue` (administrateur) est actif | Non bloquant, voir le relevé suivant |
 | Navigateurs | Inchangés : Chrome 155.0.8059.80, Edge 155.0.4283.45, Firefox 158.0 | À mettre à jour |
 
 Constat utile pour le produit : la désinstallation de l'ancienne build (CI #218)
@@ -110,6 +110,6 @@ Identité reconfirmée (même clé ED25519, `DESKTOP-F2ALUG9`).
 | Ancien ZIP sur le Bureau | Absent | ✔ |
 | Dossiers `EBWebView` dans `%TEMP%` | 0 | ✔ |
 | Navigateurs | Chrome 155.0.8059.80, Edge 155.0.4283.45, Firefox 158.0 : **inchangés**. Chrome et Edge sont ouverts (une mise à jour peut attendre leur redémarrage) | **À faire** |
-| Compte standard de test | Aucun. Seuls `samue` (administrateur) et `sshd` sont actifs | **Bloquant pour B1** |
+| Compte standard de test | Aucun. Seuls `samue` (administrateur) et `sshd` sont actifs | Non bloquant : UAC actif, le contrôle B1 se fait sur `samue` en lançant l'installateur depuis l'Explorateur (pas depuis une console administrateur). Un compte standard reste un test complémentaire |
 
 Rapido ne laisse plus aucune trace sur le compte `samue`.

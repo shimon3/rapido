@@ -31,7 +31,7 @@ Durée : environ 1 h 30 par système (préparation comprise).
 | Point | Windows 10 | Windows 11 |
 | --- | --- | --- |
 | Édition et build | Pro 22H2, build 19045, à jour | Pro, version actuelle, à jour |
-| Compte | Compte **standard** (non administrateur) dédié au test | idem |
+| Compte | Compte **standard** de préférence. Un compte administrateur convient si UAC est actif et que l'installateur est lancé depuis l'Explorateur, jamais depuis une console élevée | idem |
 | Rapido | Jamais installé, ou instantané pris avant toute installation | idem |
 | Navigateurs | Chrome, Edge, Firefox stables, à jour | idem |
 | Sécurité | SmartScreen et Microsoft Defender **activés** (ne rien désactiver) | idem |
