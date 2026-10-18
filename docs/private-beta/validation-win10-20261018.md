@@ -214,3 +214,26 @@ Rapido est quitté puis relancé depuis le menu Démarrer.
 | B3 fenêtre principale ouverte et lisible | Oui | OK |
 | B4 icône : Masquer, Afficher, Quitter | Oui, l'icône disparaît après Quitter | OK |
 | Relance depuis le menu Démarrer | Nouveau processus `Rapido.exe` (pid 8848, parent `explorer.exe`, donc non élevé). Journal : 2 démarrages, 0 « Traceback » | OK |
+
+## C — premier essai de téléchargement : échec dû au serveur de test
+
+Samuel a ajouté 4 téléchargements `proof.ovh.net` vers 15:59. Rapido affiche
+`ConnectError: All connection attempts failed` pour l'un, et 0 o/s pour les 3 autres.
+
+Diagnostic par SSH, en lecture seule :
+
+- Internet fonctionne depuis la VM : TCP 443 vers 1.1.1.1 et GitHub OK, aucun
+  proxy (WinHTTP, IE, variables d'environnement), pare-feu sans règle Rapido.
+- `proof.ovh.net` (141.95.207.211) **ne répond plus en TCP 443** depuis la VM,
+  alors qu'une requête HEAD avait réussi quelques minutes plus tôt. La VM n'a
+  pas de route IPv6, et l'AAAA échoue aussi.
+- Le `100Mb.dat` complet (104 857 600 octets) trouvé dans Téléchargements a été
+  écrit à 15:58:18 par le **navigateur** (marque HostUrl), pas par Rapido.
+
+Conclusion : le serveur de test bloque l'adresse de la VM après plusieurs
+connexions. C'est extérieur à Rapido, et ce n'est pas un résultat valable
+pour C1–C4. Les tests repartent avec `speedtest.tele2.net`, `python.org` et
+le CDN Mozilla, tous vérifiés joignables avec `Accept-Ranges: bytes`.
+
+Remarque produit : le message d'erreur et « Reprise possible : Non » sont
+corrects tant qu'aucune connexion n'aboutit.
