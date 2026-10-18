@@ -173,6 +173,12 @@ jobs:
           & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DAppFileVersion=${{ steps.ver.outputs.file_version }}" packaging\rapido.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Production signing readiness (audit only)
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem -LiteralPath dist -Filter 'Rapido-Setup-*.exe' | Select-Object -First 1).FullName
+          .\scripts\windows_signing_plan.ps1 -BundlePath dist\Rapido -InstallerPath $setup -OutputPath dist\signing-plan.json
+
       - name: Install and uninstall browser native-host registrations
         shell: pwsh
         run: |
@@ -305,6 +311,7 @@ jobs:
           path: |
             dist/Rapido-Setup-*.exe
             dist/Rapido-*-portable.zip
+            dist/signing-plan.json
 
   release:
     needs: build
