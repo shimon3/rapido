@@ -1,7 +1,37 @@
 # Rapido — restart checkpoint
 
-Updated 2026-10-18 (Codex). Latest validated product code: 8a7877f, CI #221.
+Updated 2026-10-18 (Codex). Latest validated PR #35 head:
+`3596bcc1f713b42268ccbf7ca531e3d4e76076ff`, CI #239.
 Start here; do not repeat repository overview or completed PR reconciliation.
+
+## Completed focus — non-publishing release gate and bounded updates (Codex, `3596bcc`)
+
+- PR #35 remains a draft based on PR #34. Neither PR is merged.
+- A tag is no longer sufficient to publish: the release job additionally
+  requires `publishable=true`, while the reviewed workflow hard-codes
+  `publishable=false` until production signing is implemented.
+- CI artifacts are named `UNPUBLISHED-*`, expire after 14 days, and contain a
+  provenance record stating `official_release=false` and
+  `production_signed=false`.
+- The update check remains manual. It accepts only the exact official GitHub
+  API response URL, bounds metadata to 2 MiB, validates its schema, and offers
+  a direct installer only for the exact official version/name/path.
+- README and beta notes no longer instruct users to bypass SmartScreen for an
+  unsigned candidate.
+- The supplier study for Samuel Bentouza in Israel and the publication checklist
+  are in `docs/authenticode-options-israel.md` and
+  `docs/beta-publication-checklist.md`.
+- [CI #239](https://github.com/shimon3/rapido/actions/runs/39120616012) succeeded:
+  282 passed, 5 skipped, 1 warning, 142 subtests; isolated Authenticode fixtures
+  passed 15 tests and 39 subtests. Graphical self-test, native protocol,
+  installer lifecycle, installed/portable coexistence, Firefox 157.0.1,
+  licence/advisory/payload gates, non-publishing provenance, and artifact upload
+  passed. Release skipped.
+- Artifact `12133684748` is explicitly non-published; digest
+  `sha256:a2ab24557853312d7a210c1316e1f2d14b8c667dcc5c0ed8977e76824d183a67`.
+- Issue #26 remains open: no production certificate or independently protected
+  same-user trust anchor exists. No merge, tag, release, deployment, purchase,
+  or change to `main` was performed.
 
 ## Completed focus — loopback retry and Windows 11 lifecycle (Codex, `8a7877f`)
 

@@ -1,5 +1,13 @@
 # Rapido — reprise pour Claude ou Codex
 
+> **Checkpoint historique.** Les branches, PR, CI et règles de publication
+> ci-dessous décrivent l'état du 15 octobre. Pour l'état courant, commencer par
+> `docs/work-state.md`, puis les PR #34 et #35. Depuis le commit
+> `de1a7b083d036b8bb1d15a6e138c558fae58b0db`, un tag seul ne peut plus publier :
+> le workflow exige aussi le garde volontairement désactivé
+> `publishable=false`.
+
+
 Point de pause du 15 octobre 2026, après validation de la correction des enregistrements natifs. Aucun travail de licences supplémentaire n'a été commencé dans cette dernière étape. Aucun processus de développement ni tâche automatique n'est lancé pour la reprise de 14 h 13.
 
 ## Instruction de reprise
