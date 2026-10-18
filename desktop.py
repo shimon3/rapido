@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import sys
 import tempfile
 import threading
@@ -196,6 +197,7 @@ def main() -> int:
     # ----- fenetres -----
     quitting = threading.Event()
     notified = threading.Event()
+    popup_tasks = SerialTaskQueue("rapido-popup-queue")
     tray = None
 
     main_win = webview.create_window(
@@ -241,6 +243,7 @@ def main() -> int:
 
     def quit_all():
         quitting.set()
+        popup_tasks.stop()
         for w in list(webview.windows):
             try:
                 w.destroy()
@@ -251,6 +254,8 @@ def main() -> int:
 
     def open_popup(path: str, width: int = 540, height: int = 480):
         """Petites fenetres : capture, choix de qualite video, progression, termine."""
+        if quitting.is_set():
+            return None
         import secrets
         dl_id = path.split("id=")[-1].split("&")[0]
         token = secrets.token_hex(16)
@@ -259,6 +264,11 @@ def main() -> int:
             on_top=True, background_color="#F3F4F1",
         )
         attach(win, f"{BASE_URL}{path}&w={token}", rapido._LOCAL_AUTH)
+        if quitting.is_set():
+            # La fermeture a commence pendant la creation WinForms synchrone.
+            # Ne jamais laisser cette fenetre tardive garder la boucle GUI en vie.
+            _quiet(win.destroy)
+            return None
         popups[token] = win
 
         def unpin():
@@ -281,15 +291,13 @@ def main() -> int:
             return False
         # Appele depuis le serveur local : ne pas attendre le fil graphique.
         if action == "close":
-            in_background(win.destroy)
-        else:
-            in_background(lambda: win.resize(width, height))
-        return True
+            return popup_tasks.submit(win.destroy)
+        return popup_tasks.submit(lambda: win.resize(width, height))
 
     rapido.UI.update(desktop=True, show_main=show_main, window_action=window_action)
     # Le serveur demande une fenetre puis repond aussitot a l'extension.
-    rapido.manager.open_window = lambda path, width=540, height=480: in_background(
-        lambda: open_popup(path, width, height), name="rapido-popup")
+    rapido.manager.open_window = lambda path, width=540, height=480: popup_tasks.submit(
+        lambda: open_popup(path, width, height))
     rapido.manager.on_exit = quit_all          # action "Quitter Rapido" a la fin de la file d'attente
 
     native_server = None
@@ -321,6 +329,7 @@ def main() -> int:
         webview.start(on_start, private_mode=True)
     finally:
         quitting.set()
+        popup_tasks.stop()
         if tray is not None:
             try:
                 tray.stop()
@@ -346,6 +355,56 @@ def _quiet(fn):
         fn()
     except Exception:
         pass
+
+
+class SerialTaskQueue:
+    """Execute les operations graphiques lentes dans l'ordre, sur un seul fil.
+
+    Une rafale de captures ne doit pas creer un fil bloque par fenetre pendant
+    que WinForms traite les creations une par une. ``stop`` refuse les nouvelles
+    operations et ignore celles qui attendaient encore : une fermeture de
+    Rapido ne peut donc pas etre suivie par l'apparition tardive d'une fenetre.
+    """
+
+    _STOP = object()
+
+    def __init__(self, name="rapido-ui-queue"):
+        self._queue = queue.Queue()
+        self._lock = threading.Lock()
+        self._stopped = threading.Event()
+        self._thread = threading.Thread(target=self._run, name=name, daemon=True)
+        self._thread.start()
+
+    def submit(self, fn) -> bool:
+        with self._lock:
+            if self._stopped.is_set():
+                return False
+            self._queue.put(fn)
+            return True
+
+    def stop(self, timeout=0.0) -> bool:
+        with self._lock:
+            if not self._stopped.is_set():
+                self._stopped.set()
+                self._queue.put(self._STOP)
+        if timeout:
+            self._thread.join(timeout)
+        return not self._thread.is_alive()
+
+    def _run(self):
+        import traceback
+        while True:
+            task = self._queue.get()
+            try:
+                if task is self._STOP:
+                    return
+                if not self._stopped.is_set():
+                    task()
+            except Exception:
+                # setup_logging redirige ceci vers rapido.log dans l'executable.
+                traceback.print_exc()
+            finally:
+                self._queue.task_done()
 
 
 def in_background(fn, name="rapido-ui"):
