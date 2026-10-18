@@ -170,3 +170,12 @@ contourné. Les contrôles B à F ne sont pas exécutés.
 Conséquence : sur un Windows 10 standard, un testeur ne peut installer cette
 bêta non signée qu'en cliquant « Informations complémentaires » puis
 « Exécuter quand même ». Décision du propriétaire requise.
+
+## Décision du propriétaire sur le blocage SmartScreen (2026-10-18)
+
+Samuel Bentouza accepte, **pour la bêta privée uniquement**, une exception
+encadrée : après vérification de l'empreinte SHA-256, cliquer « Informations
+complémentaires » puis « Exécuter quand même » **pour ce fichier précis**.
+SmartScreen et Defender restent activés. Aucun réglage n'est modifié.
+L'exception ne s'applique pas à une version publique, qui devra être signée.
+Samuel réalise lui-même cette action sur la VM.
