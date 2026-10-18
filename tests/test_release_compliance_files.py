@@ -7,6 +7,7 @@ GATES = ROOT / "docs" / "release-signing-and-license-gates.md"
 WORKFLOW = ROOT / ".github" / "workflows" / "windows.yml"
 SIGNING_PLAN = ROOT / "scripts" / "windows_signing_plan.ps1"
 MSIX_STUDY = ROOT / "docs" / "msix-browser-compatibility.md"
+UPDATE_CONTRACT = ROOT / "docs" / "update-security-contract.md"
 
 
 def test_third_party_notice_exposes_evidence_and_copyleft_sources():
@@ -60,3 +61,11 @@ def test_msix_study_keeps_browser_compatibility_unproven():
     assert "Chrome, Edge, and Firefox" in text
     assert "unvirtualizedResources" in text
     assert "MSIX remains a research path" in text
+
+
+def test_automatic_updates_remain_gated_on_production_signing():
+    text = UPDATE_CONTRACT.read_text(encoding="utf-8")
+    assert "does not silently download or execute" in text
+    assert "exact publisher" in text
+    assert "Windows 10 and Windows 11" in text
+    assert "current manual update link is the safe beta behavior" in text
