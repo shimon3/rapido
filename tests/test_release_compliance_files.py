@@ -5,6 +5,8 @@ ROOT = Path(__file__).resolve().parents[1]
 NOTICE = ROOT / "THIRD-PARTY-NOTICES.md"
 GATES = ROOT / "docs" / "release-signing-and-license-gates.md"
 WORKFLOW = ROOT / ".github" / "workflows" / "windows.yml"
+SIGNING_PLAN = ROOT / "scripts" / "windows_signing_plan.ps1"
+MSIX_STUDY = ROOT / "docs" / "msix-browser-compatibility.md"
 
 
 def test_third_party_notice_exposes_evidence_and_copyleft_sources():
@@ -38,3 +40,23 @@ def test_windows_bundle_contains_top_level_notice():
         "-Destination dist/Rapido/THIRD-PARTY-NOTICES.md"
     )
     assert expected in workflow
+
+
+def test_signing_readiness_is_audit_only_and_is_run_by_ci():
+    script = SIGNING_PLAN.read_text(encoding="utf-8")
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "Get-AuthenticodeSignature" in script
+    assert "production_signing_enabled = $false" in script
+    assert "Private-key material must not be present" in script
+    assert "signtool" not in script.lower()
+    assert "Set-AuthenticodeSignature" not in script
+    assert "windows_signing_plan.ps1" in workflow
+    assert "dist/signing-plan.json" in workflow
+
+
+def test_msix_study_keeps_browser_compatibility_unproven():
+    text = MSIX_STUDY.read_text(encoding="utf-8")
+    assert "Keep the Inno Setup installer for the current beta" in text
+    assert "Chrome, Edge, and Firefox" in text
+    assert "unvirtualizedResources" in text
+    assert "MSIX remains a research path" in text
