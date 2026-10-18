@@ -206,3 +206,11 @@ Point ouvert : Rapido a été lancé par un installateur élevé. Une entrée
 `postinstall` d'Inno Setup s'exécute normalement en tant qu'utilisateur
 d'origine (non élevé), mais ce n'est pas prouvé ici. Pour la suite des tests,
 Rapido est quitté puis relancé depuis le menu Démarrer.
+
+## B3 / B4 — lancement et zone de notification (Samuel, session graphique)
+
+| Contrôle | Résultat | Statut |
+| --- | --- | --- |
+| B3 fenêtre principale ouverte et lisible | Oui | OK |
+| B4 icône : Masquer, Afficher, Quitter | Oui, l'icône disparaît après Quitter | OK |
+| Relance depuis le menu Démarrer | Nouveau processus `Rapido.exe` (pid 8848, parent `explorer.exe`, donc non élevé). Journal : 2 démarrages, 0 « Traceback » | OK |
