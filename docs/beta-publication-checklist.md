@@ -1,93 +1,51 @@
-# Rapido 1.3.0-beta.1 publication checklist
+# Rapido 1.3.0-beta.1 — remaining publication tasks
 
-Status: **not ready to publish**. This checklist records evidence; it does not
-authorize a merge, tag, release, deployment, purchase, or production signature.
+Status date: 2026-10-18. This checklist lists **only the work still to do**.
+Completed items are recorded in the CI evidence and in the documents linked
+below. It does not authorize a merge, tag, release, deployment, purchase or
+production signature. **Do not publish** while a blocking task of the target
+track is open.
 
-## Branch and review gates
+- Track P (**private beta**, unsigned, 2 to 5 named testers):
+  `docs/private-beta/README.md`.
+- Track S (**public beta**, signed): this checklist plus
+  `docs/authenticode-signing-procedure.md`.
 
-- [x] PR #34 contains the Windows stability changes and is the base of PR #35.
-- [x] PR #35 contains release, licence, signing-readiness, MSIX, and update gates.
-- [ ] Review and approve PR #34 before PR #35.
-- [ ] Merge only with the owner's explicit authorization.
-- [ ] Re-run the full workflow after the final merge candidate is assembled.
-- [ ] Confirm the candidate commit is exactly the commit used to build every
-  file proposed for distribution.
+Latest evidence: CI run CI_RUN_PLACEHOLDER on commit COMMIT_PLACEHOLDER.
 
-## Automated Windows evidence
+## Track P — private unsigned beta
 
-- [x] CI #237 completed on the GitHub-hosted Windows runner: 278 tests passed,
-  5 skipped, 1 warning, and 136 subtests passed.
-- [x] Graphical WebView2 self-test, native protocol, installer lifecycle,
-  installed/portable coexistence, and real Firefox handoff/fallback passed.
-- [x] CI #237 produced an audit-only signing plan for 91 executable payloads.
-- [x] The release job was skipped and the artifact was not published.
-- [ ] Repeat the full workflow for the final signed candidate.
-- [ ] Record Windows 10 and Windows 11 install, upgrade, repair, failed-upgrade
-  recovery, rollback, and uninstall evidence for that exact candidate.
-- [ ] Verify hashes and Authenticode signatures again after independently
-  downloading the candidate.
+| ID | Task and objective | Real state | Evidence | Missing | Blocking | Next owner | Validation criterion |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| P1 | Freeze the candidate: one commit, one green run, one artifact | Candidate built by CI | Run summary with SHA-256 block, `SHA256SUMS.txt` | Owner downloads and archives the artifact within 14 days | Yes | Owner | Archived files match the job-summary hashes |
+| P2 | Clean Windows 10 validation of that exact artifact | Earlier artifacts passed on a Windows 10 VM (CI #218, `docs/windows-10-vm-verification-20261018.md`) | Earlier report only | Run `docs/private-beta/checklist-windows.md` on the frozen artifact | Yes | Owner (machine access) | Checklist sections A–F meet the "validated for sending" rule |
+| P3 | Clean Windows 11 validation of that exact artifact | Earlier artifacts passed on Windows 11 (CI #221, `docs/windows-11-pc-verification-20261018.md`) | Earlier report only | Same as P2 on Windows 11 | Yes | Owner | Same as P2 |
+| P4 | At least one of Chrome, Edge and Firefox works end to end on both systems | Firefox automated in CI; Edge validated earlier; Chrome's normal install path not recorded | CI Firefox step, earlier reports | Checklist rows D1–D3 | Yes, for one browser. No, for all three | Owner | One browser passes on both systems; others recorded |
+| P5 | Feedback channel ready | Issue forms and `SECURITY.md` on the work branch | `.github/ISSUE_TEMPLATE/` | GitHub reads forms only from `main`: until the owner authorizes a merge, use private messages. Enable private vulnerability reporting and create the labels `beta-privee` and `feedback` | No | Owner | A tester can report privately, and a security report never needs a public issue |
+| P6 | Testers informed | Notice and guide written | `docs/private-beta/notice-securite-version-non-signee.md`, `guide-testeur.md` | Owner sends them with the hashes on a second channel | Yes | Owner | Each tester confirmed reading the notice |
+| P7 | Licence gates pass on the candidate and `payload.json` is reviewed | Gates enforced by CI; FFmpeg and Deno not added by the workflow | `docs/private-beta/revue-licences-bloquantes.md` | Review `third-party/payload.json` of the frozen artifact | Yes | Owner | No unexpected component |
 
-CI currently runs on Windows Server 2025. Earlier Windows 10 and Windows 11
-records remain useful regression evidence, but they are not evidence for a
-future signed artifact.
+## Track S — public signed beta (after Track P)
 
-## Browser integration
+| ID | Task and objective | Real state | Evidence | Missing | Blocking | Next owner | Validation criterion |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S1 | Certificate for "Samuel Bentouza", Israel | Not purchased | `docs/authenticode-options-israel.md`, `docs/authenticode-signing-procedure.md` §1 | Written confirmation from SSL.com (IV for Israel, CKA or CodeSignTool CI, total price), then the purchase | Yes | Owner | Certificate issued; SHA-256 pin recorded |
+| S2 | Wire production signing in CI | Order, checks and negative cases rehearsed with disposable certificates | `scripts/rehearse_release_signing.ps1`, `signing-rehearsal.json` in the artifact | `release-signing` environment and secrets (owner), reviewed `sign` job PR (maintainer) | Yes | Owner, then maintainer | Tag build signs, verifies and records the manifest; a PR build cannot reach the secrets |
+| S3 | Windows 10/11 validation of the **signed** candidate | Matrix ready | `docs/windows-validation-matrix.md`, `scripts/collect_candidate_evidence.ps1` | Execution on the owner's machines | Yes | Owner | All 20 scenarios recorded on both systems |
+| S4 | Downloaded file equals the tested file | Script rehearsed in CI (identical copy accepted, planted DLL rejected) | `scripts/verify_release_candidate.ps1` | Run on the real signed candidate | Yes | Owner | Script reports a match |
+| S5 | Issue #26 decision | Options written | `docs/issue-26-beta-options.md` | Owner chooses A or B and approves the residual-risk wording | Yes | Owner | Decision recorded; #26 stays open unless its criteria are proven |
+| S6 | Human legal review | Technical report ready | `docs/license-obligations-report.md` (questions L1–L6) | Reviewer chosen by the owner | Yes | Owner | Written answers to L1–L6 |
+| S7 | Merge the stack | Order #34 → #35 confirmed | `docs/pr-integration-procedure.md` | Review and owner authorization | Yes | Owner | `main` equals the tested tree |
+| S8 | Release notes with support scope and residual risk | Draft exists | `docs/beta-release-notes.md` | Final wording after S5 | Yes | Maintainer | Owner approves |
 
-- [x] Chrome/Edge extension builds and shared behavior/policy tests pass.
-- [x] A real Edge bridge was previously validated on an authorized isolated
-  Windows 11 profile for the PR #34 artifact.
-- [x] The real Firefox 157.0.1 native bridge and host-absent fallback pass in CI.
-- [ ] Validate the exact final signed artifact with stable Chrome, Edge, and
-  Firefox on Windows 10 and Windows 11.
-- [ ] Record Chrome's normal supported extension-installation path. Do not claim
-  success from Chrome for Testing when its executable is intentionally outside
-  Rapido's production browser allowlist.
+## Proving the signed artifact is the tested one
 
-## Signing and issue #26
-
-- [x] Disposable Authenticode fixtures cover trusted, unsigned, tampered,
-  wrong-signer, held-file, and reparse-path behavior.
-- [x] CI inventories hashes and signature state without handling a production
-  certificate or secret.
-- [ ] Select a publicly trusted provider and have the individual identity
-  "Samuel Bentouza" accepted for Israel.
-- [ ] Approve the displayed publisher spelling and certificate identity.
-- [ ] Sign and timestamp both first-party executables, verify them, build the
-  installer, then sign and verify the installer.
-- [ ] Define certificate renewal, revocation, incident response, and signer
-  rollover.
-- [ ] Decide whether the beta remains a per-user distribution with the
-  documented same-user limitation or gains an administrator-managed trust
-  anchor. Signing alone does not close issue #26.
-- [ ] Complete replacement, repair, upgrade, rollback, and uninstall tests with
-  the production trust policy.
-
-## Licences and payload
-
-- [x] CI #237 inventoried 41 distributions and verified 41/41 PyPI advisory
-  responses.
-- [x] CI #237 inspected 155 files and 4 archives.
-- [x] The bundle contains Rapido's MIT licence, THIRD-PARTY-NOTICES.md, package
-  licence texts, source/replacement information, and payload evidence.
-- [x] pystray/LGPLv3, certifi/MPL-2.0, and the proxy_tools metadata discrepancy
-  are explicitly visible.
-- [ ] A human legal review must approve the exact final inventory, notices,
-  source offers/replacement instructions, and compatibility conclusions.
-
-## Updates and publication
-
-- [x] Update checking is read-only and does not silently download or execute an
-  installer.
-- [x] A direct installer link is accepted only for the exact official GitHub
-  version, asset name, HTTPS host, and release path.
-- [x] CI artifacts are explicitly marked non-official and non-production-signed.
-- [x] The release job has a hard-coded `publishable=false` gate.
-- [ ] Add automatic installation only in a later reviewed change after signature,
-  hash, publisher, downgrade/replay, interruption, and rollback tests.
-- [ ] Prepare final release notes with issue #26 residual risk and exact support
-  scope.
-- [ ] Obtain explicit owner authorization for merge, tag, release, and public
-  distribution.
-
-**Do not publish while any signing, legal, exact-candidate Windows/browser, or
-owner-authorization gate above remains open.**
+1. After S3 passes, record the candidate:
+   `verify_release_candidate.ps1 -Record -CandidateDir <tested files> -ApprovedManifest approved.json -Version 1.3.0-beta.1 -Commit <sha> -ExpectedCertificateSha256 <pin>`.
+   Store `approved.json` outside the candidate folder.
+2. Download the files to be published from a different machine or account.
+3. Run `verify_release_candidate.ps1 -CandidateDir <download> -ApprovedManifest approved.json -ExpectedCertificateSha256 <pin> -ExpectedSubject <subject>`.
+4. Publish only if it reports a match. The comparison covers the installer and
+   the ZIP, every file inside the portable payload, and the Authenticode
+   status, timestamp and signer pin of the installer, `Rapido.exe` and
+   `RapidoNativeHost.exe`.

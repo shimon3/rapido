@@ -92,3 +92,53 @@ def test_powershell_release_scripts_parse_without_errors():
     result = subprocess.run(["powershell", "-NoProfile", "-Command", command],
                             capture_output=True, text=True, timeout=120, env=env)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_candidate_verification_runs_and_rejects_a_mismatch(tmp_path):
+    import hashlib
+    import json
+    import shutil
+    import subprocess
+    import sys
+    import zipfile
+    import pytest
+
+    if sys.platform != "win32" or not shutil.which("powershell"):
+        pytest.skip("Windows PowerShell required")
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    setup = candidate / "Rapido-Setup-9.9.9.exe"
+    setup.write_bytes(b"not a real installer")
+    archive = candidate / "Rapido-9.9.9-portable.zip"
+    payload = {"Rapido/Rapido.exe": b"exe fixture", "Rapido/RapidoNativeHost.exe": b"host fixture",
+               "Rapido/third-party/x.txt": b"notice"}
+    with zipfile.ZipFile(archive, "w") as z:
+        for name, data in payload.items():
+            z.writestr(name, data)
+    sha = lambda data: hashlib.sha256(data).hexdigest()
+    pin = "ab" * 32
+    approved = {
+        "schema": 1, "version": "9.9.9", "commit": "0" * 40, "signer_certificate_sha256": pin,
+        "files": [{"path": setup.name, "sha256": sha(setup.read_bytes()), "bytes": 1},
+                  {"path": archive.name, "sha256": sha(archive.read_bytes()), "bytes": 1}],
+        "payload": [{"path": "Rapido.exe", "sha256": sha(b"exe fixture"), "bytes": 1},
+                    {"path": "RapidoNativeHost.exe", "sha256": "0" * 64, "bytes": 1},
+                    {"path": "missing.dll", "sha256": "1" * 64, "bytes": 1}],
+    }
+    manifest = tmp_path / "approved.json"
+    manifest.write_text(json.dumps(approved), encoding="utf-8")
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+         str(ROOT / "scripts" / "verify_release_candidate.ps1"), "-CandidateDir", str(candidate),
+         "-ApprovedManifest", str(manifest), "-ExpectedCertificateSha256", pin,
+         "-ExpectedSubject", "CN=Fixture, O=Test", "-ReportPath", str(tmp_path / "report.json")],
+        capture_output=True, text=True, timeout=180)
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "Candidate REJECTED" in output
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8-sig"))
+    problems = report["problems"]
+    assert "payload:hash-mismatch:RapidoNativeHost.exe" in problems
+    assert "payload:missing-from-candidate:missing.dll" in problems
+    assert "payload:unexpected-in-candidate:third-party/x.txt" in problems
+    assert any(p.startswith("signature:Rapido-Setup-9.9.9.exe:") for p in problems)

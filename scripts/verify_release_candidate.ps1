@@ -23,6 +23,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+trap {
+  # Exit 2 = the procedure itself failed, distinct from a rejected candidate (1).
+  Write-Host "verify_release_candidate failed: $($_.Exception.Message)"
+  Write-Host $_.InvocationInfo.PositionMessage
+  Write-Host $_.ScriptStackTrace
+  exit 2
+}
 Import-Module (Join-Path $PSScriptRoot 'RapidoSigning.psm1') -Force
 $pin = $ExpectedCertificateSha256.ToLowerInvariant()
 $candidate = (Resolve-Path -LiteralPath $CandidateDir).Path

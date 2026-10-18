@@ -106,11 +106,16 @@ def test_unsigned_ci_artifacts_cannot_reach_the_release_job():
 
 def test_publication_checklist_keeps_external_gates_open():
     text = PUBLICATION_CHECKLIST.read_text(encoding="utf-8")
-    assert "CI #237" in text
     assert "Windows 10" in text and "Windows 11" in text
     assert "Chrome" in text and "Edge" in text and "Firefox" in text
-    assert "human legal review" in text
+    assert "Human legal review" in text
     assert "Do not publish" in text
+    assert "Track P" in text and "Track S" in text
+    assert "verify_release_candidate.ps1 -Record" in text
+    # Every remaining task states whether it blocks and who acts next.
+    rows = [line for line in text.splitlines() if line.startswith(("| P", "| S")) and not line.startswith("| ID")]
+    assert len(rows) >= 10
+    assert all(line.count("|") == 9 for line in rows)
 
 
 def test_authenticode_options_do_not_claim_a_purchase_or_eligibility():
