@@ -14,10 +14,12 @@ Every official Windows build includes a `third-party` directory next to
   evidence from the built application.
 - `third-party/packages/` contains license texts and component-specific
   notices collected from the reviewed build environment.
+- `third-party/source/` contains the exact source files of the LGPL and MPL
+  components below, copied only after they match the reviewed hashes.
 - `third-party/python/` and `third-party/Python-LICENSE.txt` contain the
   CPython license and incorporated-component notices.
-- `third-party/webview2-sdk/` contains the reviewed Microsoft WebView2 SDK
-  LICENSE and NOTICE files plus provenance.
+- `third-party/packages/pywebview/Microsoft.Web.WebView2-1.0.3856.49/`
+  contains the reviewed Microsoft WebView2 SDK LICENSE and NOTICE files.
 
 ## Components requiring prominent source or replacement information
 
@@ -27,14 +29,16 @@ Rapido uses the unmodified `pystray` Python package for its notification-area
 icon. The distributed evidence includes `COPYING`, `COPYING.LGPL`, and
 `SOURCE.md`. `SOURCE.md` identifies the exact wheel and upstream commit,
 records the reviewed source-file hashes, and explains how to rebuild Rapido
-with a modified copy.
+with a modified copy. The 13 verified source files are shipped in
+`third-party/source/pystray-0.19.5/`.
 
 ### certifi 2026.7.22 — MPL-2.0
 
 Rapido uses the unmodified `certifi` certificate bundle. The distributed
 evidence includes the package notice, the complete MPL-2.0 text, and
 `SOURCE.md` with the exact wheel, source archive, upstream commit, and
-reviewed file hashes.
+reviewed file hashes. The 7 verified files, including `cacert.pem`, are
+shipped as the Source Code Form in `third-party/source/certifi-2026.7.22/`.
 
 ### proxy_tools 0.1.0 — upstream BSD text; metadata discrepancy
 
@@ -45,11 +49,22 @@ immutable upstream commit, and records the discrepancy in
 `third-party/inventory.json`. This evidence does not silently choose a
 different license or erase the discrepancy.
 
+### PyInstaller bootloader — GPL-2.0-or-later with the Bootloader Exception
+
+`Rapido.exe` and `RapidoNativeHost.exe` are produced by PyInstaller and each
+contains its bootloader. PyInstaller is licensed under the GPL version 2 or
+later with an exception that permits distributing the bootloader with programs
+under other licenses. The build copies PyInstaller's own license text into
+`third-party/packages/pyinstaller/` and stops when that text does not contain
+the Bootloader Exception. Whether the exception covers this exact use is part
+of the human legal review.
+
 ## Other material
 
 The evidence bundle also preserves notices for CPython, Pillow and its native
 libraries, cffi/libffi, pydantic-core's Rust crates, pywebview's interop
-assemblies, the WebView2 SDK, and the remaining installed Python distributions.
+assemblies, the WebView2 SDK, pythonnet (`Python.Runtime.dll`), yt-dlp, and the
+remaining installed Python distributions.
 
 FFmpeg and Deno are not intentionally copied into the Rapido build by the
 current workflow. Rapido may offer to install them separately through Windows

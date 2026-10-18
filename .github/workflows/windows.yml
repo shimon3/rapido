@@ -177,6 +177,11 @@ jobs:
           & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DAppFileVersion=${{ steps.ver.outputs.file_version }}" packaging\rapido.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Signing order rehearsal (disposable certificates, copies only)
+        shell: powershell
+        timeout-minutes: 10
+        run: .\scripts\rehearse_release_signing.ps1 -BundlePath dist\Rapido -InstallerScript packaging\rapido.iss -AppVersion "${{ steps.ver.outputs.version }}" -AppFileVersion "${{ steps.ver.outputs.file_version }}" -ReportPath dist\signing-rehearsal.json
+
       - name: Production signing readiness (audit only)
         shell: pwsh
         run: |
@@ -331,6 +336,7 @@ jobs:
             dist/Rapido-Setup-*.exe
             dist/Rapido-*-portable.zip
             dist/signing-plan.json
+            dist/signing-rehearsal.json
             dist/ci-artifact-provenance.json
           retention-days: 14
 

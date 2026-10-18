@@ -21,6 +21,14 @@ Checked on 2026-10-15: all 13 `pystray/` files of the wheel are byte-identical
 `COPYING.LGPL` matches the repository file. The build collector copies this
 notice only when every installed `pystray/` source file matches those hashes.
 
+## Shipped copy of the source
+
+The build copies the 13 verified `pystray/` source files, byte for byte as
+installed, into `third-party/source/pystray-0.19.5/` next to this notice. Their
+SHA-256 values are listed in `third-party/inventory.json` (`kind`
+`verified-source`). The copy is made only when every file matches the reviewed
+hashes above, so recipients do not depend on PyPI or GitHub staying available.
+
 ## Replacing the library
 
 The bundled copy is compiled Python bytecode inside the PyInstaller archive of

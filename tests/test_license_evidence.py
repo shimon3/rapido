@@ -273,3 +273,41 @@ class LicenseEvidenceTests(unittest.TestCase):
             b = Distribution(root, "Demo_pkg", [])
             with self.assertRaises(ValueError):
                 collect(root / "duplicate", distributions=[a, b], python_license=root / "missing")
+
+    def test_verified_lgpl_mpl_source_is_shipped_byte_for_byte(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            module = root / "pystray/_base.py"
+            module.parent.mkdir()
+            installed = b"# synthetic pystray\r\n"
+            module.write_bytes(installed)
+            dist = Distribution(root, "pystray", [])
+            dist.version = "0.19.5"
+            reviewed = dict(evidence.SOURCE_NOTICES[("pystray", "0.19.5")])
+            reviewed["files"] = {"pystray/_base.py": hashlib.sha256(installed.replace(b"\r\n", b"\n")).hexdigest()}
+            with patch.dict(evidence.SOURCE_NOTICES, {("pystray", "0.19.5"): reviewed}):
+                item = collect(root / "ok", distributions=[dist], python_license=root / "missing")["packages"][0]
+                shipped = [f for f in item["files"] if f.get("kind") == "verified-source"]
+                self.assertEqual([f["path"] for f in shipped], ["source/pystray-0.19.5/pystray/_base.py"])
+                self.assertEqual((root / "ok" / shipped[0]["path"]).read_bytes(), installed)
+                self.assertEqual(shipped[0]["sha256"], hashlib.sha256(installed).hexdigest())
+                self.assertEqual(item["source_notice"]["shipped_source_files"], 1)
+                module.write_bytes(b"# modified\n")
+                item = collect(root / "bad", distributions=[dist], python_license=root / "missing")["packages"][0]
+                self.assertFalse([f for f in item["files"] if f.get("kind") == "verified-source"])
+                self.assertFalse((root / "bad/source").exists())
+
+    def test_pyinstaller_bootloader_exception_text_is_required(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            copying = root / "pyinstaller.dist-info/COPYING.txt"
+            copying.parent.mkdir()
+            copying.write_bytes(b"GNU GPL v2 or later\nBootloader Exception\n...")
+            dist = Distribution(root, "pyinstaller", ["pyinstaller.dist-info/COPYING.txt"])
+            item = collect(root / "ok", distributions=[dist], python_license=root / "missing")["packages"][0]
+            self.assertEqual(item["bootloader_exception_text"], "packages/pyinstaller/pyinstaller.dist-info/COPYING.txt")
+            self.assertNotIn("pyinstaller-bootloader-exception-text-missing", item["problems"])
+            copying.write_bytes(b"GNU GPL v2 only")
+            item = collect(root / "bad", distributions=[dist], python_license=root / "missing")["packages"][0]
+            self.assertNotIn("bootloader_exception_text", item)
+            self.assertIn("pyinstaller-bootloader-exception-text-missing", item["problems"])

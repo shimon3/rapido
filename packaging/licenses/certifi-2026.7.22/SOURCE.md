@@ -23,6 +23,13 @@ Checked on 2026-10-15: all 7 `certifi/` files of the wheel, including
 paths at that commit. The build collector copies this notice only when every
 installed `certifi/` file matches those hashes.
 
+## Shipped copy of the Source Code Form
+
+The build copies the 7 verified `certifi/` files, byte for byte as installed,
+into `third-party/source/certifi-2026.7.22/`. Their SHA-256 values are listed in
+`third-party/inventory.json` (`kind` `verified-source`). The copy is made only
+when every file matches the reviewed hashes above.
+
 ## MPL-2.0 text
 
 `MPL-2.0.txt` is the verbatim text from https://www.mozilla.org/media/MPL/2.0/index.txt

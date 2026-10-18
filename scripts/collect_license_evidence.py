@@ -184,6 +184,7 @@ def _supplement_source_notice(dist, root, output, item):
         return
     # A different version or modified source needs a new upstream comparison.
     reviewed = SOURCE_NOTICES.get((canonical, item["version"]))
+    sources = {}
     try:
         if reviewed is None:
             raise ValueError("Unreviewed copyleft package version")
@@ -194,7 +195,11 @@ def _supplement_source_notice(dist, root, output, item):
                 if reviewed.get("binary"):
                     digest = hashlib.file_digest(stream, "sha256").hexdigest()
                 else:
-                    digest = hashlib.sha256(stream.read(MAX_LICENSE_BYTES + 1).replace(b"\r\n", b"\n")).hexdigest()
+                    data = stream.read(MAX_LICENSE_BYTES + 1)
+                    if len(data) > MAX_LICENSE_BYTES:
+                        raise ValueError("Oversized source file")
+                    digest = hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+                    sources[relative] = data
             if digest != expected:
                 raise ValueError("Different installed source identity")
         originals = Path(__file__).resolve().parents[1] / "packaging/licenses" / reviewed["folder"]
@@ -229,8 +234,33 @@ def _supplement_source_notice(dist, root, output, item):
         destination.write_bytes(data)
         item["files"].append({"path": target, "sha256": hashlib.sha256(data).hexdigest(),
                               "kind": "source-notice"})
+    # Ship the verified source itself (LGPL/MPL) so recipients do not depend
+    # on an upstream server staying available. Bytes are copied as installed.
+    for relative, data in sources.items():
+        target = f"source/{reviewed['folder']}/{relative}"
+        destination = output / target
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+        item["files"].append({"path": target, "sha256": hashlib.sha256(data).hexdigest(),
+                              "kind": "verified-source"})
     item["source_notice"] = {"matched_installed_files": len(reviewed["files"]),
+                             "shipped_source_files": len(sources),
                              "complete_legal_review": False}
+
+
+def _check_bootloader_exception(output, item):
+    # The PyInstaller bootloader is linked into both shipped executables. Its
+    # GPL-2.0-or-later text is acceptable only with the bootloader exception.
+    if re.sub(r"[-_.]+", "-", item["name"]).lower() != "pyinstaller":
+        return
+    for entry in item["files"]:
+        try:
+            if b"Bootloader Exception" in (output / entry["path"]).read_bytes():
+                item["bootloader_exception_text"] = entry["path"]
+                return
+        except OSError:
+            continue
+    item["problems"].append("pyinstaller-bootloader-exception-text-missing")
 
 
 def _python_notices(output, version):
@@ -316,6 +346,7 @@ def collect(output, *, distributions=None, python_license=None):
             item["problems"].append("license-text-not-collected")
         _supplement_webview2_sdk(dist, root, output, item)
         _supplement_source_notice(dist, root, output, item)
+        _check_bootloader_exception(output, item)
         packages.append(item)
 
     python_license = Path(python_license) if python_license is not None else Path(sys.base_prefix) / "LICENSE.txt"
@@ -355,6 +386,12 @@ def main():
         raise SystemExit("WebView2 SDK notices unverified: review carrier/version/binary/text identity before building")
     if any("source-notice-identity-unverified" in p["problems"] for p in report["packages"]):
         raise SystemExit("LGPL/MPL source notices unverified: compare the installed version with upstream before building")
+    shipped = {re.sub(r"[-_.]+", "-", p["name"]).lower(): p for p in report["packages"]}
+    for name in ("pystray", "certifi"):
+        if not shipped.get(name, {}).get("source_notice", {}).get("shipped_source_files"):
+            raise SystemExit(f"{name} source files not shipped: refusing an LGPL/MPL bundle without source")
+    if "bootloader_exception_text" not in shipped.get("pyinstaller", {}):
+        raise SystemExit("PyInstaller bootloader exception text missing: refusing to ship its bootloader without it")
     if not report["python"]["incorporated_notices"]["collected"]:
         raise SystemExit("Python incorporated-component notices unverified: review the interpreter version before building")
     if not report["python"]["license_collected"]:

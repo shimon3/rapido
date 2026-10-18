@@ -26,8 +26,21 @@ def test_third_party_notice_exposes_evidence_and_copyleft_sources():
         "proxy_tools 0.1.0",
         "UPSTREAM-LICENSE.txt",
         "not a legal opinion",
+        "third-party/source/pystray-0.19.5/",
+        "third-party/source/certifi-2026.7.22/",
+        "Bootloader Exception",
     ):
         assert required in text
+
+
+def test_third_party_notice_paths_match_the_collector_layout():
+    text = NOTICE.read_text(encoding="utf-8")
+    collector = (ROOT / "scripts" / "collect_license_evidence.py").read_text(encoding="utf-8")
+    # The WebView2 SDK texts are written under the pywebview package folder.
+    assert "third-party/webview2-sdk/" not in text
+    assert "third-party/packages/pywebview/Microsoft.Web.WebView2-1.0.3856.49/" in text
+    assert '"packages/pywebview/Microsoft.Web.WebView2-1.0.3856.49/"' in collector
+    assert 'f"source/{reviewed[\'folder\']}/{relative}"' in collector
 
 
 def test_release_gate_does_not_claim_signing_or_issue_26_completion():
