@@ -146,3 +146,27 @@ reconfirmée.
 | `signing-rehearsal.json` | `5bdcee65…275d` | ✔ | ZoneId=3 |
 
 Checklist A1 (empreintes) : **OK**. Rapido n'est pas encore installé.
+
+## Résultat A3 — SmartScreen (session graphique, Samuel)
+
+Action : double-clic sur `Rapido-Setup-1.3.0-beta.1.exe` depuis l'Explorateur
+(fichier ZoneId=3, empreinte `a679165b…1d01`).
+
+Résultat : **bloqué par Microsoft Defender SmartScreen.** L'écran « Windows a
+protégé votre ordinateur » (interface en hébreu) indique que SmartScreen a
+empêché le démarrage d'une application non reconnue. Seul le bouton « Ne pas
+exécuter » est proposé, plus le lien « Informations complémentaires ».
+Capture : `evidence/smartscreen-win10-20261018.png`.
+
+Conformément à la consigne, **l'installation est arrêtée** et rien n'est
+contourné. Les contrôles B à F ne sont pas exécutés.
+
+| Contrôle | Statut |
+| --- | --- |
+| A1 empreintes | OK |
+| A3 SmartScreen | Relevé : blocage « application non reconnue » |
+| A2, A4, B à F | Non exécutés (installation arrêtée) |
+
+Conséquence : sur un Windows 10 standard, un testeur ne peut installer cette
+bêta non signée qu'en cliquant « Informations complémentaires » puis
+« Exécuter quand même ». Décision du propriétaire requise.
