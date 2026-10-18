@@ -69,6 +69,29 @@ def api(path: str, body: dict | None = None, timeout: float = 3):
         return json.loads(r.read().decode() or "null")
 
 
+def forbidden_response(request, *, timeout: float, attempts: int = 3,
+                       retry_delay: float = .1) -> bool:
+    """Require an actual 403, retrying transient loopback transport failures.
+
+    Windows can occasionally abort a newly opened loopback connection before
+    urllib receives the HTTP response.  A reset is not proof that the API guard
+    worked, so only a real 403 passes; transport failures merely get retried.
+    """
+    if attempts < 1:
+        raise ValueError("attempts must be positive")
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout):
+                return False
+        except urllib.error.HTTPError as error:
+            return error.code == 403
+        except (urllib.error.URLError, OSError):
+            if attempt + 1 == attempts:
+                return False
+            time.sleep(retry_delay)
+    return False
+
+
 def already_running():
     """True = Rapido tourne deja, False = port libre, "other" = port pris par autre chose."""
     try:
@@ -637,13 +660,9 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         result["csp"] = "script-src 'sha256-" in urllib.request.urlopen(BASE_URL + "/").headers.get(
             "Content-Security-Policy", "")
         # securite : un site web ne doit pas pouvoir piloter Rapido
-        try:
-            urllib.request.urlopen(urllib.request.Request(
-                BASE_URL + "/api/show", data=b"{}", method="POST",
-                headers={"Content-Type": "application/json", "Origin": "https://evil.example"}), timeout=3)
-            result["guard_ok"] = False
-        except urllib.error.HTTPError as e:
-            result["guard_ok"] = e.code == 403
+        result["guard_ok"] = forbidden_response(urllib.request.Request(
+            BASE_URL + "/api/show", data=b"{}", method="POST",
+            headers={"Content-Type": "application/json", "Origin": "https://evil.example"}), timeout=3)
         # yt-dlp tourne dans un processus separe (sinon Rapido gele pendant l'analyse YouTube)
         import asyncio
         import app as rapido
@@ -673,11 +692,7 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         for path, body in (("/api/settings",None), ("/api/state",None), ("/api/capture",{"url":BASE_URL+"/favicon.ico"})):
             req = urllib.request.Request(BASE_URL+path, data=None if body is None else json.dumps(body).encode(),
                 method="GET" if body is None else "POST", headers={"Content-Type":"application/json"})
-            try:
-                urllib.request.urlopen(req, timeout=2)
-                result["unauthenticated_api"] = False
-            except urllib.error.HTTPError as error:
-                result["unauthenticated_api"] &= error.code == 403
+            result["unauthenticated_api"] &= forbidden_response(req, timeout=2)
         # The actual packaged native host must authenticate the actual desktop pipe.
         import subprocess, struct
         def native_message(value):
@@ -736,3 +751,4 @@ if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
     sys.exit(main())
+
