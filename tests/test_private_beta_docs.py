@@ -60,3 +60,9 @@ def test_readme_gives_an_explicit_go_no_go_rule():
     text = read("README.md")
     assert "GO" in text and "NO-GO" in text
     assert "Ne pas" in text
+
+
+def test_provenance_records_the_branch_head_commit():
+    workflow = (ROOT / ".github" / "workflows" / "windows.yml").read_text(encoding="utf-8")
+    assert "head_commit = '${{ github.event.pull_request.head.sha || github.sha }}'" in workflow
+    assert "branch head ${{ github.event.pull_request.head.sha || github.sha }}" in workflow
