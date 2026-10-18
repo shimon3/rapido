@@ -237,3 +237,25 @@ le CDN Mozilla, tous vérifiés joignables avec `Accept-Ranges: bytes`.
 
 Remarque produit : le message d'erreur et « Reprise possible : Non » sont
 corrects tant qu'aucune connexion n'aboutit.
+
+## C — téléchargements (Samuel dans l'interface, vérification par SSH en lecture seule)
+
+Rapido range les fichiers par catégorie dans `~\Downloads\Rapido\`.
+
+| # | Fichier | Taille obtenue = attendue | Preuve de contenu | Statut |
+| --- | --- | --- | --- | --- |
+| C1 | `Programmes\python-3.13.0-amd64.exe` (HTTPS) | 28 160 096 ✔ | Authenticode **Valid**, Python Software Foundation | OK |
+| C2 | `Archives\100MB.zip` (HTTP) | 104 857 600 ✔ | SHA-256 = fichier de zéros de même taille (contenu servi par tele2) | OK |
+| C2 | `Archives\10MB.zip` (HTTP) | 10 485 760 ✔ | idem | OK |
+| C2 | `Programmes\Firefox Setup 158.0.exe` (HTTPS, après redirection) | 95 250 208 ✔ | Authenticode **Valid**, Mozilla Corporation | OK |
+| C3/C4 | `Archives\1GB.zip` : pause puis reprise, et coupure réseau VMware puis reconnexion | 1 073 741 824 ✔, terminé à 16:09:15 | SHA-256 = 1 Gio de zéros | OK, avec réserve |
+
+Réserve C3/C4 : le fichier de test ne contient que des zéros. Une reprise qui
+laisserait un trou rempli de zéros ne serait donc pas détectée. Pour une
+preuve forte, il faudrait refaire pause et coupure sur un fichier signé
+(par exemple l'installateur Firefox, 95 Mo). Samuel n'a signalé aucun retour
+à 0 % ni plantage.
+
+Autres constats : journal sans « Traceback » (2 démarrages), Rapido toujours
+lancé. `downloads.json` est chiffré (`private_state_enc`) : les adresses ne
+sont pas lisibles en clair.
