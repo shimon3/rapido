@@ -11,7 +11,11 @@ track is open.
 - Track S (**public beta**, signed): this checklist plus
   `docs/authenticode-signing-procedure.md`.
 
-Latest evidence: CI run CI_RUN_PLACEHOLDER on commit COMMIT_PLACEHOLDER.
+Latest evidence: the most recent green *Windows build* run of
+`work/release-compliance-gates-20261018`. Its job summary lists the branch
+head commit and the SHA-256 of every distributable file. First green run with
+this tooling: https://github.com/shimon3/rapido/actions/runs/39125125361
+(head `7bf3295`): 301 tests passed, 5 skipped; signing rehearsal with 7/7 cases.
 
 ## Track P — private unsigned beta
 
