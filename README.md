@@ -47,7 +47,7 @@ Every `/api/` route except the non-sensitive `/api/ping` requires a per-process 
 
 Get the latest **`Rapido-Setup-x.y.z.exe`** from the [Releases page](https://github.com/shimon3/rapido/releases/latest) and run it. It installs per user, so no administrator rights are needed, and adds Start-menu and desktop shortcuts, an uninstaller and an optional "start with Windows" setting.
 
-> Windows SmartScreen may show *"Windows protected your PC"* because the app isn't code-signed: click **More info → Run anyway**.
+> The `1.3.0-beta.1` candidate in PR #34/#35 is not an official release. GitHub Actions artifacts named `UNPUBLISHED-*` are test evidence only: do not distribute them or bypass SmartScreen to install them.
 
 A portable `.zip` is also attached to each release: unzip it and run `Rapido.exe`.
 
@@ -76,7 +76,7 @@ Windows builds are produced by [GitHub Actions](.github/workflows/windows.yml) o
 1. PyInstaller builds `Rapido.exe` (one-folder, windowed, with icon and version info).
 2. A self-test launches the real exe. It opens a WebView2 window, downloads a file through the engine, checks yt-dlp and opens a popup window.
 3. Inno Setup builds the installer, and a portable zip is created.
-4. Pushing a `v*` tag publishes a GitHub Release with both files.
+4. Tag builds remain non-publishing until a reviewed production-signing change explicitly enables the hard `publishable` gate. A tag alone cannot create a release.
 
 ## API
 
@@ -109,7 +109,7 @@ Rapido runs a local API that can write files to disk and launch programs, so it 
 | Disguised or dangerous file names | `/ \ : * ? " < > \|` and control characters are replaced, right-to-left override characters (`photo\u202Egpj.exe`) are removed, and reserved names (`CON`, `NUL`, `COM1`…) are prefixed. |
 | Tampered settings launching another program | `ffmpeg` and browser paths must point to an existing file with the expected name. "Open folder" only opens the download folder. |
 | Non-HTTP links (`file://`, `javascript:`) | Only `http(s)` URLs with a host are accepted, including video streams detected by the extension. All inputs have size limits. |
-| Build supply chain | GitHub Actions are pinned to commit SHAs, the workflow has read-only permissions by default, and every build runs a self-test on Windows (security checks included) before an installer is published. |
+| Build supply chain | GitHub Actions are pinned to commit SHAs, the workflow has read-only permissions by default, and every build runs a self-test on Windows (security checks included) before an installer is uploaded as a non-published test artifact. Public release remains separately gated on production signing. |
 
 **Not covered:** executable path/SID checks are not Authenticode verification and cannot protect against injection or replacement of trusted executables by a compromised account. The executable is not code-signed yet. Source-mode native hosts deliberately cannot claim packaged executable identity. Real Chrome/Edge/Firefox installation, private-session behavior and upgrade/uninstall still require manual verification before distribution. Video capture from the extension remains disabled; private downloads stay in the browser.
 

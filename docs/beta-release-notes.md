@@ -1,8 +1,11 @@
 # Rapido 1.3.0-beta.1 — notes de bêta (brouillon)
 
 Brouillon préparé le 15 octobre 2026. Cette bêta n'est **pas publiée** : la
-publication demande un tag `v1.3.0-beta.1` poussé explicitement par le
-propriétaire, après relecture des PR et essais sur Windows 10/11.
+publication exige une identité Authenticode approuvée, la signature et la
+vérification des exécutables et de l'installateur, la revue des licences, les
+essais du candidat exact sur Windows 10/11 et l'autorisation explicite du
+propriétaire. Un tag seul ne peut plus publier : le workflow conserve le garde
+`publishable=false` jusqu'à une modification de signature relue.
 
 ## Ce qu'est cette bêta
 
@@ -23,10 +26,9 @@ propriétaire, après relecture des PR et essais sur Windows 10/11.
   liens symboliques, mais ces contrôles ne remplacent pas une signature de
   code imposée par le système. Décision du propriétaire du 15 octobre 2026 :
   la bêta part sans cette protection ; #26 reste ouvert.
-- **Programme non signé.** Windows SmartScreen peut afficher « Windows a
-  protégé votre ordinateur ». Cliquer sur « Informations complémentaires »
-  puis « Exécuter quand même », uniquement pour un fichier téléchargé depuis
-  la page officielle des releases du projet.
+- **Candidat actuellement non signé.** Il ne doit pas être distribué comme
+  bêta publique et aucune consigne de contournement de SmartScreen ne doit être
+  donnée. Les artefacts CI `UNPUBLISHED-*` servent uniquement de preuves de test.
 - **Historique chiffré.** L'historique des téléchargements est chiffré avec
   DPAPI (lié au compte Windows). Les versions antérieures de Rapido ne savent
   pas le relire : revenir à une ancienne version repart d'un historique vide.

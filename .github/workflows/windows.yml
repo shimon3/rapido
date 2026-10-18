@@ -20,6 +20,8 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       release: ${{ steps.ver.outputs.release }}
       prerelease: ${{ steps.ver.outputs.prerelease }}
+      # Hard-coded false until a reviewed production-signing implementation exists.
+      publishable: ${{ steps.ver.outputs.publishable }}
     timeout-minutes: 30
     steps:
       # Actions epinglees sur un commit precis (une etiquette comme "v4" peut etre deplacee)
@@ -71,6 +73,8 @@ jobs:
           # Windows needs 4 integers; betas are published as prereleases only.
           echo "file_version=$(python -c "import rapido_version as r; print(r.dotted('$V'))")" >> "$GITHUB_OUTPUT"
           echo "prerelease=$(python -c "import rapido_version as r; print(str(r.is_prerelease('$V')).lower())")" >> "$GITHUB_OUTPUT"
+          # Deliberate hard gate: changing this requires a reviewed production-signing commit.
+          echo "publishable=false" >> "$GITHUB_OUTPUT"
           # Only an explicit publication tag push can request a release.
           # Main, PRs and workflow_dispatch never publish implicitly.
           if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/tags/v* ]]; then
@@ -109,6 +113,7 @@ jobs:
         run: |
           Copy-Item -LiteralPath dist/RapidoNativeHost.exe -Destination dist/Rapido/RapidoNativeHost.exe
           Copy-Item -LiteralPath LICENSE -Destination dist/Rapido/LICENSE
+          Copy-Item -LiteralPath THIRD-PARTY-NOTICES.md -Destination dist/Rapido/THIRD-PARTY-NOTICES.md
 
       - name: Collect build-environment license evidence
         run: python scripts/collect_license_evidence.py --output dist/Rapido/third-party
@@ -171,6 +176,34 @@ jobs:
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
           & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DAppFileVersion=${{ steps.ver.outputs.file_version }}" packaging\rapido.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Signing order rehearsal (disposable certificates, copies only)
+        shell: powershell
+        timeout-minutes: 10
+        run: .\scripts\rehearse_release_signing.ps1 -BundlePath dist\Rapido -InstallerScript packaging\rapido.iss -AppVersion "${{ steps.ver.outputs.version }}" -AppFileVersion "${{ steps.ver.outputs.file_version }}" -ReportPath dist\signing-rehearsal.json
+
+      - name: Production signing readiness (audit only)
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem -LiteralPath dist -Filter 'Rapido-Setup-*.exe' | Select-Object -First 1).FullName
+          .\scripts\windows_signing_plan.ps1 -BundlePath dist\Rapido -InstallerPath $setup -OutputPath dist\signing-plan.json
+
+      - name: Mark CI artifacts as non-publishing
+        shell: pwsh
+        run: |
+          $report = [ordered]@{
+            schema = 1
+            official_release = $false
+            production_signed = $false
+            workflow_event = $env:GITHUB_EVENT_NAME
+            ref = $env:GITHUB_REF
+            commit = $env:GITHUB_SHA
+            # On pull_request, GITHUB_SHA is the test merge commit; this is the branch head.
+            head_commit = '${{ github.event.pull_request.head.sha || github.sha }}'
+            workflow_run_id = $env:GITHUB_RUN_ID
+            note = 'CI test artifact only. Not an official Rapido release.'
+          }
+          $report | ConvertTo-Json | Set-Content -LiteralPath dist/ci-artifact-provenance.json -Encoding utf8
 
       - name: Install and uninstall browser native-host registrations
         shell: pwsh
@@ -298,23 +331,45 @@ jobs:
           Compress-Archive -Path dist\Rapido -DestinationPath "dist\Rapido-${{ steps.ver.outputs.version }}-portable.zip"
           Get-ChildItem dist -File | ForEach-Object { Write-Host "::notice title=Fichier::$($_.Name) - $([math]::Round($_.Length/1MB,1)) Mo" }
 
+      - name: SHA-256 hashes of the distributable files
+        shell: pwsh
+        run: |
+          # Recorded in the job summary too, so the hashes stay visible in
+          # GitHub independently of the artifact files they describe.
+          $files = @(Get-ChildItem dist -File -Filter 'Rapido-Setup-*.exe') + @(Get-ChildItem dist -File -Filter 'Rapido-*-portable.zip') +
+                   @(Get-Item dist/Rapido/Rapido.exe, dist/Rapido/RapidoNativeHost.exe)
+          if ($files.Count -ne 4) { throw "Expected 4 files to hash, found $($files.Count)" }
+          $lines = $files | ForEach-Object { "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)" }
+          $lines | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
+          "### SHA-256 (UNPUBLISHED unsigned CI build: branch head ${{ github.event.pull_request.head.sha || github.sha }}, built tree $env:GITHUB_SHA)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          '```' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          $lines | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          '```' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          $lines | ForEach-Object { Write-Host $_ }
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: Rapido-${{ steps.ver.outputs.version }}-windows
+          name: UNPUBLISHED-Rapido-${{ steps.ver.outputs.version }}-windows
           path: |
             dist/Rapido-Setup-*.exe
             dist/Rapido-*-portable.zip
+            dist/signing-plan.json
+            dist/signing-rehearsal.json
+            dist/SHA256SUMS.txt
+            dist/ci-artifact-provenance.json
+          retention-days: 14
 
   release:
     needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.build.outputs.release == 'true'
+    # Intentionally unreachable while production signing is absent.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.build.outputs.release == 'true' && needs.build.outputs.publishable == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
-          name: Rapido-${{ needs.build.outputs.version }}-windows
+          name: UNPUBLISHED-Rapido-${{ needs.build.outputs.version }}-windows
           path: dist
 
       - name: GitHub release
@@ -334,8 +389,7 @@ jobs:
 
             **Installer :** télécharge `Rapido-Setup-${{ needs.build.outputs.version }}.exe` et lance-le (pas besoin de droits administrateur).
 
-            Windows peut afficher « Windows a protégé votre ordinateur » : le programme n'est pas signé numériquement.
-            Clique sur **Informations complémentaires** puis **Exécuter quand même**.
+            Publication interdite tant que les exécutables et l'installateur ne sont pas signés et vérifiés avec l'identité de production approuvée.
 
             Version portable : `Rapido-${{ needs.build.outputs.version }}-portable.zip`, à dézipper puis lancer `Rapido.exe`.
 

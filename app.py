@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import urllib.parse
 import urllib.request
 import os
 import platform
@@ -666,22 +667,48 @@ async def get_settings():
             "extension_dir": str(extension_dir())}
 
 
+_UPDATE_API_URL = "https://api.github.com/repos/shimon3/rapido/releases/latest"
+_UPDATE_METADATA_MAX_BYTES = 2 * 1024 * 1024
+
+
 def _latest_rapido_release():
-    """Read only the official Rapido GitHub release metadata."""
+    """Read only bounded metadata from the exact official Rapido API URL."""
     request = urllib.request.Request(
-        "https://api.github.com/repos/shimon3/rapido/releases/latest",
+        _UPDATE_API_URL,
         headers={"Accept": "application/vnd.github+json", "User-Agent": "Rapido-update-check"},
     )
     with urllib.request.urlopen(request, timeout=8) as response:
-        payload = json.load(response)
+        final_url = urllib.parse.urlsplit(response.geturl())
+        if (final_url.scheme != "https" or final_url.hostname != "api.github.com"
+                or final_url.username is not None or final_url.password is not None
+                or final_url.port is not None or final_url.query or final_url.fragment
+                or final_url.path != "/repos/shimon3/rapido/releases/latest"):
+            raise ValueError("Origine des métadonnées de mise à jour inattendue")
+        data = response.read(_UPDATE_METADATA_MAX_BYTES + 1)
+    if len(data) > _UPDATE_METADATA_MAX_BYTES:
+        raise ValueError("Métadonnées de mise à jour trop volumineuses")
+    payload = json.loads(data)
+    if not isinstance(payload, dict) or not isinstance(payload.get("assets"), list):
+        raise ValueError("Métadonnées de mise à jour invalides")
     tag = str(payload.get("tag_name", ""))
     match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", tag)
     if not match:
         raise ValueError("Version distante non reconnue")
     version = ".".join(match.groups())
-    installer = next((asset.get("browser_download_url") for asset in payload.get("assets", [])
-                      if re.fullmatch(r"Rapido-Setup-\d+\.\d+\.\d+\.exe",
-                                      asset.get("name", ""))), None)
+    expected_name = f"Rapido-Setup-{version}.exe"
+    expected_path = f"/shimon3/rapido/releases/download/{tag}/{expected_name}"
+    installer = None
+    for asset in payload["assets"]:
+        if not isinstance(asset, dict) or asset.get("name") != expected_name:
+            continue
+        candidate = str(asset.get("browser_download_url", ""))
+        parsed = urllib.parse.urlsplit(candidate)
+        if (parsed.scheme == "https" and parsed.hostname == "github.com"
+                and parsed.username is None and parsed.password is None
+                and parsed.port is None and not parsed.query and not parsed.fragment
+                and parsed.path == expected_path):
+            installer = candidate
+            break
     release_url = f"https://github.com/shimon3/rapido/releases/tag/{tag}"
     return version, installer or release_url
 

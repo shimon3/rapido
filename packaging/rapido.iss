@@ -8,6 +8,10 @@
 #ifndef AppFileVersion
   #define AppFileVersion "1.3.0.1"
 #endif
+; Dossier du payload deja signe et verifie (la repetition CI en passe une copie).
+#ifndef PayloadDir
+  #define PayloadDir "..\dist\Rapido"
+#endif
 
 [Setup]
 AppId={{8F3B2A61-4C7E-4D5B-9A2E-6B1C0D7E5F42}
@@ -65,9 +69,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "autostart"; Description: "{cm:AutoStart}"; GroupDescription: "{cm:Options}"
 
 [Files]
-Source: "..\dist\Rapido\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\dist\RapidoNativeHost.exe"; DestDir: "{app}"; Flags: ignoreversion
+; RapidoNativeHost.exe comes only from dist\Rapido, the signed and verified payload.
 
 [Icons]
 Name: "{group}\Rapido"; Filename: "{app}\Rapido.exe"
