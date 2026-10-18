@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import urllib.parse
 import urllib.request
 import os
 import platform
@@ -679,9 +680,20 @@ def _latest_rapido_release():
     if not match:
         raise ValueError("Version distante non reconnue")
     version = ".".join(match.groups())
-    installer = next((asset.get("browser_download_url") for asset in payload.get("assets", [])
-                      if re.fullmatch(r"Rapido-Setup-\d+\.\d+\.\d+\.exe",
-                                      asset.get("name", ""))), None)
+    expected_name = f"Rapido-Setup-{version}.exe"
+    expected_path = f"/shimon3/rapido/releases/download/{tag}/{expected_name}"
+    installer = None
+    for asset in payload.get("assets", []):
+        if not isinstance(asset, dict) or asset.get("name") != expected_name:
+            continue
+        candidate = str(asset.get("browser_download_url", ""))
+        parsed = urllib.parse.urlsplit(candidate)
+        if (parsed.scheme == "https" and parsed.hostname == "github.com"
+                and parsed.username is None and parsed.password is None
+                and parsed.port is None and not parsed.query and not parsed.fragment
+                and parsed.path == expected_path):
+            installer = candidate
+            break
     release_url = f"https://github.com/shimon3/rapido/releases/tag/{tag}"
     return version, installer or release_url
 
