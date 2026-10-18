@@ -113,3 +113,18 @@ Identité reconfirmée (même clé ED25519, `DESKTOP-F2ALUG9`).
 | Compte standard de test | Aucun. Seuls `samue` (administrateur) et `sshd` sont actifs | Non bloquant : UAC actif, le contrôle B1 se fait sur `samue` en lançant l'installateur depuis l'Explorateur (pas depuis une console administrateur). Un compte standard reste un test complémentaire |
 
 Rapido ne laisse plus aucune trace sur le compte `samue`.
+
+## État de départ retenu pour le test (lecture seule)
+
+Identité reconfirmée (même clé ED25519, `DESKTOP-F2ALUG9`).
+
+| Point | Valeur |
+| --- | --- |
+| Système | Windows 10 Pro 22H2, build 19045.6466 |
+| Chrome | 155.0.8059.85 (mis à jour depuis .80) |
+| Edge | 155.0.4283.62 (mis à jour depuis .45) |
+| Firefox | 158.0 (« à jour » à confirmer dans sa page À propos) |
+| WebView2 Runtime | 155.0.4283.60 |
+| Rapido | Absent : aucun programme, clé HKCU, extension ni donnée |
+| Compte de test | `samue` (administrateur, UAC actif). Installation à lancer depuis l'Explorateur |
+| Defender | Antivirus et temps réel actifs |
