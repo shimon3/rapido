@@ -128,3 +128,21 @@ Identité reconfirmée (même clé ED25519, `DESKTOP-F2ALUG9`).
 | Rapido | Absent : aucun programme, clé HKCU, extension ni donnée |
 | Compte de test | `samue` (administrateur, UAC actif). Installation à lancer depuis l'Explorateur |
 | Defender | Antivirus et temps réel actifs |
+
+## Transfert du candidat (option A : téléchargement navigateur par Samuel)
+
+Samuel a téléchargé l'artefact sur la VM avec le navigateur, puis l'a
+extrait avec l'Explorateur. Contrôle par SSH en lecture seule, identité
+reconfirmée.
+
+| Fichier sur la VM (`Téléchargements`) | SHA-256 | = référence | Marque « Internet » |
+| --- | --- | --- | --- |
+| `UNPUBLISHED-Rapido-1.3.0-beta.1-windows.zip` | `da2813b6…c4ef` | ✔ (= condensat GitHub) | ZoneId=3, HostUrl = stockage GitHub Actions |
+| `Rapido-Setup-1.3.0-beta.1.exe` | `a679165b…1d01` | ✔ | ZoneId=3 (héritée de l'extraction) |
+| `Rapido-1.3.0-beta.1-portable.zip` | `8c5c5dd1…c4d3` | ✔ | ZoneId=3 |
+| `SHA256SUMS.txt` | `1656dd77…a1f7` | ✔ | ZoneId=3 |
+| `ci-artifact-provenance.json` | `a6325711…5816` | ✔ | ZoneId=3 |
+| `signing-plan.json` | `760665ff…7173` | ✔ | ZoneId=3 |
+| `signing-rehearsal.json` | `5bdcee65…275d` | ✔ | ZoneId=3 |
+
+Checklist A1 (empreintes) : **OK**. Rapido n'est pas encore installé.
