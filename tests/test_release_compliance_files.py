@@ -25,7 +25,7 @@ def test_third_party_notice_exposes_evidence_and_copyleft_sources():
 
 def test_release_gate_does_not_claim_signing_or_issue_26_completion():
     text = GATES.read_text(encoding="utf-8")
-    assert "does not contain a certificate, private key, secret" in text
+    assert "does not contain a\ncertificate, private key, secret" in text
     assert "Signing alone does not prevent" in text
     assert "keep #26 open" in text
     assert "must never be committed" in text
