@@ -96,8 +96,18 @@ class VersioningTests(unittest.TestCase):
             ],
         }
 
+        class Response(io.BytesIO):
+            def __init__(self, body, url=app._UPDATE_API_URL):
+                if not isinstance(body, bytes):
+                    body = json.dumps(body).encode("utf-8")
+                super().__init__(body)
+                self._url = url
+
+            def geturl(self):
+                return self._url
+
         def response(*_args, **_kwargs):
-            return io.StringIO(json.dumps(payload))
+            return Response(payload)
 
         with patch.object(app.urllib.request, "urlopen", side_effect=response):
             version, url = app._latest_rapido_release()
@@ -111,6 +121,31 @@ class VersioningTests(unittest.TestCase):
         with patch.object(app.urllib.request, "urlopen", side_effect=response):
             version, url = app._latest_rapido_release()
         self.assertEqual((version, url), ("1.3.0", expected))
+
+        for final_url in (
+            "https://example.invalid/repos/shimon3/rapido/releases/latest",
+            "https://api.github.com/repos/shimon3/other/releases/latest",
+            "https://api.github.com/repos/shimon3/rapido/releases/latest?redirected=1",
+        ):
+            with self.subTest(final_url=final_url), patch.object(
+                    app.urllib.request, "urlopen",
+                    side_effect=lambda *_args, **_kwargs: Response(payload, final_url)):
+                with self.assertRaises(ValueError):
+                    app._latest_rapido_release()
+
+        with patch.object(
+                app.urllib.request, "urlopen",
+                side_effect=lambda *_args, **_kwargs: Response(
+                    b"x" * (app._UPDATE_METADATA_MAX_BYTES + 1))):
+            with self.assertRaises(ValueError):
+                app._latest_rapido_release()
+
+        for malformed in ([], {"tag_name": tag}, {"tag_name": tag, "assets": {}}):
+            with self.subTest(malformed=malformed), patch.object(
+                    app.urllib.request, "urlopen",
+                    side_effect=lambda *_args, **_kwargs: Response(malformed)):
+                with self.assertRaises(ValueError):
+                    app._latest_rapido_release()
 
     def test_workflow_marks_betas_as_prereleases_never_latest(self):
         source = (ROOT / ".github/workflows/windows.yml").read_text(encoding="utf-8")

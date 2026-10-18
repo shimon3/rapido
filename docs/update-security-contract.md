@@ -8,6 +8,10 @@ an update.
 
 - The check reads the latest non-prerelease release from the fixed
   `shimon3/rapido` GitHub API endpoint.
+- The final response URL must remain the exact HTTPS GitHub API endpoint; a
+  redirected-to-foreign/path/query response is rejected.
+- The response body is bounded to 2 MiB and must be a JSON object with an asset
+  list before version fields are used.
 - The tag must be a final numeric version.
 - A direct installer is offered only when its name exactly matches the tag and
   its HTTPS URL is the exact official GitHub release-download path.

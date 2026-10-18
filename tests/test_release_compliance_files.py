@@ -10,6 +10,8 @@ MSIX_STUDY = ROOT / "docs" / "msix-browser-compatibility.md"
 UPDATE_CONTRACT = ROOT / "docs" / "update-security-contract.md"
 PUBLICATION_CHECKLIST = ROOT / "docs" / "beta-publication-checklist.md"
 AUTHENTICODE_OPTIONS = ROOT / "docs" / "authenticode-options-israel.md"
+README = ROOT / "README.md"
+BETA_NOTES = ROOT / "docs" / "beta-release-notes.md"
 
 
 def test_third_party_notice_exposes_evidence_and_copyleft_sources():
@@ -68,6 +70,8 @@ def test_msix_study_keeps_browser_compatibility_unproven():
 def test_automatic_updates_remain_gated_on_production_signing():
     text = UPDATE_CONTRACT.read_text(encoding="utf-8")
     assert "does not silently download or execute" in text
+    assert "bounded to 2 MiB" in text
+    assert "exact HTTPS GitHub API endpoint" in text
     assert "exact publisher" in text
     assert "Windows 10 and Windows 11" in text
     assert "current manual update link is\nthe safe beta behavior" in text
@@ -103,3 +107,14 @@ def test_authenticode_options_do_not_claim_a_purchase_or_eligibility():
     assert "Israel" in text
     assert "eligibility must be confirmed" in text
     assert "SHA-256" in text and "RFC 3161" in text
+
+
+def test_public_docs_do_not_tell_users_to_bypass_smartscreen_or_publish_by_tag():
+    readme = README.read_text(encoding="utf-8")
+    notes = BETA_NOTES.read_text(encoding="utf-8")
+    combined = readme + "\n" + notes
+    assert "Run anyway" not in combined
+    assert "Exécuter quand même" not in combined
+    assert "A tag alone cannot create a release" in readme
+    assert "Un tag seul ne peut plus publier" in notes
+    assert "UNPUBLISHED-*" in readme
