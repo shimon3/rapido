@@ -70,3 +70,22 @@ def test_candidate_verification_compares_with_an_approved_manifest():
     assert "Test-RapidoSignature" in VERIFY
     assert "missing-from-candidate" in VERIFY and "unexpected-in-candidate" in VERIFY
     assert "hash-mismatch" in VERIFY
+
+
+def test_powershell_release_scripts_parse_without_errors():
+    import shutil
+    import subprocess
+    import sys
+    import pytest
+
+    if sys.platform != "win32" or not shutil.which("powershell"):
+        pytest.skip("Windows PowerShell parser required")
+    scripts = sorted(str(p) for p in (ROOT / "scripts").iterdir() if p.suffix in (".ps1", ".psm1"))
+    command = (
+        "$bad = 0; foreach ($f in $args) { $t = $null; $e = $null; "
+        "[void][System.Management.Automation.Language.Parser]::ParseFile($f, [ref]$t, [ref]$e); "
+        "foreach ($x in $e) { $bad++; Write-Output ($f + ': ' + $x.Message) } }; exit $bad"
+    )
+    result = subprocess.run(["powershell", "-NoProfile", "-Command", command, *scripts],
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr

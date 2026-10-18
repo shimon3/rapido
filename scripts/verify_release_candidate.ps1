@@ -45,6 +45,22 @@ function Get-Payload([string]$zipPath, [string]$into) {
   return New-RapidoHashManifest -Root $root
 }
 
+function Compare-FileSet([string]$name, $wanted, $present, $problems) {
+  # Plain string dictionaries: Windows PowerShell 5.1 rejects mixed key types.
+  $have = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+  foreach ($entry in @($present)) { $have[[string]$entry.path] = [string]$entry.sha256 }
+  $want = New-Object 'System.Collections.Generic.HashSet[string]'
+  foreach ($entry in @($wanted)) {
+    $path = [string]$entry.path
+    [void]$want.Add($path)
+    if (-not $have.ContainsKey($path)) { $problems.Add("${name}:missing-from-candidate:$path") }
+    elseif ($have[$path] -ne [string]$entry.sha256) { $problems.Add("${name}:hash-mismatch:$path") }
+  }
+  foreach ($path in $have.Keys) {
+    if (-not $want.Contains($path)) { $problems.Add("${name}:unexpected-in-candidate:$path") }
+  }
+}
+
 $release = Get-Release $candidate
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('rapido-verify-' + [guid]::NewGuid().ToString('N'))
 try {
@@ -77,20 +93,8 @@ try {
 
   $approved = Get-Content -LiteralPath $ApprovedManifest -Raw | ConvertFrom-Json
   if ($approved.signer_certificate_sha256 -ne $pin) { $problems.Add('manifest-signer-differs-from-expected-pin') }
-  foreach ($set in @(@{ name = 'release'; want = @($approved.files); have = $files },
-                     @{ name = 'payload'; want = @($approved.payload); have = @($payload) })) {
-    $have = @{}
-    foreach ($entry in $set.have) { $have[$entry.path] = $entry.sha256 }
-    $want = @{}
-    foreach ($entry in $set.want) {
-      $want[$entry.path] = $true
-      if (-not $have.ContainsKey($entry.path)) { $problems.Add("$($set.name):missing-from-candidate:$($entry.path)") }
-      elseif ($have[$entry.path] -ne $entry.sha256) { $problems.Add("$($set.name):hash-mismatch:$($entry.path)") }
-    }
-    foreach ($path in $have.Keys) {
-      if (-not $want.ContainsKey($path)) { $problems.Add("$($set.name):unexpected-in-candidate:$path") }
-    }
-  }
+  Compare-FileSet 'release' $approved.files $files $problems
+  Compare-FileSet 'payload' $approved.payload $payload $problems
 } finally {
   if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
 }
