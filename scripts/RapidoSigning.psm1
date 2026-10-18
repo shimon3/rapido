@@ -147,8 +147,16 @@ function Test-RapidoSignature {
     $reasons.Add('missing-timestamp')
   }
   # Independent check of the digest algorithm and policy with SignTool.
-  $output = & $SignTool verify /pa /v $full 2>&1 | Out-String
-  $verifyExit = $LASTEXITCODE
+  # Windows PowerShell 5.1 turns redirected native stderr into terminating
+  # errors under 'Stop'; a rejected file must yield a reason, not an exception.
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $output = (& $SignTool verify /pa /v $full 2>&1 | ForEach-Object { "$_" }) -join "`n"
+    $verifyExit = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previous
+  }
   if ($verifyExit -ne 0) { $reasons.Add('signtool-verify-failed') }
   if ($signature.SignerCertificate -and $output -notmatch 'Hash of file \(sha256\)') {
     $reasons.Add('digest-not-sha256')
