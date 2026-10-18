@@ -179,3 +179,30 @@ complémentaires » puis « Exécuter quand même » **pour ce fichier précis**
 SmartScreen et Defender restent activés. Aucun réglage n'est modifié.
 L'exception ne s'applique pas à une version publique, qui devra être signée.
 Samuel réalise lui-même cette action sur la VM.
+
+## Installation (Samuel, session graphique) et contrôle SSH en lecture seule
+
+Parcours : SmartScreen « Informations complémentaires » puis « Exécuter
+quand même » (exception autorisée). Ensuite, **une fenêtre UAC** est apparue
+(« application d'un éditeur inconnu », origine : disque dur local) et Samuel a
+répondu Oui. Enfin, la langue de l'installateur a été choisie (hébreu) et
+l'installation est allée jusqu'au bout. Capture UAC : `evidence/uac-win10-20261018.png`.
+
+| Contrôle | Résultat | Statut |
+| --- | --- | --- |
+| B1 aucune demande de droits | **Fenêtre UAC affichée.** Le manifeste de l'installateur est pourtant `asInvoker` et le script dit `PrivilegesRequired=lowest`. Les fichiers installés appartiennent à `BUILTIN\Administrators`, preuve que l'installateur a tourné élevé | **KO, cause à établir** (hypothèse : élévation déclenchée par le chemin SmartScreen « Exécuter quand même ») |
+| B2 emplacement | `%LOCALAPPDATA%\Programs\Rapido`, 366 fichiers. Aucune entrée HKLM, désinstallation enregistrée dans HKCU (`Rapido 1.3.0-beta.1`, langue `he`) | OK |
+| Identité des fichiers installés | `Rapido.exe` `05274ae9…c84e`, `RapidoNativeHost.exe` `85be1ae1…7cadf` = candidat ✔. Non signés (attendu) | OK |
+| Droits | `samue` a FullControl sur le dossier, malgré le propriétaire Administrators | OK pour `samue`. À revoir pour une mise à jour lancée sans élévation |
+| A4 Defender | 0 détection aujourd'hui | OK |
+| B3 premier lancement | Processus `Rapido.exe` lancé par l'installateur (session 1, utilisateur `samue`) | En attente de confirmation visuelle par Samuel |
+| B5 journal | `rapido.log` : un démarrage, 0 « Traceback » | OK |
+| Enregistrements navigateurs | Chrome, Edge et Firefox (HKCU) pointent vers les manifestes installés, qui existent | OK |
+| Démarrage automatique | `Rapido.exe --tray` dans HKCU\Run (option par défaut) | Noté |
+| Menu Démarrer | Raccourcis Rapido, désinstallation et extension Chrome | OK |
+| F1 API locale | `127.0.0.1:9614` : `/api/ping` 200, `/api/state` **403** sans authentification | OK |
+
+Point ouvert : Rapido a été lancé par un installateur élevé. Une entrée
+`postinstall` d'Inno Setup s'exécute normalement en tant qu'utilisateur
+d'origine (non élevé), mais ce n'est pas prouvé ici. Pour la suite des tests,
+Rapido est quitté puis relancé depuis le menu Démarrer.
