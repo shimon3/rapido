@@ -44,6 +44,21 @@ function Get-RapidoCertificateSha256 {
   }
 }
 
+function Get-RapidoFileSha256 {
+  # .NET hashing: Get-FileHash is unavailable when Windows PowerShell inherits
+  # PowerShell 7's PSModulePath.
+  [CmdletBinding()]
+  param([Parameter(Mandatory = $true)] [string]$Path)
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  $stream = [System.IO.File]::OpenRead($Path)
+  try {
+    return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+  } finally {
+    $stream.Dispose()
+    $sha.Dispose()
+  }
+}
+
 function Assert-RapidoSha256Pin {
   param([string]$Pin)
   if ($Pin -notmatch '^[0-9a-fA-F]{64}$') {
@@ -140,7 +155,7 @@ function Test-RapidoSignature {
   }
   [pscustomobject]@{
     path = $full
-    sha256 = (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant()
+    sha256 = (Get-RapidoFileSha256 $full)
     ok = ($reasons.Count -eq 0)
     reasons = @($reasons)
     status = $signature.Status.ToString()
@@ -182,7 +197,7 @@ function New-RapidoHashManifest {
   $entries = @(Get-ChildItem -LiteralPath $base -Recurse -File | Sort-Object FullName | ForEach-Object {
     [pscustomobject]@{
       path = $_.FullName.Substring($base.Length + 1).Replace('\', '/')
-      sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+      sha256 = (Get-RapidoFileSha256 $_.FullName)
       bytes = $_.Length
     }
   })
@@ -190,12 +205,12 @@ function New-RapidoHashManifest {
     $item = Get-Item -LiteralPath $file
     $entries += [pscustomobject]@{
       path = $item.Name
-      sha256 = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+      sha256 = (Get-RapidoFileSha256 $item.FullName)
       bytes = $item.Length
     }
   }
   return $entries
 }
 
-Export-ModuleMember -Function Find-RapidoSignTool, Get-RapidoCertificateSha256, Invoke-RapidoSign,
+Export-ModuleMember -Function Find-RapidoSignTool, Get-RapidoCertificateSha256, Get-RapidoFileSha256, Invoke-RapidoSign,
   Test-RapidoSignature, Assert-RapidoSignature, New-RapidoHashManifest

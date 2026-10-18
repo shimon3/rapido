@@ -68,7 +68,7 @@ try {
   Copy-Item -LiteralPath (Resolve-Path -LiteralPath $BundlePath).Path -Destination $payload -Recurse
   $primary = @((Join-Path $payload 'Rapido.exe'), (Join-Path $payload 'RapidoNativeHost.exe'))
   $before = @{}
-  foreach ($file in $primary) { $before[(Split-Path -Leaf $file)] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() }
+  foreach ($file in $primary) { $before[(Split-Path -Leaf $file)] = (Get-RapidoFileSha256 $file) }
   $unsignedCopy = Join-Path $work 'unsigned-Rapido.exe'
   Copy-Item -LiteralPath $primary[0] -Destination $unsignedCopy
 

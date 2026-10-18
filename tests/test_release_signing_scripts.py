@@ -127,12 +127,15 @@ def test_candidate_verification_runs_and_rejects_a_mismatch(tmp_path):
     }
     manifest = tmp_path / "approved.json"
     manifest.write_text(json.dumps(approved), encoding="utf-8")
+    import os
+    # Windows PowerShell must not inherit PowerShell 7's module path.
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
     result = subprocess.run(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
          str(ROOT / "scripts" / "verify_release_candidate.ps1"), "-CandidateDir", str(candidate),
          "-ApprovedManifest", str(manifest), "-ExpectedCertificateSha256", pin,
          "-ExpectedSubject", "CN=Fixture, O=Test", "-ReportPath", str(tmp_path / "report.json")],
-        capture_output=True, text=True, timeout=180)
+        capture_output=True, text=True, timeout=180, env=env)
     output = result.stdout + result.stderr
     assert result.returncode == 1, output
     assert "Candidate REJECTED" in output
