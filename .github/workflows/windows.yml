@@ -329,6 +329,22 @@ jobs:
           Compress-Archive -Path dist\Rapido -DestinationPath "dist\Rapido-${{ steps.ver.outputs.version }}-portable.zip"
           Get-ChildItem dist -File | ForEach-Object { Write-Host "::notice title=Fichier::$($_.Name) - $([math]::Round($_.Length/1MB,1)) Mo" }
 
+      - name: SHA-256 hashes of the distributable files
+        shell: pwsh
+        run: |
+          # Recorded in the job summary too, so the hashes stay visible in
+          # GitHub independently of the artifact files they describe.
+          $files = @(Get-ChildItem dist -File -Filter 'Rapido-Setup-*.exe') + @(Get-ChildItem dist -File -Filter 'Rapido-*-portable.zip') +
+                   @(Get-Item dist/Rapido/Rapido.exe, dist/Rapido/RapidoNativeHost.exe)
+          if ($files.Count -ne 4) { throw "Expected 4 files to hash, found $($files.Count)" }
+          $lines = $files | ForEach-Object { "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)" }
+          $lines | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
+          "### SHA-256 (UNPUBLISHED CI build of $env:GITHUB_SHA, unsigned)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          '```' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          $lines | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          '```' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          $lines | ForEach-Object { Write-Host $_ }
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: UNPUBLISHED-Rapido-${{ steps.ver.outputs.version }}-windows
@@ -337,6 +353,7 @@ jobs:
             dist/Rapido-*-portable.zip
             dist/signing-plan.json
             dist/signing-rehearsal.json
+            dist/SHA256SUMS.txt
             dist/ci-artifact-provenance.json
           retention-days: 14
 

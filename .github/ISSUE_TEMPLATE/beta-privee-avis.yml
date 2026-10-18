@@ -1,0 +1,36 @@
+name: "Bêta privée — avis"
+description: "Donner un avis ou une suggestion sur la bêta privée Rapido (issue PUBLIQUE)"
+title: "[bêta privée — avis] "
+labels: ["beta-privee", "feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: "**Cette issue est publique.** N'y mettez aucune donnée personnelle."
+  - type: input
+    id: windows
+    attributes:
+      label: Version de Windows
+    validations:
+      required: true
+  - type: textarea
+    id: liked
+    attributes:
+      label: Ce qui marche bien
+  - type: textarea
+    id: improve
+    attributes:
+      label: Ce qui est difficile, lent ou surprenant
+    validations:
+      required: true
+  - type: dropdown
+    id: again
+    attributes:
+      label: Utiliseriez-vous Rapido au quotidien ?
+      options: ["Oui", "Peut-être", "Non"]
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Confidentialité
+      options:
+        - label: "Ce message ne contient aucune donnée personnelle."
+          required: true

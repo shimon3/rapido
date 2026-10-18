@@ -82,10 +82,13 @@ def test_powershell_release_scripts_parse_without_errors():
         pytest.skip("Windows PowerShell parser required")
     scripts = sorted(str(p) for p in (ROOT / "scripts").iterdir() if p.suffix in (".ps1", ".psm1"))
     command = (
-        "$bad = 0; foreach ($f in $args) { $t = $null; $e = $null; "
+        "$bad = 0; foreach ($f in $env:RAPIDO_PS_FILES.Split('|')) { $t = $null; $e = $null; "
         "[void][System.Management.Automation.Language.Parser]::ParseFile($f, [ref]$t, [ref]$e); "
         "foreach ($x in $e) { $bad++; Write-Output ($f + ': ' + $x.Message) } }; exit $bad"
     )
-    result = subprocess.run(["powershell", "-NoProfile", "-Command", command, *scripts],
-                            capture_output=True, text=True, timeout=120)
+    import os
+    # -Command would splice extra arguments into the script text.
+    env = dict(os.environ, RAPIDO_PS_FILES="|".join(scripts))
+    result = subprocess.run(["powershell", "-NoProfile", "-Command", command],
+                            capture_output=True, text=True, timeout=120, env=env)
     assert result.returncode == 0, result.stdout + result.stderr
