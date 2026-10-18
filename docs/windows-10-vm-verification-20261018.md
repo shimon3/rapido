@@ -126,14 +126,43 @@ with its previously observed `-os-autostart` argument. Rapido remained running.
 Normal Chrome and Edge profiles referenced unpacked Rapido extension paths in
 their secure preferences. Those profiles were not modified.
 
-Isolated command-line extension-loading attempts in Chrome and Edge were
-blocked by the browsers with `ERR_BLOCKED_BY_CLIENT`. Chrome also reported that
-`--disable-extensions-except` is not allowed in Google Chrome. Therefore these
-attempts did not reach or validate the native bridge. They are not browser
-compatibility failures and are not claimed as successful end-to-end tests.
+Google Chrome 155 rejected the isolated development-loading route with
+`ERR_BLOCKED_BY_CLIENT` and reported that `--disable-extensions-except` is not
+allowed. Copying the normal profile's preferences into an isolated profile did
+not bypass that restriction: `chrome://extensions-internals` contained only
+Chrome component extensions, not Rapido. Chrome's native bridge was therefore
+not exercised, and this is not recorded as a Rapido compatibility failure.
 
-Disposable browser profiles created for these attempts were removed after their
-paths were checked. Normal profiles were not deleted.
+Microsoft Edge 155 accepted the installed `extension-edge` directory in a new
+isolated profile. Its Rapido service worker loaded under extension ID
+`hlpkfnodjoglfdiekijebbppfgkjkbmp` and called the registered
+`com.rapido.bridge` host directly. The real installed host returned:
+
+```json
+{
+  "ping": {"type": "pong", "protocol": 1},
+  "capabilities": {
+    "type": "capabilities",
+    "protocol": 1,
+    "features": [
+      "ping",
+      "capture_public",
+      "settings_public",
+      "capture_handoff"
+    ]
+  }
+}
+```
+
+A separate read-only `settings_public` request returned the configured public
+capture-extension list and `min_capture_kb: 512`. No download or capture was
+started. The download-history SHA-256 remained
+`D9F27E628069B1BCE9C83E98209720720E0A53609EA37B18E45C840BBA9CB6BB`, and
+Rapido remained running.
+
+Disposable Chrome and Edge profiles were removed after confirming that no
+process referenced their exact paths. Normal profiles were not deleted or
+modified.
 
 ## Licences and issue #26 security boundary
 
@@ -154,9 +183,10 @@ claim.
   signed release candidates when signing is available.
 - Exercise physical keyboard paths that browser automation cannot represent
   reliably.
-- Complete real Chrome and Edge native-bridge end-to-end checks through an
-  installation route those browsers accept; the isolated command-line attempt
-  was blocked before the bridge.
+- Complete a real Chrome native-bridge check through an installation route
+  Chrome accepts. Edge ping, capabilities, and public settings are now proven,
+  but an actual Chromium browser-driven capture/handoff was intentionally not
+  started during this diagnostic.
 - Resolve or explicitly accept the trust-boundary limitations tracked by issue
   #26 before making security claims.
 

@@ -12,10 +12,11 @@ overview or completed PR reconciliation.
 - The CI artifact was exercised on the authorized Windows 10 VM through upgrade,
   graphical self-test, uninstall, portable post-uninstall self-test, and
   reinstall. The user history hash stayed unchanged.
-- Firefox 158 completed a real isolated native-messaging handshake and reported
-  the expected public capabilities. Isolated Chrome and Edge command-line
-  extension loading was blocked before native messaging, so no success is
-  claimed for those browsers.
+- Firefox 158 and Edge 155 completed real isolated native-messaging handshakes
+  and reported the expected public capabilities. Edge also returned its public
+  capture settings without starting a download. Chrome 155 rejected both the
+  command-line development load and a copied-profile route, so no Chrome bridge
+  success is claimed.
 - Full evidence, hashes, limitations, and remaining gaps are recorded in
   [Windows 10 VM verification — 2026-10-18](windows-10-vm-verification-20261018.md).
 - Issue #26 remains unresolved: the non-publishing artifacts are unsigned and
