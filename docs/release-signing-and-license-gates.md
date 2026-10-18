@@ -12,6 +12,9 @@ certificate, private key, secret, legal approval, tag, or release authorization.
   certificates that are removed after the job.
 - The build collects exact third-party license, source, native-payload, and
   provenance evidence.
+- The build writes an audit-only `signing-plan.json` containing hashes and
+  current Authenticode status for executable payloads. The audit has no signing
+  command, certificate, key, secret, or publication permission.
 - Rapido and its native host still ship unsigned today. Issue #26 therefore
   remains open.
 
