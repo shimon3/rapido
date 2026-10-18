@@ -114,6 +114,33 @@ class UiThreadSafetyTests(unittest.TestCase):
         self.assertFalse(desktop.set_topmost(type("Win", (), {"native": None})(), False))
         self.assertFalse(desktop.bring_to_front(object()))
 
+    def test_disposed_native_form_refuses_delayed_post_without_escaping(self):
+        class Form:
+            def BeginInvoke(self, _delegate):
+                raise RuntimeError("form disposed")
+        win = type("Win", (), {"native": Form()})()
+        with patch.dict("sys.modules", {"System": type("System", (), {"Action": staticmethod(lambda fn: fn)})}):
+            self.assertFalse(desktop.set_topmost(win, False))
+
+    def test_popup_unpin_is_cancelled_by_shutdown_or_close(self):
+        stopping = threading.Event()
+        stopping.set()
+        with patch.object(desktop, "set_topmost") as set_topmost:
+            self.assertFalse(desktop.unpin_after_delay(object(), stopping, lambda: True, delay=0))
+            set_topmost.assert_not_called()
+
+        stopping.clear()
+        with patch.object(desktop, "set_topmost") as set_topmost:
+            self.assertFalse(desktop.unpin_after_delay(object(), stopping, lambda: False, delay=0))
+            set_topmost.assert_not_called()
+
+    def test_popup_unpin_posts_only_for_a_live_window(self):
+        stopping = threading.Event()
+        win = object()
+        with patch.object(desktop, "set_topmost", return_value=True) as set_topmost:
+            self.assertTrue(desktop.unpin_after_delay(win, stopping, lambda: True, delay=0))
+            set_topmost.assert_called_once_with(win, False)
+
     def test_desktop_no_longer_sets_on_top_from_worker_threads(self):
         source = inspect.getsource(desktop.main)
         self.assertNotIn("on_top = False", source)
@@ -150,3 +177,4 @@ class UiThreadSafetyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

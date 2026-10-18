@@ -294,17 +294,18 @@ def main() -> int:
             return None
         popups[token] = win
 
-        def unpin():
-            time.sleep(2.5)
-            set_topmost(win, False)
-
         def on_closed():
             popups.pop(token, None)
             # fenetre de capture fermee avec la croix = annuler (sans effet si deja confirme)
             threading.Thread(target=lambda: _quiet(lambda: api(f"/api/downloads/{dl_id}/cancel-capture", {})),
                              daemon=True).start()
 
-        win.events.shown += lambda: threading.Thread(target=unpin, daemon=True).start()
+        win.events.shown += lambda: threading.Thread(
+            target=unpin_after_delay,
+            args=(win, quitting, lambda: popups.get(token) is win),
+            name="rapido-popup-unpin",
+            daemon=True,
+        ).start()
         win.events.closed += on_closed
         return win
 
@@ -444,9 +445,22 @@ def on_ui_thread(win, action) -> bool:
     form = getattr(win, "native", None)
     if form is None or not hasattr(form, "BeginInvoke"):
         return False
-    from System import Action
-    form.BeginInvoke(Action(lambda: _quiet(lambda: action(form))))
-    return True
+    try:
+        from System import Action
+        form.BeginInvoke(Action(lambda: _quiet(lambda: action(form))))
+        return True
+    except Exception:
+        # A delayed operation can race a window closing.  WinForms rejects
+        # BeginInvoke once its native handle has been destroyed; shutdown must
+        # not leave an unhandled daemon-thread exception behind.
+        return False
+
+
+def unpin_after_delay(win, stopping: threading.Event, still_open, delay=2.5) -> bool:
+    """Release popup topmost state unless shutdown/close won the delay race."""
+    if stopping.wait(delay) or not still_open():
+        return False
+    return set_topmost(win, False)
 
 
 def set_topmost(win, value: bool) -> bool:
