@@ -98,3 +98,18 @@ Identité reconfirmée : même clé ED25519 et `DESKTOP-F2ALUG9`. Lecture seule.
 Constat utile pour le produit : la désinstallation de l'ancienne build (CI #218)
 a laissé des clés de registre vides et les extensions de navigateur. Le
 contrôle E5 sur le candidat dira si le problème existe toujours.
+
+## Troisième relevé après nettoyage manuel (lecture seule)
+
+Identité reconfirmée (même clé ED25519, `DESKTOP-F2ALUG9`).
+
+| Point | Constat | Statut |
+| --- | --- | --- |
+| Clés HKCU `com.rapido.bridge` (Chrome, Edge, Firefox) | Absentes | ✔ |
+| Extensions Chrome et Edge (fichiers de réglages) | Aucune mention de Rapido | ✔ |
+| Ancien ZIP sur le Bureau | Absent | ✔ |
+| Dossiers `EBWebView` dans `%TEMP%` | 0 | ✔ |
+| Navigateurs | Chrome 155.0.8059.80, Edge 155.0.4283.45, Firefox 158.0 : **inchangés**. Chrome et Edge sont ouverts (une mise à jour peut attendre leur redémarrage) | **À faire** |
+| Compte standard de test | Aucun. Seuls `samue` (administrateur) et `sshd` sont actifs | **Bloquant pour B1** |
+
+Rapido ne laisse plus aucune trace sur le compte `samue`.
