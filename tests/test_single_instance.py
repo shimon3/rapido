@@ -80,3 +80,70 @@ class SingleInstanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BusyInstanceTests(unittest.TestCase):
+    """A running Rapido whose loop is busy answers /api/ping late: the response timeout
+    raised TimeoutError, reported as "port used by another program"."""
+
+    def serve(self, delay):
+        import http.server
+        import socket
+        import threading
+
+        class Slow(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                import time as _t
+                _t.sleep(delay)
+                body = b'{"app": "Rapido"}'
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Slow)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return f"http://127.0.0.1:{server.server_address[1]}"
+
+    def test_slow_rapido_is_busy_not_another_program(self):
+        base = self.serve(3)
+        with patch.object(desktop, "BASE_URL", base), patch.object(desktop, "_rapido", None):
+            self.assertEqual(desktop.already_running(), "busy")
+
+    def test_prompt_rapido_is_detected(self):
+        base = self.serve(0)
+        with patch.object(desktop, "BASE_URL", base), patch.object(desktop, "_rapido", None):
+            self.assertIs(desktop.already_running(), True)
+
+    # Never call desktop.main() here: past these checks it really starts Rapido
+    # (server on 127.0.0.1:9614 and WebView2 windows).
+    def test_busy_instance_is_waited_for_then_brought_forward(self):
+        states = iter(["busy"])
+        with patch.object(desktop, "already_running", side_effect=lambda: next(states, True)), \
+                patch.object(desktop.time, "sleep"), \
+                patch.object(desktop, "wake_existing", return_value=True) as wake, \
+                patch.object(desktop, "message_box") as box:
+            self.assertEqual(desktop.handle_existing_instance(args()), 0)
+        wake.assert_called_once()
+        box.assert_not_called()
+
+    def test_instance_busy_until_the_deadline_is_not_called_another_program(self):
+        with patch.object(desktop, "already_running", return_value="busy"), \
+                patch.object(desktop, "wait_for_running", return_value=False), \
+                patch.object(desktop, "message_box") as box:
+            self.assertEqual(desktop.handle_existing_instance(args()), 1)
+        self.assertIn("ne repond pas", box.call_args.args[0])
+        self.assertNotIn("autre programme", box.call_args.args[0])
+
+    def test_free_port_continues_and_foreign_port_stops(self):
+        with patch.object(desktop, "already_running", return_value=False):
+            self.assertIsNone(desktop.handle_existing_instance(args()))
+        with patch.object(desktop, "already_running", return_value="other"), \
+                patch.object(desktop, "message_box") as box:
+            self.assertEqual(desktop.handle_existing_instance(args()), 1)
+        self.assertIn("autre programme", box.call_args.args[0])

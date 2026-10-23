@@ -150,6 +150,30 @@ class UiThreadSafetyTests(unittest.TestCase):
         self.assertIn("popup_tasks.stop()", source)
         self.assertIn("if quitting.is_set()", source)
 
+    def test_show_request_returns_while_the_gui_thread_is_busy(self):
+        # pywebview's show()/restore() wait on the GUI thread with Invoke. Called
+        # from /api/show or the native "show" message, they stalled the server.
+        gate, started = threading.Event(), threading.Event()
+        tasks = desktop.SerialTaskQueue("test-show")
+        self.addCleanup(lambda: (gate.set(), tasks.stop(1)))
+
+        def slow_show():
+            started.set()
+            gate.wait(5)
+
+        show = desktop.posted(tasks, slow_show)
+        finished = threading.Event()
+        caller = threading.Thread(target=lambda: (show(), finished.set()))
+        caller.start()
+        self.assertTrue(finished.wait(1), "the caller must not wait for the GUI work")
+        self.assertTrue(started.wait(1))
+        gate.set()
+        caller.join(1)
+
+    def test_server_side_show_goes_through_the_window_queue(self):
+        source = inspect.getsource(desktop.main)
+        self.assertIn("show_main=posted(popup_tasks, show_main)", source)
+
     def test_watchdog_dumps_once_per_stall_and_rearms(self):
         clock, dumps, queue = FakeClock(), [], []
         dog = desktop.UiWatchdog(queue.append, dumps.append, interval=5, stall=10, clock=clock)

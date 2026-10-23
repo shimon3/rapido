@@ -297,9 +297,7 @@ async def ping():
     return {"ok": True, "app": "Rapido"}
 
 
-@app.get("/api/state")
-async def state():
-    """Tout ce dont l'interface principale a besoin en un appel."""
+async def _state_payload():
     items = sorted((d for d in manager.downloads.values() if d.status != "pending"),
                    key=lambda d: d.created, reverse=True)
     return {
@@ -310,9 +308,17 @@ async def state():
     }
 
 
+@app.get("/api/state")
+async def state():
+    """Tout ce dont l'interface principale a besoin en un appel (chaque seconde). Le contenu
+    est deja fait de types JSON : JSONResponse evite l'encodeur generique de FastAPI
+    (~100 ms pour 2 000 telechargements, sur la boucle du serveur)."""
+    return JSONResponse(await _state_payload())
+
+
 @app.get("/api/downloads")
 async def list_downloads():
-    return (await state())["downloads"]
+    return JSONResponse((await _state_payload())["downloads"])
 
 
 @app.get("/api/downloads/{dl_id}")
@@ -323,6 +329,23 @@ async def one(dl_id: str, watch: bool = False):
     return dl.to_public()
 
 
+
+
+# Native requests wait for the manager loop at most this long; the extension then
+# keeps the download in the browser. Work that has not *started* by the earlier
+# deadline is refused, so a timed-out request can never take effect afterwards.
+NATIVE_REPLY_TIMEOUT = 4.0
+NATIVE_START_DEADLINE = 3.0
+
+
+def _on_manager_loop(make_coroutine):
+    start_by = time.monotonic() + NATIVE_START_DEADLINE
+
+    async def guarded():
+        if time.monotonic() > start_by:
+            raise TimeoutError("Rapido was busy; the request expired before it started")
+        return await make_coroutine()
+    return asyncio.run_coroutine_threadsafe(guarded(), manager.loop).result(timeout=NATIVE_REPLY_TIMEOUT)
 
 
 def native_dispatch(role: str, data: dict):
@@ -348,14 +371,14 @@ def native_dispatch(role: str, data: dict):
                 "min_capture_kb": manager.settings.get("min_capture_kb", 512)}
     if kind in ("capture_prepare","capture_commit","capture_abort"):
         from native_handoff import dispatch
-        return asyncio.run_coroutine_threadsafe(dispatch(manager,data), manager.loop).result(timeout=4)
+        return _on_manager_loop(lambda: dispatch(manager, data))
     if kind != "capture_public":
         raise ValueError("Unsupported native request")
     value = public_capture(data)
     headers = {"Referer":value["referrer"]} if value["referrer"] else {}
     request = CaptureRequest(url=value["url"], filename=value["filename"],
                              headers=headers, open_window=True)
-    result = asyncio.run_coroutine_threadsafe(capture(request), manager.loop).result(timeout=4)
+    result = _on_manager_loop(lambda: capture(request))
     return {"type":"capture_result","ok": isinstance(result,dict) and isinstance(result.get("id"),str)}
 
 
@@ -368,9 +391,11 @@ async def add_download(req: AddRequest):
     for u in urls:
         check_url(u)
     added = [
-        manager.add(u, req.filename if len(urls) == 1 else None, req.connections, req.headers, req.later)
+        manager.add(u, req.filename if len(urls) == 1 else None, req.connections, req.headers, req.later,
+                    persist=False)
         for u in urls
     ]
+    manager.save(force=True)        # une seule sauvegarde, meme pour des centaines de liens
     return [d.to_public() for d in added]
 
 
@@ -478,7 +503,8 @@ async def resume(dl_id: str):
 
 @app.post("/api/downloads/{dl_id}/redownload")
 async def redownload(dl_id: str):
-    get_dl(dl_id)
+    if get_dl(dl_id).status == "handoff":
+        raise HTTPException(409, "Recuperer d'abord le transfert interrompu")
     await manager._cancel_task(dl_id)
     manager.redownload(dl_id)
     return {"ok": True}
@@ -531,31 +557,44 @@ async def bulk(action: str, req: IdsRequest):
         ids = [d.id for d in manager.downloads.values() if d.status != "pending"]
     else:
         ids = req.ids          # liste vide = rien (jamais « tout » par defaut)
-    for i in ids:
-        dl = manager.downloads.get(i)
-        if not dl:
-            continue
-        if action == "pause" and dl.status in ("downloading", "queued"):
-            await manager.pause(i)
-        elif action == "resume" and dl.status in ("paused", "error"):
-            manager.resume(i)
-        elif action == "delete":
-            await manager.remove(i, req.delete_file)
-        elif action == "clear-completed" and dl.status == "completed":
-            await manager.remove(i)
+    locked = []
+    try:
+        for i in ids:
+            dl = manager.downloads.get(i)
+            if not dl:
+                continue
+            if action == "pause" and dl.status in ("downloading", "queued"):
+                await manager.pause(i, persist=False)
+            elif action == "resume" and dl.status in ("paused", "error"):
+                manager.resume(i, persist=False)
+            elif action == "delete":
+                try:
+                    await manager.remove(i, req.delete_file, persist=False)
+                except OSError:
+                    locked.append(dl.filename or i)
+            elif action == "clear-completed" and dl.status == "completed":
+                await manager.remove(i, persist=False)
+    finally:
+        manager.save(force=True)    # une seule sauvegarde pour toute l'action groupee
+    if locked:
+        raise HTTPException(409, "Fichier en cours d'utilisation, non supprime : " + ", ".join(locked[:5]))
     return {"ok": True}
 
 
 @app.delete("/api/downloads/{dl_id}")
 async def delete(dl_id: str, delete_file: bool = False):
     get_dl(dl_id)
-    await manager.remove(dl_id, delete_file)
+    try:
+        await manager.remove(dl_id, delete_file)
+    except OSError as e:
+        raise HTTPException(409, f"Impossible de supprimer le fichier : {e.strerror or e}")
     return {"ok": True}
 
 
 def _reveal(path: Path, select: bool):
     """Ouvre un fichier ou un dossier avec Windows. Si l'utilisateur annule (par exemple la
-    demande d'autorisation de Windows pour un programme), ce n'est pas une erreur."""
+    demande d'autorisation de Windows pour un programme), ce n'est pas une erreur.
+    Bloquant : os.startfile attend la reponse a la demande UAC. Appeler via asyncio.to_thread."""
     system = platform.system()
     try:
         if system == "Windows":
@@ -576,15 +615,18 @@ def _reveal(path: Path, select: bool):
 @app.post("/api/downloads/{dl_id}/open")
 async def open_file(dl_id: str, folder: bool = False):
     dl = get_dl(dl_id)
+    if not folder and dl.status != "completed":
+        # Inacheve, dl.path n'est qu'un nom prevu : il peut designer un autre fichier.
+        raise HTTPException(409, "Telechargement pas encore termine")
     p = Path(dl.path) if dl.path else Path(manager.settings["download_dir"])
     if not p.exists() and not folder:
         raise HTTPException(404, "Fichier pas encore disponible")
     if folder and not p.exists():
         p = p.parent
         p.mkdir(parents=True, exist_ok=True)
-        _reveal(p, select=False)
+        await asyncio.to_thread(_reveal, p, False)
     else:
-        _reveal(p, select=folder)
+        await asyncio.to_thread(_reveal, p, folder)
     return {"ok": True}
 
 
@@ -594,7 +636,7 @@ async def open_folder(req: UrlRequest):
     # qui pourrait designer un programme a executer)
     p = Path(manager.settings["download_dir"])
     p.mkdir(parents=True, exist_ok=True)
-    _reveal(p, select=False)
+    await asyncio.to_thread(_reveal, p, False)
     return {"ok": True}
 
 
@@ -735,6 +777,12 @@ async def put_settings(req: SettingsRequest):
     autostart = data.pop("autostart", None)
     if "download_dir" in data:
         data["download_dir"] = check_folder(data["download_dir"], "Dossier de telechargement")
+        try:
+            # Avant d'appliquer quoi que ce soit : un dossier impossible a creer (lecteur absent,
+            # droits) ne doit pas rester actif et faire echouer chaque telechargement.
+            Path(data["download_dir"]).mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise HTTPException(400, f"Dossier de telechargement : impossible de le creer ({e.strerror or e})")
     if "ffmpeg_path" in data:
         data["ffmpeg_path"] = check_program(data["ffmpeg_path"], FFMPEG_NAMES, "ffmpeg")
     if "browser_path" in data:
@@ -751,7 +799,6 @@ async def put_settings(req: SettingsRequest):
             set_autostart(autostart)
         except OSError as e:
             raise HTTPException(500, f"Impossible de modifier le demarrage automatique : {e}")
-    Path(manager.settings["download_dir"]).mkdir(parents=True, exist_ok=True)
     manager.save_settings()
     manager.wake()
     return await get_settings()
@@ -811,7 +858,7 @@ async def extension_help():
     (On n'ouvre plus chrome://extensions nous-memes : Chrome refuse les adresses chrome://
     transmises par un autre programme, il s'ouvrait puis se refermait. L'interface guide
     l'utilisateur pas a pas a la place.)"""
-    _reveal(extension_dir(), select=False)
+    await asyncio.to_thread(_reveal, extension_dir(), False)
     return {"ok": True, "path": str(extension_dir())}
 
 

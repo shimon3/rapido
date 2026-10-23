@@ -93,13 +93,35 @@ def forbidden_response(request, *, timeout: float, attempts: int = 3,
 
 
 def already_running():
-    """True = Rapido tourne deja, False = port libre, "other" = port pris par autre chose."""
+    """True = Rapido tourne deja, False = port libre, "other" = port pris par autre chose,
+    "busy" = quelque chose accepte la connexion mais repond trop lentement (souvent Rapido
+    occupe : il ne faut pas annoncer « un autre programme »)."""
     try:
         return True if api("/api/ping", timeout=1.5).get("app") == "Rapido" else "other"
-    except urllib.error.URLError:
-        return False
+    except urllib.error.URLError as e:
+        return "busy" if isinstance(e.reason, TimeoutError) else False
+    except TimeoutError:
+        return "busy"
     except Exception:
         return "other"
+
+
+def handle_existing_instance(args):
+    """Code de sortie si une autre instance (ou un autre programme) occupe le port ;
+    None si Rapido peut demarrer."""
+    state = already_running()
+    if state is True:
+        return defer_to_running(args)
+    if state == "busy":
+        if wait_for_running(time.monotonic() + START_WAIT):
+            return defer_to_running(args)
+        message_box("Rapido est deja ouvert mais ne repond pas.\n"
+                    "Ferme-le dans le Gestionnaire des taches, puis relance Rapido.", True)
+        return 1
+    if state == "other":
+        message_box(f"Le port {PORT} est deja utilise par un autre programme.\nRapido ne peut pas demarrer.", True)
+        return 1
+    return None
 
 
 START_WAIT = 15        # secondes laissees a une instance qui demarre (WebView2 a froid)
@@ -143,6 +165,13 @@ def defer_to_running(args) -> int:
     return 1
 
 
+def webview_storage(data_dir: Path) -> str:
+    r"""Dossier WebView2 fixe et propre a Rapido. Sans lui, pywebview cree a chaque demarrage
+    un dossier %TEMP%\tmp*\EBWebView qu'il ne parvient souvent pas a supprimer. En mode
+    prive, pywebview efface ce dossier a la fermeture : il ne doit contenir rien d'autre."""
+    return str(data_dir / "WebView2")
+
+
 def setup_logging(data_dir: Path):
     """Un .exe sans console n'a pas de sys.stdout : on ecrit dans un fichier."""
     if sys.stdout is not None and sys.stderr is not None:
@@ -163,12 +192,9 @@ def main() -> int:
     setup_logging(data_dir)
 
     # ----- une seule instance : on reveille celle qui tourne deja -----
-    state = already_running()
-    if state is True:
-        return defer_to_running(args)
-    if state == "other":
-        message_box(f"Le port {PORT} est deja utilise par un autre programme.\nRapido ne peut pas demarrer.", True)
-        return 1
+    code = handle_existing_instance(args)
+    if code is not None:
+        return code
 
     # WebView authorization must reach our owned listener directly, never a proxy.
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--no-proxy-server"
@@ -318,7 +344,9 @@ def main() -> int:
             return popup_tasks.submit(win.destroy)
         return popup_tasks.submit(lambda: win.resize(width, height))
 
-    rapido.UI.update(desktop=True, show_main=show_main, window_action=window_action)
+    # /api/show and the native "show" run on server threads: never wait for the GUI.
+    rapido.UI.update(desktop=True, show_main=posted(popup_tasks, show_main),
+                     window_action=window_action)
     # Le serveur demande une fenetre puis repond aussitot a l'extension.
     rapido.manager.open_window = lambda path, width=540, height=480: popup_tasks.submit(
         lambda: open_popup(path, width, height))
@@ -350,7 +378,7 @@ def main() -> int:
             quit_all()
 
     try:
-        webview.start(on_start, private_mode=True)
+        webview.start(on_start, private_mode=True, storage_path=webview_storage(data_dir))
     finally:
         quitting.set()
         popup_tasks.stop()
@@ -429,6 +457,13 @@ class SerialTaskQueue:
                 traceback.print_exc()
             finally:
                 self._queue.task_done()
+
+
+def posted(tasks, fn):
+    """Return a callable that queues fn on the window thread and returns at once.
+    pywebview's show()/restore() block on the GUI thread (Control.Invoke); the
+    local server must not stall while WinForms is busy creating a window."""
+    return lambda: tasks.submit(fn)
 
 
 def in_background(fn, name="rapido-ui"):

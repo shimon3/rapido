@@ -34,7 +34,7 @@ Windows Server 2025 (utile, mais ne remplace pas Windows 10/11).
 | E2 | Réinstallation par-dessus la même version | — | ☐ | ☐ |
 | E3 | Réparation : supprimer `RapidoNativeHost.exe` puis relancer l'installateur, fichier restauré | — | ☐ | ☐ |
 | E4 | Désinstallation : dossier programme vidé, autres processus intacts | ✔ | ☐ | ☐ |
-| E5 | Clés HKCU `NativeMessagingHosts` de Rapido supprimées | ✔ | ☐ | ☐ |
+| E5 | Clés HKCU `NativeMessagingHosts\com.rapido.bridge` de Rapido supprimées (valeur **et** clé, aucune clé vide) | ✔ | ☐ | ☐ |
 | E6 | `%USERPROFILE%\.rapido` et fichiers téléchargés conservés | — | ☐ | ☐ |
 | E7 | Version portable : fonctionne seule, et après désinstallation de la version installée | ✔ | ☐ | ☐ |
 | **F** | **Sécurité visible** | | | |

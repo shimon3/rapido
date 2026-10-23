@@ -90,6 +90,20 @@ class WindowsRegistry:
                 self.reg.DeleteValue(handle, "")
         except FileNotFoundError:
             pass
+        self._delete_if_empty(location)
+
+    def _delete_if_empty(self, location):
+        # Uninstall used to leave an empty host key. Delete it only when it holds
+        # no value and no subkey; anything else may belong to someone else.
+        # Best effort: a value written between this check and the delete is lost.
+        key, view = location
+        try:
+            with self.reg.OpenKey(self.reg.HKEY_CURRENT_USER, key, 0, self.reg.KEY_READ | view) as handle:
+                subkeys, values, _ = self.reg.QueryInfoKey(handle)
+            if subkeys == 0 and values == 0:
+                self.reg.DeleteKeyEx(self.reg.HKEY_CURRENT_USER, key, view, 0)
+        except OSError:
+            pass
 
 
 def _manifest_pairs(pairs):

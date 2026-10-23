@@ -5,7 +5,6 @@
 // Si le serveur ne répond pas, Chrome reprend la main.
 
 // All browser data uses verified Native Messaging/Windows IPC; no HTTP fallback.
-const bypass = new Set();        // URLs relancées dans Chrome par nous (à ne pas recapturer)
 let cfg = {                      // copie locale des réglages Rapido (mise à jour au démarrage)
   capture_exts: ["zip","rar","7z","iso","exe","msi","mp4","mkv","avi","mov","mp3","flac","pdf","apk","dmg","gz","tar"],
   min_capture_kb: 512,
@@ -224,7 +223,6 @@ async function handleDownload(item, ext) {
   if (handled.has(item.id)) return;
   const url = item.finalUrl || item.url;
   if (!/^https?:/i.test(url)) return;                 // blob:, data: -> Chrome s'en charge
-  if (bypass.has(url)) { handled.add(item.id); bypass.delete(url); return; }
   if (!ext || !cfg.capture_exts.includes(ext)) return;
   if (!(await isEnabled())) return;
   const size = item.totalBytes || item.fileSize || 0;

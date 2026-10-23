@@ -24,7 +24,10 @@ issue est visible par tous et indexé. La méthode sépare donc trois flux.
 - `%USERPROFILE%\.rapido\rapido.log` : à **relire avant envoi**. Il peut
   contenir des chemins de fichiers. En cas de doute, envoyez-le en privé.
 - **Ne jamais joindre** `%USERPROFILE%\.rapido\downloads.json` : il contient
-  les adresses des téléchargements.
+  les adresses des téléchargements. Même règle pour les copies
+  `downloads.json.unreadable-…` et `settings.json.unreadable-…` : Rapido les garde
+  quand un fichier était illisible, pour pouvoir le récupérer. Signalez seulement
+  leur présence.
 
 ## Suivi par Samuel (15 minutes, 2 fois par semaine)
 

@@ -69,3 +69,6 @@ Voir `retours-et-bugs.md`. En résumé :
 2. Vos fichiers téléchargés restent dans leur dossier.
 3. Pour tout effacer, supprimez aussi le dossier `%USERPROFILE%\.rapido`
    (réglages, historique et journal de Rapido).
+4. Retirez l'extension Rapido de chaque navigateur où vous l'avez ajoutée
+   (`chrome://extensions`, `edge://extensions`, `about:addons` dans Firefox).
+   Le désinstalleur ne modifie pas les profils des navigateurs.

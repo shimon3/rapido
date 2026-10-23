@@ -17,6 +17,7 @@ import ctypes
 import datetime as dt
 import errno
 import email.utils
+import hashlib
 import json
 import os
 import platform
@@ -89,10 +90,12 @@ MIN_SEGMENT = 1024 * 1024     # on ne decoupe pas en morceaux de moins de 1 Mo
 MAX_RETRIES = 5               # echecs consecutifs (sans progression) avant abandon
 PROBE_TIMEOUT = 120           # analyse d'une video : au-dela, on abandonne (processus arrete)
 RETRY_DELAY = 1.0             # multiplicateur des pauses entre essais (2, 4, 8, 16, 20 s) ; reduit par les tests
+TOOL_LOOKUP_TTL = 10.0         # secondes avant de rechercher a nouveau ffmpeg / deno
 SAVE_EVERY = 2.0              # secondes entre deux sauvegardes de l'etat
 PENDING_TTL = 30 * 60         # une capture non confirmee disparait apres 30 min
 IS_WINDOWS = platform.system() == "Windows"
 from rapido_version import VERSION  # source unique de la version
+import windows_job
 FROZEN = getattr(sys, "frozen", False)                       # True dans Rapido.exe (PyInstaller)
 RES_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))   # fichiers embarques (html, icone)
 EXE_DIR = Path(sys.executable).parent if FROZEN else Path(__file__).parent
@@ -128,6 +131,7 @@ def category_for(filename: str) -> str:
     return "Autres"
 
 
+MAX_FILENAME = 180
 WIN_RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
 
 
@@ -139,7 +143,33 @@ def safe_filename(name: str) -> str:
     name = name.strip(" .")
     if name.split(".")[0].strip().lower() in WIN_RESERVED:     # CON, NUL, COM1... (noms reserves Windows)
         name = "_" + name
-    return name[:180] or "telechargement"
+    if len(name) > MAX_FILENAME:
+        # Garder l'extension (".zip", ".tar.gz") : elle decide de la categorie et de l'ouverture.
+        suffix = "".join(re.findall(r"(?:\.[A-Za-z0-9]{1,8}){1,2}$", name)[:1])
+        name = name[:MAX_FILENAME - len(suffix)].rstrip(" .") + suffix
+    # Windows retire les points et espaces finaux : le nom sur disque differerait.
+    return name.rstrip(" .") or "telechargement"
+
+
+def _retry_while_locked(action, attempts: int = 12, delay: float = 0.01):
+    """Sous Windows, un antivirus ou l'indexeur qui tient un fichier ouvert fait echouer sa
+    lecture ou son remplacement (acces refuse, WinError 32). Observe sous antivirus au-dela
+    de 0,2 s : attente doublee a chaque essai, plafonnee a 0,32 s (~2,5 s au total)."""
+    for attempt in range(attempts):
+        try:
+            return action()
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(min(delay * 2 ** attempt, 0.32))
+
+
+def _read_text_retrying(path: Path, attempts: int = 12) -> str:
+    return _retry_while_locked(lambda: path.read_text("utf-8"), attempts)
+
+
+def _replace_retrying(src: Path, dst: Path, attempts: int = 12):
+    _retry_while_locked(lambda: os.replace(src, dst), attempts)
 
 
 # ---------- protection des donnees ----------
@@ -220,14 +250,33 @@ def filename_from_headers(headers: httpx.Headers, url: str) -> str:
     return safe_filename(base) if base else "telechargement"
 
 
-def unique_path(folder: Path, filename: str) -> Path:
-    """Evite d'ecraser un fichier existant : fichier.zip -> fichier (1).zip"""
+def unique_path(folder: Path, filename: str, taken=frozenset()) -> Path:
+    """Evite d'ecraser un fichier existant : fichier.zip -> fichier (1).zip.
+    taken : chemins deja prevus par d'autres telechargements (os.path.normcase)."""
     p = folder / filename
     stem, suffix, i = p.stem, p.suffix, 1
-    while p.exists() or p.with_name(p.name + ".part").exists():
+    while p.exists() or p.with_name(p.name + ".part").exists() or os.path.normcase(str(p)) in taken:
         p = folder / f"{stem} ({i}){suffix}"
         i += 1
     return p
+
+
+def _move_without_overwrite(src: Path, dst: Path) -> Path:
+    """Renomme le fichier termine sans jamais ecraser un fichier apparu entre-temps sous le
+    meme nom : sous Windows, os.rename echoue de facon atomique si la cible existe."""
+    while True:
+        if not IS_WINDOWS and dst.exists():
+            dst = unique_path(dst.parent, dst.name)
+        try:
+            os.rename(src, dst)
+            return dst
+        except FileExistsError:
+            dst = unique_path(dst.parent, dst.name)
+
+
+def _safe_ext(ext, default: str = "mp4") -> str:
+    """Extension annoncee par le site (via yt-dlp) : elle ne doit jamais former un chemin."""
+    return ext if isinstance(ext, str) and re.fullmatch(r"[A-Za-z0-9]{1,8}", ext) else default
 
 
 def url_ext(url: str) -> str:
@@ -311,10 +360,14 @@ class Download:
         d["eta"] = eta
         return d
 
-    def to_disk(self) -> dict:
+    def disk_fields(self) -> dict:
         d = asdict(self)
         for k in ("speed", "active_connections", "watched"):
             d.pop(k, None)
+        return d
+
+    def to_disk(self) -> dict:
+        d = self.disk_fields()
         if IS_WINDOWS:
             try:
                 # Protect the entire record, including signed URLs, referrers,
@@ -371,6 +424,7 @@ class Manager:
         self.port = port
         self.data_dir = data_dir
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        self._remove_stale_cookie_files()
         self.state_file = data_dir / "downloads.json"
         self.settings_file = data_dir / "settings.json"
         self.settings = {
@@ -412,45 +466,153 @@ class Manager:
         self.on_exit = None              # callback pour quitter l'application
         self.loop: asyncio.AbstractEventLoop | None = None
         self._clip_last = ""
+        self._unread: set[Path] = set()                   # fichiers verrouilles au demarrage
+        self._tools: dict[str, tuple] = {}                 # outil -> (reglage, instant, chemin)
+        self._sealed: dict[str, tuple[bytes, dict]] = {}   # id -> (empreinte du contenu, enveloppe DPAPI)
         self._load()
 
+    _COOKIE_FILE = re.compile(r"ck-[a-z0-9_]{8}\.txt")   # noms crees par _ydl_opts (mkstemp)
+
+    def _remove_stale_cookie_files(self):
+        """Une analyse yt-dlp interrompue (fermeture, plantage) laissait son fichier de cookies
+        en clair dans le dossier de donnees. Une seule instance tourne : aucun n'est en cours."""
+        for path in self.data_dir.glob("ck-*.txt"):
+            if self._COOKIE_FILE.fullmatch(path.name) and path.is_file():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+
     # ---------- persistance ----------
+    def _read_json(self, path: Path, kind: type):
+        """Contenu JSON de path, ou None. Un fichier illisible est mis de cote (jamais ecrase
+        par la sauvegarde suivante) pour pouvoir etre recupere."""
+        if not path.exists():
+            return None
+        try:
+            value = json.loads(_read_text_retrying(path))
+            if isinstance(value, kind):
+                return value
+        except (ValueError, UnicodeError):
+            pass
+        except OSError:
+            # Verrouille (antivirus) meme apres les essais : garder une copie avant d'ecrire.
+            self._unread.add(path)
+            return None
+        Manager._keep_aside(path, os.rename)
+        return None
+
+    def _preserve_unread(self, path: Path) -> bool:
+        """Avant de remplacer un fichier qui n'a pas pu etre lu au demarrage, en garder une copie.
+        False : la copie est impossible, il ne faut pas ecrire par-dessus."""
+        if path not in self._unread:
+            return True
+        if not path.exists() or Manager._keep_aside(path, shutil.copy2):
+            self._unread.discard(path)
+            return True
+        return False
+
+    @staticmethod
+    def _keep_aside(path: Path, move) -> bool:
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        for i in range(100):
+            aside = path.with_name(f"{path.name}.unreadable-{stamp}" + (f"-{i}" if i else ""))
+            if not aside.exists():
+                try:
+                    move(path, aside)
+                    return True
+                except OSError:
+                    return False
+        return False
+
     def _load(self):
-        if self.settings_file.exists():
+        saved = self._read_json(self.settings_file, dict)
+        if saved is not None:
             try:
-                saved = json.loads(self.settings_file.read_text("utf-8"))
                 sched = {**self.settings["schedule"], **saved.pop("schedule", {})}
                 self.settings.update(saved)
                 self.settings["schedule"] = sched
             except Exception:
                 pass
-        if self.state_file.exists():
-            try:
-                records = json.loads(self.state_file.read_text("utf-8"))
-                for d in records:
+        records = self._read_json(self.state_file, list)
+        if records is not None:
+            unreadable = False
+            for d in records:
+                try:
                     dl = Download.from_disk(d)
                     self.downloads[dl.id] = dl
-                if IS_WINDOWS and any("private_state_enc" not in d for d in records):
+                except Exception:
+                    # Un seul enregistrement illisible ne doit pas faire perdre les suivants.
+                    unreadable = True
+            if unreadable:
+                # La prochaine sauvegarde l'omettra : garder l'original pour le recuperer.
+                self._keep_aside(self.state_file, shutil.copy2)
+            try:
+                if IS_WINDOWS and any(not isinstance(d, dict) or "private_state_enc" not in d for d in records):
                     # Upgrade loaded legacy history immediately, before startup.
                     self.save(force=True)
             except Exception:
                 pass
 
     def save(self, force: bool = False, protected_record=None):
+        """Ecrit l'etat. Une sauvegarde forcee leve une erreur si elle echoue (le transfert
+        natif exige une ecriture durable) ; une sauvegarde de progression est reessayee plus tard."""
         now = time.monotonic()
         if not force and now - self._last_save < SAVE_EVERY:
             return
         self._last_save = now
-        tmp = self.state_file.with_suffix(".tmp")
-        tmp.write_text(
-            json.dumps([protected_record[1] if protected_record and d.id == protected_record[0]
-                        else d.to_disk() for d in self.downloads.values()], ensure_ascii=False, indent=1),
-            "utf-8",
-        )
-        os.replace(tmp, self.state_file)
+        if not self._preserve_unread(self.state_file):
+            if force:
+                raise PermissionError(errno.EACCES, "Historique illisible et non copie : pas d'ecrasement",
+                                      str(self.state_file))
+            return
+        try:
+            tmp = self.state_file.with_suffix(".tmp")
+            records = [protected_record[1] if protected_record and d.id == protected_record[0]
+                       else self._disk_record(d) for d in self.downloads.values()]
+            self._sealed = {k: v for k, v in self._sealed.items() if k in self.downloads}
+            tmp.write_text(json.dumps(records, ensure_ascii=False, indent=1), "utf-8")
+            # Progression : un seul essai, reprise au tour suivant plutot que d'attendre
+            # l'antivirus sur la boucle du serveur. Sauvegarde forcee : on insiste.
+            _replace_retrying(tmp, self.state_file, attempts=12 if force else 1)
+        except OSError as e:
+            if force:
+                raise
+            print("Sauvegarde de la progression reportee :", e)
+
+    def _disk_record(self, dl: Download) -> dict:
+        """Enveloppe DPAPI d'un telechargement, reutilisee tant que son contenu ne change pas :
+        chiffrer tout l'historique a chaque sauvegarde bloquait la boucle (~1 ms par entree)."""
+        if not IS_WINDOWS:
+            return dl.to_disk()
+        key = hashlib.sha256(json.dumps(dl.disk_fields(), ensure_ascii=False, sort_keys=True)
+                             .encode("utf-8")).digest()
+        cached = self._sealed.get(dl.id)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        record = dl.to_disk()
+        if "private_state_enc" in record:
+            self._sealed[dl.id] = (key, record)
+        else:
+            self._sealed.pop(dl.id, None)      # echec DPAPI : on reessaiera a la prochaine sauvegarde
+        return record
+
+    def _save_quietly(self):
+        # Fin d'une tache : l'etat reste en memoire et sera ecrit a la prochaine sauvegarde.
+        try:
+            self.save(force=True)
+        except OSError as e:
+            print("Sauvegarde de l'etat impossible :", e)
 
     def save_settings(self):
-        self.settings_file.write_text(json.dumps(self.settings, indent=2, ensure_ascii=False), "utf-8")
+        if not self._preserve_unread(self.settings_file):
+            raise PermissionError(errno.EACCES, "Reglages illisibles et non copies : pas d'ecrasement",
+                                  str(self.settings_file))
+        # Fichier temporaire puis remplacement : une ecriture interrompue (disque plein,
+        # arret) ne doit pas laisser un settings.json tronque, ignore au demarrage suivant.
+        tmp = self.settings_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.settings, indent=2, ensure_ascii=False), "utf-8")
+        _replace_retrying(tmp, self.settings_file)
 
     # ---------- cycle de vie ----------
     async def start(self):
@@ -689,8 +851,9 @@ class Manager:
         return dl
 
     def add(self, url: str, filename: str | None = None, connections: int | None = None,
-            headers: dict | None = None, later: bool = False) -> Download:
-        """Ajout direct (sans fenetre de capture)."""
+            headers: dict | None = None, later: bool = False, persist: bool = True) -> Download:
+        """Ajout direct (sans fenetre de capture). persist=False : l'appelant sauvegarde
+        une seule fois apres un ajout groupe (coller des centaines de liens)."""
         dl = Download(
             id=uuid.uuid4().hex[:10],
             url=url.strip(),
@@ -701,26 +864,30 @@ class Manager:
         )
         dl.category = category_for(dl.filename or url)
         self.downloads[dl.id] = dl
-        self.save(force=True)
+        if persist:
+            self.save(force=True)
         self.wake()
         return dl
 
     # ---------- actions ----------
-    async def pause(self, dl_id: str):
+    # persist=False : action groupee, l'appelant sauvegarde une seule fois a la fin.
+    async def pause(self, dl_id: str, persist: bool = True):
         dl = self.downloads[dl_id]
         if dl.status in ("downloading", "queued"):
             await self._cancel_task(dl_id)
             dl.status = "paused"
             dl.speed = 0
-            self.save(force=True)
+            if persist:
+                self.save(force=True)
 
-    def resume(self, dl_id: str):
+    def resume(self, dl_id: str, persist: bool = True):
         dl = self.downloads[dl_id]
         if dl.status in ("paused", "error"):
             dl.status = "queued"
             dl.later = False          # "Reprendre" = maintenant
             dl.error = ""
-            self.save(force=True)
+            if persist:
+                self.save(force=True)
             self.wake()
 
     def redownload(self, dl_id: str):
@@ -728,7 +895,7 @@ class Manager:
         dl = self.downloads[dl_id]
         if dl.status == "handoff":
             raise ValueError("Recover the interrupted handoff before restarting")
-        if dl.path:
+        if dl.path and not self._path_taken_by_other(dl):
             Path(dl.path + ".part").unlink(missing_ok=True)
         dl.segments, dl.path, dl.v_base, dl.v_done = [], "", 0, 0
         dl.status, dl.error, dl.finished_at = "queued", "", 0
@@ -770,19 +937,42 @@ class Manager:
         self.save(force=True)
         self.wake()
 
-    async def remove(self, dl_id: str, delete_file: bool = False):
+    def _unused_path(self, folder: Path, filename: str, dl: Download) -> Path:
+        """Nom libre sur le disque ET parmi les noms prevus par les autres telechargements
+        inacheves : yt-dlp ne cree ses fichiers que quelques secondes apres le choix du nom."""
+        taken = frozenset(os.path.normcase(o.path) for o in self.downloads.values()
+                          if o is not dl and o.path and o.status != "completed")
+        return unique_path(folder, filename, taken)
+
+    def _path_taken_by_other(self, dl: Download) -> bool:
+        """Un autre telechargement inacheve utilise le meme chemin : les fichiers temporaires
+        a ce nom sont les siens (le .part de dl a disparu et l'autre a pris le nom libre)."""
+        return any(o is not dl and o.path == dl.path and o.status != "completed"
+                   for o in self.downloads.values())
+
+    async def remove(self, dl_id: str, delete_file: bool = False, persist: bool = True):
         await self._cancel_task(dl_id)
         p = self._probes.pop(dl_id, None)
         if p and not p.done():
             p.cancel()
-        dl = self.downloads.pop(dl_id, None)
+        dl = self.downloads.get(dl_id)
         if dl and dl.path:
             if dl.status != "completed":
-                for tmp in self._temp_files(dl):
-                    tmp.unlink(missing_ok=True)
-            if delete_file:
+                # Inacheve, dl.path n'est qu'un nom prevu : il peut designer un fichier de
+                # l'utilisateur, jamais efface ici. Si un autre telechargement inacheve a pris ce
+                # nom, ses fichiers temporaires ne sont pas les notres non plus.
+                if not self._path_taken_by_other(dl):
+                    for tmp in self._temp_files(dl):
+                        try:
+                            tmp.unlink(missing_ok=True)
+                        except OSError as e:     # verrouille (antivirus) : un reste ne bloque pas la suppression
+                            print("Fichier temporaire non supprime :", e)
+            elif delete_file:
+                # Echec : l'entree reste, pour que l'utilisateur sache que le fichier existe encore.
                 Path(dl.path).unlink(missing_ok=True)
-        self.save(force=True)
+        self.downloads.pop(dl_id, None)
+        if persist:
+            self.save(force=True)
 
     @staticmethod
     def _temp_files(dl: Download) -> list[Path]:
@@ -868,6 +1058,9 @@ class Manager:
         """Recupere taille, nom de fichier et support des Range avec une requete bytes=0-0."""
         headers = {**dl.headers, "Range": "bytes=0-0", "Accept-Encoding": "identity"}
         async with self.client.stream("GET", dl.url, headers=headers) as r:
+            if r.status_code == 416 and re.fullmatch(r"\s*bytes\s+\*/0\s*", r.headers.get("content-range", "")):
+                # Fichier vide : nginx et d'autres refusent la plage 0-0 (416, « */0 »).
+                return 0, False, filename_from_headers(r.headers, str(r.url))
             r.raise_for_status()
             final_url = str(r.url)
             if r.status_code == 206:
@@ -910,7 +1103,7 @@ class Manager:
                 if not dl.filename:
                     dl.filename = name
                     dl.category = category_for(dl.filename)
-                final = unique_path(self._target_folder(dl), dl.filename)
+                final = self._unused_path(self._target_folder(dl), dl.filename, dl)
                 dl.path, dl.filename = str(final), final.name
                 self._plan_segments(dl)
                 with open(dl.path + ".part", "wb") as f:
@@ -919,8 +1112,20 @@ class Manager:
                 self.save(force=True)
             else:
                 part = Path(dl.path + ".part")
-                if not part.exists():
-                    # fichier partiel supprime : on recommence a zero
+                # Un autre telechargement inacheve du meme nom : ce .part est le sien (le notre a
+                # ete supprime entre-temps), ne jamais ecrire dedans.
+                foreign = self._path_taken_by_other(dl)
+                if (not foreign and part.exists() and dl.resumable and dl.size > 0
+                        and part.stat().st_size < dl.size):
+                    # La place etait reservee en entier : un .part plus court a perdu des octets
+                    # deja comptes (nettoyage, erreur disque). Reprendre ecrirait des zeros.
+                    part.unlink()
+                if foreign or not part.exists():
+                    # fichier partiel supprime : on recommence a zero, sous un nom libre (un autre
+                    # telechargement du meme nom a pu prendre ce nom entre-temps).
+                    final = self._unused_path(self._target_folder(dl), Path(dl.path).name, dl)
+                    dl.path, dl.filename = str(final), final.name
+                    part = Path(dl.path + ".part")
                     for s in dl.segments:
                         s.done = 0
                     with open(part, "wb") as f:
@@ -934,7 +1139,8 @@ class Manager:
 
             await self._download_segments(dl)
 
-            os.replace(dl.path + ".part", dl.path)
+            final = _move_without_overwrite(Path(dl.path + ".part"), Path(dl.path))
+            dl.path, dl.filename = str(final), final.name
             dl.status = "completed"
             dl.finished_at = time.time()
             dl.speed = 0
@@ -947,7 +1153,7 @@ class Manager:
             dl.speed = 0
         finally:
             dl.active_connections = 0
-            self.save(force=True)
+            self._save_quietly()
             self.wake()
 
     async def _download_segments(self, dl: Download):
@@ -1103,8 +1309,22 @@ class Manager:
             last, last_t = cur, now
 
     # ---------- videos (yt-dlp) ----------
+    def _cached_tool(self, name: str, key, find):
+        # Appele a chaque rafraichissement de l'interface (chaque seconde) sur la boucle :
+        # parcourir le PATH et WinGet a chaque fois coutait ~11 ms.
+        now = time.monotonic()
+        hit = self._tools.get(name)
+        if hit is not None and hit[0] == key and now - hit[1] < TOOL_LOOKUP_TTL:
+            return hit[2]
+        found = find()
+        self._tools[name] = (key, now, found)
+        return found
+
     def ffmpeg(self) -> str | None:
         p = self.settings.get("ffmpeg_path")
+        return self._cached_tool("ffmpeg", p, lambda: self._find_ffmpeg(p))
+
+    def _find_ffmpeg(self, p) -> str | None:
         if p and Path(p).is_file() and Path(p).name.lower() in ("ffmpeg", "ffmpeg.exe"):
             return p
         local = EXE_DIR / ("ffmpeg.exe" if IS_WINDOWS else "ffmpeg")
@@ -1124,6 +1344,9 @@ class Manager:
 
     def deno(self) -> str | None:
         """Moteur JavaScript utilise par yt-dlp pour obtenir toutes les qualites YouTube."""
+        return self._cached_tool("deno", None, self._find_deno)
+
+    def _find_deno(self) -> str | None:
         name = "deno.exe" if IS_WINDOWS else "deno"
         local = EXE_DIR / name
         if local.exists():
@@ -1211,7 +1434,7 @@ class Manager:
                 ext = "mp4"
             elif progressive:
                 best_p = max(progressive, key=lambda f: f.get("tbr") or 0)
-                fmt, size, ext = best_p["format_id"], fsize(best_p), best_p.get("ext", "mp4")
+                fmt, size, ext = best_p["format_id"], fsize(best_p), _safe_ext(best_p.get("ext"))
             else:
                 continue          # sans ffmpeg on ne peut pas fusionner video + audio
             label = f"{h}p" + (f" {int(best_v['fps'])}fps" if (best_v.get("fps") or 0) > 30 else "")
@@ -1219,10 +1442,10 @@ class Manager:
         if not options:
             # flux simple (m3u8 sans variantes, mp4 direct...)
             options.append({"id": "best", "label": "Meilleure qualité", "format": "bv*+ba/b" if has_ff else "b",
-                            "ext": "mp4" if has_ff else (info.get("ext") or "mp4"), "size": fsize(info)})
+                            "ext": "mp4" if has_ff else _safe_ext(info.get("ext")), "size": fsize(info)})
         if best_audio:
             options.append({"id": "audio", "label": "Audio seulement", "format": "ba[ext=m4a]/ba",
-                            "ext": best_audio.get("ext") if best_audio.get("ext") != "webm" else "m4a",
+                            "ext": _safe_ext(best_audio.get("ext")) if best_audio.get("ext") != "webm" else "m4a",
                             "size": fsize(best_audio)})
         return options
 
@@ -1274,7 +1497,7 @@ class Manager:
             if o["id"] == option_id:
                 dl.video_format = o["format"]
                 dl.size = o["size"] or -1
-                dl.filename = Path(dl.filename).stem + "." + o["ext"]
+                dl.filename = safe_filename(Path(dl.filename).stem + "." + _safe_ext(o["ext"]))
                 if option_id == "audio":
                     dl.category = "Musique"
                 return
@@ -1298,13 +1521,13 @@ class Manager:
             speed_task.cancel()
             dl.speed = 0
             dl.active_connections = 0
-            self.save(force=True)
+            self._save_quietly()
             self.wake()
 
     async def _video_download(self, dl: Download):
         folder = self._target_folder(dl)
         if not dl.path:
-            dl.path = str(unique_path(folder, dl.filename))   # corrige a la fin avec le vrai nom
+            dl.path = str(self._unused_path(folder, dl.filename, dl))   # corrige a la fin avec le vrai nom
         stem = Path(dl.path).stem
         dl.v_base, dl.v_done = 0, 0
         seen_done: set[str] = set()
@@ -1356,6 +1579,9 @@ class Manager:
         q = ctx.Queue()
         proc = ctx.Process(target=getattr(ytworker, func), args=(url, opts, q), daemon=True)
         proc.start()
+        # daemon ne vaut que pour une fermeture normale : si Rapido est tue (plantage,
+        # « Fin de tache »), le noyau arrete aussi yt-dlp au lieu de le laisser tourner.
+        windows_job.kill_with_this_process(proc.pid)
         if key:
             self._procs[key] = proc
         t0 = time.monotonic()
