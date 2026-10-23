@@ -32,13 +32,13 @@ records the reviewed source-file hashes, and explains how to rebuild Rapido
 with a modified copy. The 13 verified source files are shipped in
 `third-party/source/pystray-0.19.5/`.
 
-### certifi 2026.7.22 — MPL-2.0
+### certifi 2026.10.19 — MPL-2.0
 
 Rapido uses the unmodified `certifi` certificate bundle. The distributed
 evidence includes the package notice, the complete MPL-2.0 text, and
 `SOURCE.md` with the exact wheel, source archive, upstream commit, and
-reviewed file hashes. The 7 verified files, including `cacert.pem`, are
-shipped as the Source Code Form in `third-party/source/certifi-2026.7.22/`.
+reviewed file hashes. The 5 verified package files, including `cacert.pem`,
+are shipped as the Source Code Form in `third-party/source/certifi-2026.10.19/`.
 
 ### proxy_tools 0.1.0 — upstream BSD text; metadata discrepancy
 

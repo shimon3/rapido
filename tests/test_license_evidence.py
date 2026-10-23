@@ -66,16 +66,16 @@ class LicenseEvidenceTests(unittest.TestCase):
             module.parent.mkdir()
             module.write_bytes(b"# synthetic module\r\n")
             dist = Distribution(root, "certifi", [])
-            dist.version = "2026.7.22"
-            reviewed = dict(evidence.SOURCE_NOTICES[("certifi", "2026.7.22")])
+            dist.version = "2026.10.19"
+            reviewed = dict(evidence.SOURCE_NOTICES[("certifi", "2026.10.19")])
             reviewed["files"] = {"certifi/core.py": hashlib.sha256(b"# synthetic module\n").hexdigest()}
-            with patch.dict(evidence.SOURCE_NOTICES, {("certifi", "2026.7.22"): reviewed}):
+            with patch.dict(evidence.SOURCE_NOTICES, {("certifi", "2026.10.19"): reviewed}):
                 report = collect(root / "accepted", distributions=[dist], python_license=root / "missing")
                 item = report["packages"][0]
                 notices = {f["path"].rsplit("/", 1)[1]: f for f in item["files"] if f.get("kind") == "source-notice"}
                 self.assertEqual(set(notices), {"SOURCE.md", "MPL-2.0.txt"})
                 self.assertEqual(notices["MPL-2.0.txt"]["sha256"], reviewed["texts"]["MPL-2.0.txt"])
-                self.assertIn(b"5379b709be8a8595803a7bd907f87e302fc6ae1d",
+                self.assertIn(b"662df63d7906df66f1f07c0751a3dfe9da14d914",
                               (root / "accepted" / notices["SOURCE.md"]["path"]).read_bytes())
                 self.assertFalse(item["source_notice"]["complete_legal_review"])
                 self.assertNotIn("source-notice-identity-unverified", item["problems"])
@@ -98,13 +98,13 @@ class LicenseEvidenceTests(unittest.TestCase):
             data = b"MZ\r\nnative fixture"
             native.write_bytes(data)
             dist = Distribution(root, "Pillow", [])
-            dist.version = "12.3.0"
-            reviewed = dict(evidence.SOURCE_NOTICES[("pillow", "12.3.0")])
+            dist.version = "13.0.0"
+            reviewed = dict(evidence.SOURCE_NOTICES[("pillow", "13.0.0")])
             reviewed["files"] = {"PIL/_fixture.pyd": hashlib.sha256(data).hexdigest()}
-            with patch.dict(evidence.SOURCE_NOTICES, {("pillow", "12.3.0"): reviewed}):
+            with patch.dict(evidence.SOURCE_NOTICES, {("pillow", "13.0.0"): reviewed}):
                 item = collect(root / "raw", distributions=[dist], python_license=root / "missing")["packages"][0]
                 self.assertEqual([f["path"] for f in item["files"] if f.get("kind")],
-                                 ["packages/pillow/pillow-12.3.0/NOTICE.md"])
+                                 ["packages/pillow/pillow-13.0.0/NOTICE.md"])
                 reviewed["files"] = {"PIL/_fixture.pyd": hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()}
                 item = collect(root / "normalized", distributions=[dist], python_license=root / "missing")["packages"][0]
                 self.assertIn("source-notice-identity-unverified", item["problems"])
@@ -176,8 +176,8 @@ class LicenseEvidenceTests(unittest.TestCase):
         stored = {p.stem for p in (base / "pydantic_core-2.50.1/texts").iterdir()}
         self.assertEqual(referenced, stored)
         expected = {"pystray": ("SOURCE.md", b"1907f8681d6d421517c63d94f425f9cdd74d0034"),
-                    "certifi": ("SOURCE.md", b"5379b709be8a8595803a7bd907f87e302fc6ae1d"),
-                    "pillow": ("NOTICE.md", b"1cca606cd25738df4ed873d5ad46bbdb3d83b5cbca291f6b4ff13a4df6b0bbe8"),
+                    "certifi": ("SOURCE.md", b"662df63d7906df66f1f07c0751a3dfe9da14d914"),
+                    "pillow": ("NOTICE.md", b"9dda0788a9932776a75d8bcc020076edc308ce2508b51f6739a45e3158b3fc42"),
                     "pydantic-core": ("NOTICE.md", b"ac24753c2ed315f8dc22d6470fa868970e3705a0888d879704e872d53f21452d"),
                     "cffi": ("NOTICE.md", b"fd33e7700f0ebafe6f30bd5053f13327221b77a2"),
                     "pywebview": ("WEBBROWSERINTEROP.md", b"2fc63cd6a92b8630c14f6d4dd73f9691591f8eea")}
@@ -188,7 +188,7 @@ class LicenseEvidenceTests(unittest.TestCase):
                     self.assertEqual(hashlib.sha256(data).hexdigest(), digest)
             notice, reference = expected[name]
             self.assertIn(reference, (base / reviewed["folder"] / notice).read_bytes())
-        self.assertIn("FreeType Project".encode(), (base / "pillow-12.3.0/NOTICE.md").read_bytes())
+        self.assertIn("FreeType Project".encode(), (base / "pillow-13.0.0/NOTICE.md").read_bytes())
         libffi = (base / "cffi-2.1.1/LIBFFI-NOTICES.txt").read_bytes()
         self.assertEqual(libffi.count(b"===== src/c/libffi_x86_x64/"), 6)
         self.assertIn(b"Red Hat, Inc.", libffi)

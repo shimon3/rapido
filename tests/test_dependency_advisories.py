@@ -94,7 +94,7 @@ def test_reviewed_constraints_cover_the_saved_windows_inventory():
     import json
     root = Path(__file__).resolve().parents[1]
     pins = read_pins(root/'packaging/constraints-windows-build.txt')
-    inventory = json.loads((root/'docs/beta-build-inventory-20261015.json').read_text())
+    inventory = json.loads((root/'docs/beta-build-inventory-20261023.json').read_text())
     # Exact inventory identity check only, without a live network dependency.
     from scripts.check_dependency_advisories import inventory_packages, pin_problems
     assert pin_problems(inventory_packages(inventory), pins) == []

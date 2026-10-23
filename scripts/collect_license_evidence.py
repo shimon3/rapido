@@ -50,28 +50,28 @@ SOURCE_NOTICES = {
                   'pystray/_win32.py': 'de4a968ac1cd519291fde5b13716446a8e5bd8805ab4d9e428ea2e3d66f37fb5',
                   'pystray/_xorg.py': '01d5a1e99a9611986aa91add5dce60a30adddd01210d7bbdc4741764a1b74dda'},
     },
-    ("certifi", "2026.7.22"): {
-        "folder": "certifi-2026.7.22",
+    ("certifi", "2026.10.19"): {
+        "folder": "certifi-2026.10.19",
         "texts": {"SOURCE.md": None,
                   "MPL-2.0.txt": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"},
-        "files": {'certifi/__init__.py': '7a52e5f4205f9b3d12a31898ceaa7e3f6837d19cc230700bcae1a9d91d1486c1',
+        "files": {'certifi/__init__.py': 'f8ccfc10235998c7edd340f2f305b5f3d71aed978aea82a02af30d7877bee902',
                   'certifi/__main__.py': 'c410688fdd394d45812d118034e71fee88ba7beddd30fe1c1281bd3b232cd758',
-                  'certifi/cacert.pem': '9cc2a774b5198dcff14d9be1e66091f538975d867ce029a96bce15a55dfd730f',
+                  'certifi/cacert.pem': '50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785',
                   'certifi/core.py': '5c55f2727746e697f7edac9e17c377d8752e0da7ecca191531b3b80403d61dad',
                   'certifi/py.typed': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'},
     },
     # Native extension modules: raw bytes, matched to the official PyPI wheel.
-    ("pillow", "12.3.0"): {
-        "folder": "pillow-12.3.0",
+    ("pillow", "13.0.0"): {
+        "folder": "pillow-13.0.0",
         "binary": True,
         "texts": {"NOTICE.md": None},
-        "files": {'PIL/_avif.cp313-win_amd64.pyd': '2e3e5cce3aea38c603680ca3da5d161fad123ce23a803bb692a56aff608989be',
-                  'PIL/_imaging.cp313-win_amd64.pyd': '88756e8e0e3f6180e518da25d379597c861e2d20d716ef001894789b515c1777',
-                  'PIL/_imagingcms.cp313-win_amd64.pyd': '7ecb50b954d13d72b7a0ff565872332443cdbc83a36e58a56b2b949a56f32549',
-                  'PIL/_imagingft.cp313-win_amd64.pyd': 'e94673a471a0b6fd5e92e8b6cdbdfe16e2e91bcf5689e9e4c9b391ab43788d85',
-                  'PIL/_imagingmath.cp313-win_amd64.pyd': '9d5bbea6a877a48ed7995a0640ecb0a5567d9fad544a4a1fbf9f22d507029b57',
-                  'PIL/_imagingtk.cp313-win_amd64.pyd': '8ccd6128481d5a3a15993c2f8a69585694ff972652a6b06dcaee276fc65633a7',
-                  'PIL/_webp.cp313-win_amd64.pyd': '9918faf8d90faa86e03e48479c6a62383be71da759254afded18591a406a92fe'},
+        "files": {'PIL/_avif.cp313-win_amd64.pyd': '6c6e5d33db5ecd8a28252103c97ac7867d376371875b6baa609947d8e778022a',
+                  'PIL/_imaging.cp313-win_amd64.pyd': '832167d2ecd950dc2382a9866e346d5886262bc8790bbf24613f56ad19d52f82',
+                  'PIL/_imagingcms.cp313-win_amd64.pyd': '4ab7b14029ea0a6bdb7f94b069ad3399d53fd192aaeed7460fbabba61d065b76',
+                  'PIL/_imagingft.cp313-win_amd64.pyd': '91f0a8e145163803637620517bad32ad5cb551d8a4dc02c3309811af24dbcbcc',
+                  'PIL/_imagingmath.cp313-win_amd64.pyd': 'd1aafa904aa69eed5008d1ced3b20c049670cd521593d1f0a4ff2ef44f9371cb',
+                  'PIL/_imagingtk.cp313-win_amd64.pyd': 'a7af2e099caae412470919646d5d1cf36566fbed697c4cd44e926029dd2c4ccf',
+                  'PIL/_webp.cp313-win_amd64.pyd': '77ec2f34c0a33151c7b020dfc987163678e1e3428508117ca8cbc68dfb2af2b1'},
     },
     # Rust crates statically linked into the native module; texts are named by
     # their SHA-256 and indexed in crates.json.

@@ -21,13 +21,13 @@ def test_third_party_notice_exposes_evidence_and_copyleft_sources():
         "third-party/payload.json",
         "pystray 0.19.5",
         "COPYING.LGPL",
-        "certifi 2026.7.22",
+        "certifi 2026.10.19",
         "MPL-2.0",
         "proxy_tools 0.1.0",
         "UPSTREAM-LICENSE.txt",
         "not a legal opinion",
         "third-party/source/pystray-0.19.5/",
-        "third-party/source/certifi-2026.7.22/",
+        "third-party/source/certifi-2026.10.19/",
         "Bootloader Exception",
     ):
         assert required in text
