@@ -147,3 +147,109 @@ class BusyInstanceTests(unittest.TestCase):
                 patch.object(desktop, "message_box") as box:
             self.assertEqual(desktop.handle_existing_instance(args()), 1)
         self.assertIn("autre programme", box.call_args.args[0])
+
+
+class PortProbeTests(unittest.TestCase):
+    """already_running() on a real loopback port. Windows reports a refused loopback
+    connection only after ~2 s, so the 1.5 s ping timed out while connecting: the free
+    port was taken for a busy Rapido and every launch ended on a modal message
+    (CI run 39923348850, self-test killed after 4 minutes)."""
+
+    @staticmethod
+    def closed_port_url():
+        import socket
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        return f"http://127.0.0.1:{port}"
+
+    def serve(self, status, body):
+        import http.server
+        import threading
+
+        class Fixed(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Fixed)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return f"http://127.0.0.1:{server.server_address[1]}"
+
+    def probe(self, base):
+        with patch.object(desktop, "BASE_URL", base), patch.object(desktop, "_rapido", None):
+            return desktop.already_running()
+
+    def test_closed_local_port_is_free(self):
+        self.assertIs(self.probe(self.closed_port_url()), False)
+
+    def test_free_port_starts_without_waiting_or_any_message(self):
+        with patch.object(desktop, "BASE_URL", self.closed_port_url()), \
+                patch.object(desktop, "_rapido", None), \
+                patch.object(desktop, "wait_for_running", return_value=False) as wait, \
+                patch.object(desktop, "message_box") as box:
+            self.assertIsNone(desktop.handle_existing_instance(args()))
+        wait.assert_not_called()
+        box.assert_not_called()
+
+    def test_foreign_http_service_is_another_program(self):
+        self.assertEqual(self.probe(self.serve(404, b'{"detail": "Not Found"}')), "other")
+        self.assertEqual(self.probe(self.serve(200, b'{"app": "Other"}')), "other")
+        self.assertEqual(self.probe(self.serve(200, b"<html>")), "other")
+
+    def test_each_failure_phase_is_classified(self):
+        import http.client
+        import socket
+        import urllib.error
+        cases = [
+            # Raised while connecting (urllib wraps them): nothing accepted the connection.
+            (urllib.error.URLError(TimeoutError("timed out")), False),
+            (urllib.error.URLError(ConnectionRefusedError(10061, "refused")), False),
+            (urllib.error.URLError(OSError("network unreachable")), False),
+            # Raised after the connection was accepted (urllib does not wrap them).
+            (TimeoutError("timed out"), "busy"),
+            (socket.timeout("timed out"), "busy"),
+            (ConnectionResetError(10054, "reset"), "other"),
+            (http.client.RemoteDisconnected("closed"), "other"),
+            (urllib.error.HTTPError("http://127.0.0.1:9614/api/ping", 404, "Not Found", {}, None), "other"),
+            (ValueError("not JSON"), "other"),
+        ]
+        for error, expected in cases:
+            with self.subTest(error=repr(error)), patch.object(desktop, "_rapido", None), \
+                    patch("urllib.request.urlopen", side_effect=error):
+                state = desktop.already_running()
+                self.assertEqual((type(state), state), (type(expected), expected))
+
+
+class SelftestDialogTests(unittest.TestCase):
+    """Nobody can click OK on the CI runner: a self-test must never open a modal box."""
+
+    def test_selftest_messages_are_logged_not_shown(self):
+        import io
+        out = io.StringIO()
+        with patch.object(desktop, "_HEADLESS", True), \
+                patch("ctypes.windll", create=True) as windll, \
+                patch("sys.stdout", out):
+            desktop.message_box("Rapido ne peut pas demarrer.", True)
+        windll.user32.MessageBoxW.assert_not_called()
+        self.assertIn("Rapido ne peut pas demarrer.", out.getvalue())
+
+    def test_normal_launch_still_shows_the_message(self):
+        with patch.object(desktop, "_HEADLESS", False), patch("ctypes.windll", create=True) as windll:
+            desktop.message_box("info")
+        windll.user32.MessageBoxW.assert_called_once()
+
+    def test_main_enables_headless_mode_for_the_selftest_only(self):
+        import inspect
+        source = inspect.getsource(desktop.main)
+        self.assertIn("_HEADLESS = bool(args.selftest)", source)
+        self.assertLess(source.index("_HEADLESS = bool(args.selftest)"),
+                        source.index("handle_existing_instance(args)"))

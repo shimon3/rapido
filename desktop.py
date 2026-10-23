@@ -29,6 +29,7 @@ from pathlib import Path
 PORT = 9614
 BASE_URL = f"http://127.0.0.1:{PORT}"
 _rapido = None
+_HEADLESS = False      # --selftest : personne ne peut cliquer sur OK (compilation)
 
 WEBVIEW2_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 
@@ -37,6 +38,9 @@ WEBVIEW2_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 # runners intermittently exceeded 30 s (loaded fired between 30 and 50 s).
 SELFTEST_FIRST_LOAD_TIMEOUT = 90
 SELFTEST_POPUP_LOAD_TIMEOUT = 30
+# A normal self-test takes ~25 s; past this delay, and then again every time it
+# elapses, rapido.log receives the stack of every thread (the CI step stops at 4 min).
+SELFTEST_STALL_DUMP = 100
 
 
 def parse_args():
@@ -49,6 +53,10 @@ def parse_args():
 
 
 def message_box(text: str, error: bool = False):
+    if _HEADLESS:
+        # Une boite modale attendrait un clic indefiniment : le self-test serait tue sans resultat.
+        print("message:", text, flush=True)
+        return
     try:
         import ctypes
         ctypes.windll.user32.MessageBoxW(None, text, "Rapido", 0x10 if error else 0x40)
@@ -97,13 +105,21 @@ def already_running():
     "busy" = quelque chose accepte la connexion mais repond trop lentement (souvent Rapido
     occupe : il ne faut pas annoncer « un autre programme »)."""
     try:
-        return True if api("/api/ping", timeout=1.5).get("app") == "Rapido" else "other"
-    except urllib.error.URLError as e:
-        return "busy" if isinstance(e.reason, TimeoutError) else False
+        reply = api("/api/ping", timeout=1.5)
+    except urllib.error.HTTPError:
+        # Un serveur HTTP a repondu, mais Rapido ne refuse jamais /api/ping.
+        return "other"
+    except urllib.error.URLError:
+        # Erreur pendant la connexion (urllib l'enveloppe) : rien ne l'a acceptee. Windows ne
+        # signale un refus en boucle locale qu'apres ~2 s, donc un port libre finit ici par un
+        # delai depasse. Si le port est pris malgre tout, la reservation exclusive refusera.
+        return False
     except TimeoutError:
+        # Connexion acceptee puis pas de reponse a temps (urllib ne l'enveloppe pas).
         return "busy"
     except Exception:
         return "other"
+    return True if isinstance(reply, dict) and reply.get("app") == "Rapido" else "other"
 
 
 def handle_existing_instance(args):
@@ -184,17 +200,32 @@ def setup_logging(data_dir: Path):
 
 
 def main() -> int:
-    global _rapido
+    global _rapido, _HEADLESS
     args = parse_args()
+    _HEADLESS = bool(args.selftest)
     if args.selftest and not os.environ.get("RAPIDO_DATA"):
         os.environ["RAPIDO_DATA"] = tempfile.mkdtemp(prefix="rapido-selftest-")
     data_dir = Path(os.environ.get("RAPIDO_DATA", Path.home() / ".rapido"))
     setup_logging(data_dir)
 
+    trace = None
+    if args.selftest:
+        trace = SelftestTrace(args.selftest_out or Path(tempfile.gettempdir()) / "rapido-selftest.json")
+        trace.watch_for_stalls()
+        trace.phase("instance-check")
+
+    def stopped(code: int, reason: str) -> int:
+        """Self-test: record why Rapido stopped before its windows, then stop the stack dumps."""
+        if trace is not None:
+            trace.result["exit_code"] = code
+            trace.phase(reason)
+            trace.stop_watching()
+        return code
+
     # ----- une seule instance : on reveille celle qui tourne deja -----
     code = handle_existing_instance(args)
     if code is not None:
-        return code
+        return stopped(code, "instance-already-running")
 
     # WebView authorization must reach our owned listener directly, never a proxy.
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--no-proxy-server"
@@ -210,6 +241,8 @@ def main() -> int:
         rapido.manager.settings["show_complete_dialog"] = False
 
     # ----- serveur en arriere-plan -----
+    if trace is not None:
+        trace.phase("server-starting")
     server = uvicorn.Server(uvicorn.Config(rapido.app, host="127.0.0.1", port=PORT,
                                            log_level="warning", access_log=False))
     # Claim the port exclusively before any window can add authorization headers.
@@ -224,9 +257,9 @@ def main() -> int:
         listener.close()
         # Lance deux fois tres vite : l'autre instance a pris le port entre-temps.
         if wait_for_running(time.monotonic() + START_WAIT):
-            return defer_to_running(args)
+            return stopped(defer_to_running(args), "instance-already-running")
         message_box("Le port local n'a pas pu etre reserve exclusivement.", True)
-        return 1
+        return stopped(1, "port-unavailable")
     server_thread = threading.Thread(target=lambda: server.run(sockets=[listener]),
                                      name="rapido-server", daemon=True)
     server_thread.start()
@@ -241,7 +274,9 @@ def main() -> int:
         _rapido = None
         message_box("Le serveur de Rapido n'a pas pu demarrer.\n"
                     f"Details dans : {data_dir / 'rapido.log'}", True)
-        return 1
+        return stopped(1, "server-failed")
+    if trace is not None:
+        trace.phase("server-started")
 
     # ----- fenetres -----
     quitting = threading.Event()
@@ -363,9 +398,11 @@ def main() -> int:
     if not args.selftest:
         tray = rapido.run_tray(show_main, quit_all)
 
-    result = {"ok": False}
+    result = trace.result if trace is not None else {"ok": False}
 
     def on_start():
+        if trace is not None:
+            trace.phase("gui-started")
         if webview.renderer != "edgechromium":
             message_box("Rapido a besoin de Microsoft Edge WebView2 (inclus dans Windows 10 et 11 a jour).\n\n"
                         "La page de telechargement va s'ouvrir : installe-le puis relance Rapido.", True)
@@ -374,12 +411,17 @@ def main() -> int:
             quit_all()
             return
         if args.selftest:
-            run_selftest(main_win, open_popup, result, main_timeline)
+            run_selftest(main_win, open_popup, result, main_timeline, trace=trace)
+            trace.phase("closing-windows")
             quit_all()
 
+    if trace is not None:
+        trace.phase("gui-starting")
     try:
         webview.start(on_start, private_mode=True, storage_path=webview_storage(data_dir))
     finally:
+        if trace is not None:
+            trace.phase("gui-stopped")
         quitting.set()
         popup_tasks.stop()
         if tray is not None:
@@ -395,8 +437,8 @@ def main() -> int:
         _rapido = None
 
     if args.selftest:
-        out = args.selftest_out or str(Path(tempfile.gettempdir()) / "rapido-selftest.json")
-        Path(out).write_text(json.dumps(result, indent=2, ensure_ascii=False), "utf-8")
+        trace.phase("finished")          # also writes the final result
+        trace.stop_watching()
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0 if result.get("ok") else 1
     return 0
@@ -670,16 +712,66 @@ def wait_main_loaded(main_win, result: dict, timeline: dict | None = None,
     return loaded
 
 
-def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None = None):
+class SelftestTrace:
+    """Self-test only: timestamped phases, with the result file rewritten after each one.
+
+    If Rapido stalls, the CI still finds the last phase reached in the result file and
+    the stacks of every Python thread in rapido.log. Only phase names and durations are
+    added; never URLs, tokens or file contents (CI run 39923348850 left no trace)."""
+
+    def __init__(self, out, clock=time.monotonic):
+        self.out = Path(out)
+        self.clock = clock
+        self.start = clock()
+        self.result = {"ok": False, "phase": "", "phases": []}
+        self._lock = threading.Lock()
+
+    def phase(self, name: str):
+        with self._lock:
+            t = round(self.clock() - self.start, 2)
+            self.result["phase"] = name
+            self.result["phases"].append({"name": name, "t": t})
+            print(f"selftest [{t:7.2f} s] {name}", flush=True)
+            self.save()
+
+    def save(self):
+        """Atomic: the CI never reads a half-written file, even if Rapido is killed."""
+        tmp = self.out.with_name(self.out.name + ".tmp")
+        try:
+            tmp.write_text(json.dumps(self.result, indent=2, ensure_ascii=False), "utf-8")
+            os.replace(tmp, self.out)
+        except OSError as e:
+            print("selftest: resultat non ecrit :", e, flush=True)
+
+    def watch_for_stalls(self, every: float = SELFTEST_STALL_DUMP) -> bool:
+        """Dump every thread's stack to stderr (rapido.log) every `every` s until stopped."""
+        import faulthandler
+        try:
+            faulthandler.dump_traceback_later(every, repeat=True, file=sys.stderr)
+            return True
+        except Exception as e:     # stderr without a file descriptor
+            print("selftest: diagnostic de blocage indisponible :", e, flush=True)
+            return False
+
+    def stop_watching(self):
+        import faulthandler
+        faulthandler.cancel_dump_traceback_later()
+
+
+def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None = None,
+                 trace: SelftestTrace | None = None):
     """Verifie la fenetre, le moteur de telechargement, yt-dlp et les petites fenetres."""
     import webview
+    mark = trace.phase if trace is not None else (lambda name: None)
     try:
         result["renderer"] = webview.renderer
+        mark("main-window")
         wait_main_loaded(main_win, result, main_timeline)
         time.sleep(1.5)
         result["main_title"] = main_win.evaluate_js("document.title")
         result["main_rows_html"] = main_win.evaluate_js("document.querySelector('#thead') !== null")
 
+        mark("download")
         dl = api("/api/downloads", {"url": BASE_URL + "/favicon.ico", "filename": "selftest.png"})[0]
         status = ""
         for _ in range(100):
@@ -695,6 +787,7 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         import yt_dlp
         result["yt_dlp"] = yt_dlp.version.__version__
 
+        mark("popup")
         popup = open_popup(f"/w?view=progress&id={dl['id']}", 520, 360)
         result["popup_loaded"] = popup.events.loaded.wait(SELFTEST_POPUP_LOAD_TIMEOUT)
         time.sleep(1.5)
@@ -704,8 +797,10 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         popup.evaluate_js("resize(600, 400)")
         time.sleep(1.5)
         result["popup_resized"] = abs(popup.width - 600) <= 20
+        mark("confirmations")
         result["main_confirmations"] = check_confirmation_ui(main_win, dl['id'])
         result["popup_confirmations"] = check_confirmation_ui(popup, dl['id'], popup=True)
+        mark("security")
         result["csp"] = "script-src 'sha256-" in urllib.request.urlopen(BASE_URL + "/").headers.get(
             "Content-Security-Policy", "")
         # securite : un site web ne doit pas pouvoir piloter Rapido
@@ -713,6 +808,7 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
             BASE_URL + "/api/show", data=b"{}", method="POST",
             headers={"Content-Type": "application/json", "Origin": "https://evil.example"}), timeout=3)
         # yt-dlp tourne dans un processus separe (sinon Rapido gele pendant l'analyse YouTube)
+        mark("yt-dlp")
         import asyncio
         import app as rapido
         fut = asyncio.run_coroutine_threadsafe(rapido.manager._yt_process(
@@ -729,6 +825,7 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         result["motw_ok"] = b"ZoneId=3\r\n" in raw and b"\r\r" not in raw
         result["settings_desktop"] = api("/api/settings").get("desktop")
 
+        mark("webview-auth")
         # Exercise native WebView2 header authentication without an exposed JS token.
         main_win.evaluate_js("api('/api/settings').then(s=>window._nativeAuthProbe=s.desktop).catch(()=>window._nativeAuthProbe=false); true")
         for _ in range(30):
@@ -742,6 +839,7 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
             req = urllib.request.Request(BASE_URL+path, data=None if body is None else json.dumps(body).encode(),
                 method="GET" if body is None else "POST", headers={"Content-Type":"application/json"})
             result["unauthenticated_api"] &= forbidden_response(req, timeout=2)
+        mark("native-host")
         # The actual packaged native host must authenticate the actual desktop pipe.
         import subprocess, struct
         def native_message(value):
@@ -780,6 +878,7 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
 
 
 
+        mark("checks-done")
         result["ok"] = bool(
             result["renderer"] == "edgechromium" and result["main_loaded"] and result["main_url_ok"]
             and result["main_title"] == "Rapido" and status == "completed" and result["download_file_ok"]
@@ -793,6 +892,7 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
     except Exception as e:
         import traceback
         result["error"] = "".join(traceback.format_exception(e))[-2000:]
+        mark("error")
 
 
 if __name__ == "__main__":
