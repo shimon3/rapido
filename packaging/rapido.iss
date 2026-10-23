@@ -2,11 +2,11 @@
 ; Compile par GitHub Actions :  ISCC.exe /DAppVersion=1.0.0 packaging\rapido.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.3.0-beta.1"
+  #define AppVersion "1.3.0-beta.2"
 #endif
 ; Windows exige 4 entiers : voir rapido_version.dotted (beta N -> .N, finale -> .100)
 #ifndef AppFileVersion
-  #define AppFileVersion "1.3.0.1"
+  #define AppFileVersion "1.3.0.2"
 #endif
 ; Dossier du payload deja signe et verifie (la repetition CI en passe une copie).
 #ifndef PayloadDir

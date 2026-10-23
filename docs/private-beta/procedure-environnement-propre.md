@@ -16,12 +16,12 @@ Durée : environ 1 h 30 par système (préparation comprise).
    workflow *Windows build*).
 2. Copier le bloc **SHA-256** du résumé du job (*Summary*). C'est la
    référence, enregistrée par GitHub indépendamment des fichiers.
-3. Télécharger l'artefact `UNPUBLISHED-Rapido-1.3.0-beta.1-windows` (il
+3. Télécharger l'artefact `UNPUBLISHED-Rapido-1.3.0-beta.2-windows` (il
    **expire après 14 jours**). Conserver le ZIP dans un dossier d'archive.
 4. Vérifier `SHA256SUMS.txt` contre le résumé du job :
 
    ```powershell
-   Get-FileHash .\Rapido-Setup-1.3.0-beta.1.exe, .\Rapido-1.3.0-beta.1-portable.zip -Algorithm SHA256
+   Get-FileHash .\Rapido-Setup-1.3.0-beta.2.exe, .\Rapido-1.3.0-beta.2-portable.zip -Algorithm SHA256
    ```
 
 5. Noter le commit et le numéro du run dans `checklist-windows.md`.

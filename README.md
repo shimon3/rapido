@@ -47,7 +47,7 @@ Every `/api/` route except the non-sensitive `/api/ping` requires a per-process 
 
 Get the latest **`Rapido-Setup-x.y.z.exe`** from the [Releases page](https://github.com/shimon3/rapido/releases/latest) and run it. It installs per user, so no administrator rights are needed, and adds Start-menu and desktop shortcuts, an uninstaller and an optional "start with Windows" setting.
 
-> The `1.3.0-beta.1` candidate in PR #34/#35 is not an official release. GitHub Actions artifacts named `UNPUBLISHED-*` are test evidence only: do not distribute them or bypass SmartScreen to install them.
+> The `1.3.0-beta.2` candidate is not an official release. GitHub Actions artifacts named `UNPUBLISHED-*` are test evidence only: do not distribute them or bypass SmartScreen to install them.
 
 A portable `.zip` is also attached to each release: unzip it and run `Rapido.exe`.
 

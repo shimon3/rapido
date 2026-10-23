@@ -1,6 +1,6 @@
 # Bêta privée non signée — conditions de distribution
 
-Périmètre : Rapido 1.3.0-beta.1, installateur et ZIP **non signés**, remis
+Périmètre : Rapido 1.3.0-beta.2, installateur et ZIP **non signés**, remis
 personnellement à **2 à 5 testeurs externes nommés**. Ce n'est ni une release
 GitHub, ni un lien public.
 

@@ -1,4 +1,4 @@
-# Rapido 1.3.0-beta.1 — limites de sécurité d'une version non signée
+# Rapido 1.3.0-beta.2 — limites de sécurité d'une version non signée
 
 À lire **avant** d'installer. Cette version est une bêta privée, remise
 personnellement à 2 à 5 testeurs. Ce n'est pas une version publique.

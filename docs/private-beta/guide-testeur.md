@@ -1,4 +1,4 @@
-# Guide du testeur — Rapido 1.3.0-beta.1 (bêta privée)
+# Guide du testeur — Rapido 1.3.0-beta.2 (bêta privée)
 
 Durée : environ 30 minutes pour l'installation et les tests de base.
 Configuration : Windows 10 (22H2) ou Windows 11, avec Chrome, Edge ou Firefox.
@@ -10,13 +10,13 @@ Lisez d'abord la notice de sécurité :
 
 Samuel vous envoie :
 
-- le fichier `Rapido-Setup-1.3.0-beta.1.exe` ;
+- le fichier `Rapido-Setup-1.3.0-beta.2.exe` ;
 - **par un autre moyen** (SMS, appel, autre messagerie), son empreinte SHA-256.
 
 Dans le menu Démarrer, ouvrez **PowerShell**, puis tapez (adaptez le chemin) :
 
 ```powershell
-Get-FileHash "$env:USERPROFILE\Downloads\Rapido-Setup-1.3.0-beta.1.exe" -Algorithm SHA256
+Get-FileHash "$env:USERPROFILE\Downloads\Rapido-Setup-1.3.0-beta.2.exe" -Algorithm SHA256
 ```
 
 Comparez la ligne `Hash` avec l'empreinte reçue, caractère par caractère, ou

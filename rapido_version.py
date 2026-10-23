@@ -6,7 +6,7 @@ pour qu'une finale soit toujours plus recente que ses betas.
 """
 import re
 
-VERSION = "1.3.0-beta.1"
+VERSION = "1.3.0-beta.2"
 
 FINAL_BUILD = 100
 _PATTERN = re.compile(r"v?(\d{1,5})\.(\d{1,5})\.(\d{1,5})(?:-beta\.([1-9]\d?))?")

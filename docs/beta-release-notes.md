@@ -1,11 +1,46 @@
-# Rapido 1.3.0-beta.1 — notes de bêta (brouillon)
+# Rapido 1.3.0-beta.2 — notes de bêta (brouillon)
 
-Brouillon préparé le 15 octobre 2026. Cette bêta n'est **pas publiée** : la
+Brouillon préparé le 15 octobre 2026, complété le 23 octobre 2026 pour la 1.3.0-beta.2. Cette bêta n'est **pas publiée** : la
 publication exige une identité Authenticode approuvée, la signature et la
 vérification des exécutables et de l'installateur, la revue des licences, les
 essais du candidat exact sur Windows 10/11 et l'autorisation explicite du
 propriétaire. Un tag seul ne peut plus publier : le workflow conserve le garde
 `publishable=false` jusqu'à une modification de signature relue.
+
+## Nouveautés de la 1.3.0-beta.2
+
+Corrections de fiabilité et de sécurité ; aucune nouvelle fonction.
+
+- **Vos fichiers sont protégés.** Un téléchargement ne remplace plus jamais un
+  fichier existant du même nom : il prend un autre nom (`fichier (1).zip`).
+  Supprimer un téléchargement inachevé n'efface plus un fichier qui porte
+  simplement le même nom. Deux téléchargements du même nom ne se mélangent plus.
+- **Reprise plus sûre.** Si le fichier partiel a été abîmé ou raccourci entre la
+  pause et la reprise, le téléchargement recommence au lieu de produire un
+  fichier faux. Les fichiers vides (0 octet) se téléchargent.
+- **Historique et réglages préservés.** Un fichier illisible ou momentanément
+  verrouillé par un antivirus n'est plus écrasé : une copie
+  `….unreadable-<date>` est gardée. Ne joignez jamais ces copies à un
+  signalement (elles contiennent l'historique).
+- **Rapido reste réactif** avec un gros historique, quand on colle beaucoup de
+  liens, pendant une demande d'autorisation Windows à l'ouverture d'un
+  programme, ou quand un antivirus analyse ses fichiers.
+- **Fermeture brutale.** Si Rapido est arrêté de force, ses téléchargements
+  vidéo en cours s'arrêtent avec lui au lieu de continuer en arrière-plan.
+- **Dossiers temporaires.** Le moteur d'affichage (WebView2) utilise un dossier
+  fixe dans `%USERPROFILE%\.rapido\WebView2` au lieu d'en créer un nouveau dans
+  `%TEMP%` à chaque démarrage.
+- **Confidentialité.** Les fichiers de cookies temporaires laissés par une
+  analyse vidéo interrompue sont supprimés au démarrage.
+- **Deuxième lancement.** Si Rapido est occupé, un deuxième lancement attend puis
+  ramène la fenêtre, au lieu d'annoncer à tort « port utilisé par un autre
+  programme ».
+- **Désinstallation.** Les clés de registre vides laissées pour les navigateurs
+  sont supprimées. Les extensions ajoutées aux navigateurs restent à retirer
+  à la main.
+
+À vérifier en priorité pendant la bêta : ces points n'ont été testés qu'en
+automatique, pas encore sur Windows 10/11 réels avec cette version.
 
 ## Ce qu'est cette bêta
 
@@ -68,5 +103,5 @@ Rapido est publié sous licence MIT, © 2026 Samuel Bentouza.
 ## Signaler un problème
 
 https://github.com/shimon3/rapido/issues — indiquer la version de Windows, le
-navigateur, la version de Rapido (1.3.0-beta.1) et les étapes pour reproduire.
+navigateur, la version de Rapido (1.3.0-beta.2) et les étapes pour reproduire.
 Ne jamais joindre de cookies, d'URL signées ni de fichier `downloads.json`.
