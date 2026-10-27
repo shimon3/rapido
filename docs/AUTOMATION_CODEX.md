@@ -36,17 +36,23 @@ The loop remains inactive unless **all** of these steps are completed:
    protection in the next step is active. This workflow contains no approval or
    merge command.
 3. Protect both `main` and `automation/rapido-beta2-20261027` with a pull
-   request, one approval, the `build` check, resolved conversations, and rules
-   blocking deletion and force-push. Do not grant Actions any bypass. The sole
-   owner can approve a proposal authored by `github-actions[bot]`; for a
-   self-authored PR, configure the owner as a bypass actor limited to **pull
-   requests only**, which still blocks direct pushes. Keep auto-merge disabled.
-   This is necessary because the publisher needs `contents:write` to push its
-   fix branch, and GitHub's PR merge API accepts that permission. Zero required
-   approvals would therefore leave a path for a changed or compromised
-   publisher token to merge a ready PR. The workflow creates drafts, verifies
-   the author/base/head/draft state and absence of auto-merge after publication,
-   and contains no approval, ready, or merge command.
+   request, required `build` check, resolved conversations, and rules blocking
+   deletion and force-push. Require **Code Owner approval**, not only one
+   generic approval. Put only the repository owner in `CODEOWNERS`, and verify
+   that this file is present on both target branches. This matters because
+   GitHub couples permission to create PRs with permission to approve PRs, and
+   the publisher has `pull-requests:write`; a compromised publisher could
+   approve a human-authored PR if ordinary approval alone were the gate. The
+   bot is not a Code Owner, so its review cannot satisfy this rule. Do not grant
+   Actions any ruleset bypass. The sole owner can approve a proposal authored
+   by `github-actions[bot]`; for a self-authored PR, configure the owner as a
+   bypass actor limited to **pull requests only**, which still blocks direct
+   pushes. Keep auto-merge disabled. The publisher also needs `contents:write`
+   to push its fix branch, and GitHub's PR merge API accepts that permission.
+   The workflow creates drafts, verifies the author/base/head/draft state and
+   absence of auto-merge after publication, and contains no approval, ready,
+   or merge command. These workflow checks are defense in depth; branch rules
+   must independently prevent the bot from satisfying the review gate.
 4. Create a dedicated OpenAI API project, explicitly select an approved Codex
    model and CLI version, and configure a small project hard spend limit plus
    alerts. The workflow allows at most three Codex sessions per rolling 24-hour
@@ -77,8 +83,9 @@ The loop remains inactive unless **all** of these steps are completed:
   mark a proposal ready, approve, or merge it. This hardening is in the current
   PR head and must pass CI before review.
 - The current branch rules still require zero approvals and give no bypass.
-  The one-approval and owner-only pull-request bypass configuration is a
-  required owner-side activation step, not yet applied.
+  Owner-only Code Owner review, `CODEOWNERS` coverage on both target branches,
+  and owner-only pull-request bypass for self-authored PRs are required
+  owner-side activation steps, not yet applied.
 - No API key was configured or used; the Codex, publication and dispatch jobs
   remained skipped.
 

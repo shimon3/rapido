@@ -104,3 +104,15 @@ def test_publisher_does_not_write_to_the_persistent_issue_log():
     report = source.split("\n  report_published:\n", 1)[1].split("\n  dispatch_validation:\n", 1)[0]
     assert "issues: write" not in publish
     assert "issues: write" in report
+
+
+def test_activation_requires_owner_codeowner_review_not_generic_approval():
+    guide = (ROOT / "docs" / "AUTOMATION_CODEX.md").read_text(encoding="utf-8")
+    activation = guide.split("## Activation checklist", 1)[1].split(
+        "## Current review checkpoint", 1
+    )[0]
+    assert "Require **Code Owner approval**" in activation
+    assert "present on both target branches" in activation
+    assert "compromised publisher could" in activation
+    assert "Do not grant" in activation and "Actions any ruleset bypass" in activation
+    assert "one approval" not in activation
