@@ -1,0 +1,177 @@
+name: Rapido beta2 periodic validation dispatcher
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/rapido-beta2-scheduler.yml
+
+# Read-only by default. Only the dispatch job may start another workflow; no
+# job can write repository contents, merge pull requests, create tags, or
+# publish releases.
+permissions:
+  contents: read
+
+concurrency:
+  group: rapido-beta2-periodic-dispatch
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: automation/rapido-beta2-20261027
+  TARGET_BASE: public/1.3.0-beta.2
+  TARGET_PR: "38"
+  VALIDATION_WORKFLOW: windows.yml
+  # Git blob ID of .github/workflows/windows.yml on the reviewed target branch.
+  # A change to executable workflow permissions or steps stops scheduling until
+  # an owner reviews and updates this value on main.
+  EXPECTED_WORKFLOW_BLOB: df0693abcc95feefb607483aae368b3a3f51d8c9
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      head_sha: ${{ steps.verify.outputs.head_sha }}
+    steps:
+      - name: Verify immutable dispatch contract
+        id: verify
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          head_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${TARGET_BRANCH}" --jq '.object.sha')"
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}")"
+
+          jq -e \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg head "$TARGET_BRANCH" \
+            --arg base "$TARGET_BASE" \
+            --arg sha "$head_sha" \
+            '.state == "open" and .draft == true and
+             .head.repo.full_name == $repository and .head.ref == $head and
+             .head.sha == $sha and .base.ref == $base' \
+            <<<"$pr_json" >/dev/null
+
+          workflow_blob="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/contents/.github/workflows/${VALIDATION_WORKFLOW}?ref=${head_sha}" \
+            --jq '.sha')"
+          if [[ "$workflow_blob" != "$EXPECTED_WORKFLOW_BLOB" ]]; then
+            echo "::error::Target validation workflow changed; owner review is required."
+            exit 1
+          fi
+
+          encoded_base="${TARGET_BASE//\//%2F}"
+          ancestry="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/compare/${encoded_base}...${head_sha}" \
+            --jq '.status')"
+          if [[ "$ancestry" != "ahead" && "$ancestry" != "identical" ]]; then
+            echo "::error::Target is not a descendant of the approved beta base."
+            exit 1
+          fi
+
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Rapido beta2 dispatch guard"
+            echo "- Target: \`${TARGET_BRANCH}\` at \`${head_sha}\`"
+            echo "- Base ancestry: \`${ancestry}\`"
+            echo "- Workflow blob: \`${workflow_blob}\`"
+            if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+              echo "- PR validation only: no workflow was dispatched."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  dispatch:
+    needs: guard
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Dispatch guarded beta validation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GUARDED_HEAD_SHA: ${{ needs.guard.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+
+          # Re-check the complete contract in the only job holding actions:write.
+          # This narrows the branch-move window between the read-only guard and
+          # the workflow-dispatch request.
+          current_head="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/git/ref/heads/${TARGET_BRANCH}" \
+            --jq '.object.sha')"
+          if [[ "$current_head" != "$GUARDED_HEAD_SHA" ]]; then
+            echo "::error::Target branch moved after the guard completed."
+            exit 1
+          fi
+
+          current_pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}")"
+          jq -e \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg head "$TARGET_BRANCH" \
+            --arg base "$TARGET_BASE" \
+            --arg sha "$GUARDED_HEAD_SHA" \
+            '.state == "open" and .draft == true and
+             .head.repo.full_name == $repository and .head.ref == $head and
+             .head.sha == $sha and .base.ref == $base' \
+            <<<"$current_pr" >/dev/null
+
+          current_blob="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/contents/.github/workflows/${VALIDATION_WORKFLOW}?ref=${GUARDED_HEAD_SHA}" \
+            --jq '.sha')"
+          if [[ "$current_blob" != "$EXPECTED_WORKFLOW_BLOB" ]]; then
+            echo "::error::Target validation workflow changed after the guard."
+            exit 1
+          fi
+
+          runs="$(gh api -X GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/${VALIDATION_WORKFLOW}/runs" \
+            -f branch="$TARGET_BRANCH" -f per_page=30)"
+
+          active="$(jq '[.workflow_runs[] | select(
+            .status == "queued" or .status == "in_progress" or
+            .status == "pending" or .status == "waiting" or
+            .status == "requested")] | length' <<<"$runs")"
+          if (( active > 0 )); then
+            echo "A validation is already active; dispatch skipped." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          cutoff="$(date -u -d '24 hours ago' +'%Y-%m-%dT%H:%M:%SZ')"
+          recent="$(jq --arg cutoff "$cutoff" '[.workflow_runs[] | select(
+            .event == "workflow_dispatch" and .created_at >= $cutoff)] | length' <<<"$runs")"
+          if (( recent >= 8 )); then
+            echo "Eight dispatch validations already ran in 24 hours; cost guard stopped this run." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          dispatch_head="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/git/ref/heads/${TARGET_BRANCH}" \
+            --jq '.object.sha')"
+          if [[ "$dispatch_head" != "$GUARDED_HEAD_SHA" ]]; then
+            echo "::error::Target branch moved immediately before dispatch."
+            exit 1
+          fi
+
+          gh api -X POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/${VALIDATION_WORKFLOW}/dispatches" \
+            -f ref="$TARGET_BRANCH"
+
+          {
+            echo "Dispatched \`${VALIDATION_WORKFLOW}\` for \`${TARGET_BRANCH}\`."
+            echo "Guarded head at dispatch time: \`${GUARDED_HEAD_SHA}\`."
+            echo "Dispatches observed in the preceding 24 hours: $((recent + 1))/8."
+          } >> "$GITHUB_STEP_SUMMARY"
