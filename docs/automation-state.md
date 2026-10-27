@@ -58,6 +58,19 @@ Last updated: 2026-10-27
   `076c85258efb8c356e29a1351f58235554bf5f92c63331ff1f009f41150c264e`.
 - The release job was skipped; no release or production signature was created.
 
+## CI reliability follow-up
+
+- Dependabot PR #45 exposed an intermittent test failure in
+  `test_sauvegarde_de_progression_ne_bloque_pas_la_boucle_si_le_fichier_est_verrouille`.
+- Confirmed cause: the test monkeypatched `engine.time.sleep`, which mutates the
+  process-wide standard-library `time` module. A surviving clipboard thread
+  could therefore append unrelated 0.8-second sleeps to the test observation.
+- The production save path already requests exactly one replacement attempt.
+  The regression test now observes that explicit `attempts=1` contract without
+  changing global time or running Rapido.
+- Retry counter for this root cause: attempt 1 of 3 is pending full isolated
+  Windows CI validation.
+
 ## Local preparation checks
 
 - `git diff --check`: passed.
@@ -94,6 +107,6 @@ Last updated: 2026-10-27
 
 ## Next action
 
-Keep the validated source frozen. Review the exact-candidate evidence, prepare
-the Windows 10/11 and Chromium manual gates, and do not publish or sign without
-explicit owner approval.
+Validate the test-isolation correction in the complete Windows workflow. Then
+review the exact-candidate evidence, prepare the Windows 10/11 and Chromium
+manual gates, and do not publish or sign without explicit owner approval.

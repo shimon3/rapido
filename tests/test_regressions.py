@@ -912,15 +912,19 @@ def test_sauvegarde_de_progression_ne_bloque_pas_la_boucle_si_le_fichier_est_ver
     elle ne doit pas attendre la fin de l'analyse antivirus sur la boucle du serveur."""
     m = engine.Manager(tmp_path, port=0)
     m.add("http://127.0.0.1:9/a.zip", "a.zip", later=True)
-    verrou = _VerrouEtat(monkeypatch, 10_000)
-    attentes = []
-    # Pas de seuil de duree (l'ecriture elle-meme peut prendre ~250 ms sous antivirus) :
-    # on verifie directement qu'aucune attente n'a eu lieu et qu'il n'y a qu'un essai.
-    monkeypatch.setattr(engine.time, "sleep", attentes.append)
+    essais = []
+
+    def remplacement_verrouille(src, dst, attempts=12):
+        essais.append(attempts)
+        raise PermissionError(13, "fichier verrouille", str(dst))
+
+    # Ne pas remplacer time.sleep sur le module standard global : un thread de
+    # presse-papiers encore actif dans un autre test peut l'appeler et rendre
+    # cette assertion aleatoire. Le contrat recherche est exactement un essai.
+    monkeypatch.setattr(engine, "_replace_retrying", remplacement_verrouille)
     m._last_save = 0.0
     m.save()                       # sauvegarde de progression, non forcee
-    assert attentes == [], "aucune attente sur la boucle du serveur"
-    assert verrou.vus == 1, "un seul essai"
+    assert essais == [1], "un seul essai, donc aucune attente de retry"
 
 
 def test_etat_complet_rapide_et_identique_avec_un_gros_historique(api):
