@@ -8,15 +8,16 @@ on `automation/rapido-beta2-20261027` or on the loop's own draft-fix branch.
 
 The loop can inspect bounded failed-job logs, ask Codex to edit an isolated
 checkout, validate the resulting text patch, push a dedicated fix branch, open
-or update a **draft** pull request targeting the beta automation branch, and
-dispatch that branch's approved Windows validation workflow.
+or update a **draft** pull request targeting the beta automation branch. A
+third job, with `actions: write` but no checkout, write access to contents, or
+OpenAI key, revalidates the draft and dispatches its approved Windows workflow.
 
 It cannot write to `main`, target `main` with its generated PR, merge a PR,
 create a tag, publish a release, use production signing credentials, or change
 workflows, packaging, dependencies, versions, licenses, or release controls.
 Codex runs without Git credentials and with read-only GitHub permissions. A
 separate deterministic publisher receives only the bounded patch after two
-policy checks.
+policy checks; it cannot dispatch workflows.
 
 Each failure lineage is limited to three reserved attempts. The entire
 repository is also limited to three Codex attempts in a rolling 24-hour window.

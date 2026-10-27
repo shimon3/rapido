@@ -272,10 +272,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      actions: write
       contents: write
       issues: write
       pull-requests: write
+    outputs:
+      fix_branch: ${{ steps.publish.outputs.fix_branch }}
+      fix_sha: ${{ steps.publish.outputs.fix_sha }}
+      pr_url: ${{ steps.publish.outputs.pr_url }}
     steps:
       - name: Checkout trusted control files
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -292,6 +295,7 @@ jobs:
           path: target
 
       - name: Revalidate, commit, and open or update a draft PR
+        id: publish
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -327,6 +331,8 @@ jobs:
           git -C target config user.name "rapido-codex-autofix[bot]"
           git -C target config user.email "rapido-codex-autofix[bot]@users.noreply.github.com"
           git -C target commit -m "fix: guarded Codex attempt $ATTEMPT for run $ROOT_RUN_ID"
+          fix_sha=$(git -C target rev-parse HEAD)
+          [[ "$fix_sha" =~ ^[0-9a-f]{40}$ ]]
 
           git -C target remote set-url origin \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -363,13 +369,69 @@ jobs:
             gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" --body-file pr-body.md
           fi
 
+          {
+            echo "fix_branch=$fix_branch"
+            echo "fix_sha=$fix_sha"
+            echo "pr_url=$pr_url"
+          } >> "$GITHUB_OUTPUT"
+
           status_body="<!-- rapido-codex-autofix-status root=$ROOT_RUN_ID attempt=$ATTEMPT -->
 
-          Published draft proposal: $pr_url. An explicit read-only Windows validation was requested."
+          Published draft proposal: $pr_url. The isolated dispatch job will request its read-only Windows validation."
           gh api "repos/$GITHUB_REPOSITORY/issues/$STATE_ISSUE/comments" \
             -f body="$status_body" >/dev/null
 
-          gh workflow run windows.yml --repo "$GITHUB_REPOSITORY" --ref "$fix_branch"
+  dispatch_validation:
+    name: dispatch the approved validation only
+    needs: [gate, generate, publish]
+    if: needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Revalidate the draft and dispatch Windows CI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FIX_BRANCH: ${{ needs.publish.outputs.fix_branch }}
+          EXPECTED_FIX_SHA: ${{ needs.publish.outputs.fix_sha }}
+          EXPECTED_ROOT: ${{ needs.gate.outputs.root }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_ROOT" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED_FIX_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$FIX_BRANCH" = "codex/rapido-beta2-fix-$EXPECTED_ROOT"
+
+          fix_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$FIX_BRANCH" \
+            --jq '.object.sha')
+          test "$fix_sha" = "$EXPECTED_FIX_SHA"
+
+          pr_json=$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+            -f state=open -f "head=${GITHUB_REPOSITORY_OWNER}:$FIX_BRANCH" \
+            -f "base=$TARGET_BRANCH")
+          jq -e \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg head "$FIX_BRANCH" \
+            --arg base "$TARGET_BRANCH" \
+            --arg sha "$EXPECTED_FIX_SHA" \
+            'length == 1 and .[0].draft == true and
+             .[0].head.repo.full_name == $repository and
+             .[0].head.ref == $head and .[0].head.sha == $sha and
+             .[0].base.ref == $base' <<<"$pr_json" >/dev/null
+
+          workflow_blob=$(gh api \
+            "repos/$GITHUB_REPOSITORY/contents/.github/workflows/windows.yml?ref=$EXPECTED_FIX_SHA" \
+            --jq '.sha')
+          test "$workflow_blob" = "$EXPECTED_WINDOWS_WORKFLOW_BLOB"
+
+          dispatch_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$FIX_BRANCH" \
+            --jq '.object.sha')
+          test "$dispatch_sha" = "$EXPECTED_FIX_SHA"
+
+          gh workflow run windows.yml --repo "$GITHUB_REPOSITORY" --ref "$FIX_BRANCH"
 
   report_stop:
     name: record a no-change diagnosis
@@ -396,11 +458,12 @@ jobs:
 
   report_failure:
     name: record automation failure
-    needs: [gate, generate, publish]
+    needs: [gate, generate, publish, dispatch_validation]
     if: >-
       always() &&
       needs.gate.outputs.eligible == 'true' &&
-      (needs.generate.result == 'failure' || needs.publish.result == 'failure')
+      (needs.generate.result == 'failure' || needs.publish.result == 'failure' ||
+      needs.dispatch_validation.result == 'failure')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -414,10 +477,11 @@ jobs:
           ATTEMPT: ${{ needs.gate.outputs.attempt }}
           GENERATE_RESULT: ${{ needs.generate.result }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
+          DISPATCH_RESULT: ${{ needs.dispatch_validation.result }}
         run: |
           set -euo pipefail
           body="<!-- rapido-codex-autofix-status root=$ROOT_RUN_ID attempt=$ATTEMPT -->
 
-          Guarded attempt stopped safely. Generate: **$GENERATE_RESULT**; publish: **$PUBLISH_RESULT**. No merge or release was attempted."
+          Guarded attempt stopped safely. Generate: **$GENERATE_RESULT**; publish: **$PUBLISH_RESULT**; dispatch: **$DISPATCH_RESULT**. No merge or release was attempted."
           gh api "repos/$GITHUB_REPOSITORY/issues/$STATE_ISSUE/comments" \
             -f body="$body" >/dev/null
