@@ -200,14 +200,19 @@ def test_no_single_publisher_job_has_both_git_push_and_merge_api_permission():
     assert "gh pr ready" not in source
 
 
-def test_untrusted_source_cannot_redirect_ci_log_outside_the_checkout():
+def test_untrusted_source_log_is_kept_out_of_the_checkout():
     source = WORKFLOW.read_text(encoding="utf-8")
     collect = source.split("- name: Collect bounded failed-job evidence", 1)[1].split(
-        "- name: Require an explicitly provisioned API key", 1
+        "- name: Prepare allowlisted source context without repository instructions", 1
     )[0]
-    remove_index = collect.index("rm -f target/.codex-ci-failure.log")
-    redirect_index = collect.index("> target/.codex-ci-failure.log")
-    assert remove_index < redirect_index
+    assert 'tail -c 120000 "$temporary_log" > "$RUNNER_TEMP/codex-ci-failure.log"' in collect
+    assert "target/.codex-ci-failure.log" not in collect
+
+    prepare = source.split(
+        "- name: Prepare allowlisted source context without repository instructions", 1
+    )[1].split("- name: Require an explicitly provisioned API key", 1)[0]
+    assert "prepare_context.py" in prepare
+    assert '"$GITHUB_WORKSPACE/context"' in prepare
 
 
 def test_activation_requires_owner_codeowner_review_not_generic_approval():
