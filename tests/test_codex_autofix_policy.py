@@ -116,3 +116,9 @@ def test_activation_requires_owner_codeowner_review_not_generic_approval():
     assert "compromised publisher could" in activation
     assert "Do not grant" in activation and "Actions any ruleset bypass" in activation
     assert "one approval" not in activation
+
+
+def test_codex_autofix_codeowners_file_names_only_the_repository_owner():
+    codeowners = (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8")
+    assert "* @shimon3" in codeowners
+    assert "@github-actions" not in codeowners
