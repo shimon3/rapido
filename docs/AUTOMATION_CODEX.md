@@ -52,8 +52,19 @@ The loop remains inactive unless **all** of these steps are completed:
    secret) under the name `RAPIDO_CODEX_OPENAI_API_KEY`.
 6. Add the repository variable `RAPIDO_CODEX_AUTOFIX_ENABLED` with value `true`
    only after the environment restriction has been verified.
-7. Merge and observe the separate periodic-dispatcher PR so a fresh failed run
-   can start the loop. Do not manually dispatch unreviewed refs.
+7. Verify the merged periodic dispatcher and its schedule before activation.
+   Do not manually dispatch unreviewed refs.
+
+## Current review checkpoint
+
+- On 2026-10-27, commit `b447687` added an API postcondition that rejects any
+  Codex proposal PR that is no longer draft, and moved issue logging into a
+  separate `issues:write` job. The policy dry-run passed.
+- The first Windows build found only a static-test boundary mistake: the test
+  included the adjacent issue-reporting job when measuring the publisher's
+  permissions. The workflow permissions were already separated correctly.
+- Retry 1 for this test-only cause is being corrected on the PR branch. No API
+  key was configured or used; the Codex and publication jobs remained skipped.
 
 Set `RAPIDO_CODEX_AUTOFIX_ENABLED` to `false` (or remove it) for an immediate
 logical stop. Removing the API secret is the second kill switch. Existing draft

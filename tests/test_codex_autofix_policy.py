@@ -70,7 +70,7 @@ def test_workflow_trusts_only_bot_attempt_markers_and_separates_privileges():
     assert '.user.login == "github-actions[bot]" and .user.type == "Bot"' in source
 
     generate = source.split("\n  generate:\n", 1)[1].split("\n  publish:\n", 1)[0]
-    publish = source.split("\n  publish:\n", 1)[1].split("\n  dispatch_validation:\n", 1)[0]
+    publish = source.split("\n  publish:\n", 1)[1].split("\n  report_published:\n", 1)[0]
     dispatch = source.split("\n  dispatch_validation:\n", 1)[1].split("\n  report_stop:\n", 1)[0]
 
     assert "contents: write" not in generate
@@ -90,7 +90,7 @@ def test_workflow_trusts_only_bot_attempt_markers_and_separates_privileges():
 
 def test_publisher_requires_the_resulting_pull_request_to_remain_draft():
     source = WORKFLOW.read_text(encoding="utf-8")
-    publish = source.split("\n  publish:\n", 1)[1].split("\n  dispatch_validation:\n", 1)[0]
+    publish = source.split("\n  publish:\n", 1)[1].split("\n  report_published:\n", 1)[0]
     assert "gh pr create --repo \"$GITHUB_REPOSITORY\" --draft" in publish
     assert "--json isDraft --jq '.isDraft'" in publish
     assert 'test "$is_draft" = "true"' in publish
