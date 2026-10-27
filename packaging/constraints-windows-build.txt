@@ -35,7 +35,7 @@ pytest==9.1.1
 pythonnet==3.2.1
 pywebview==6.2.1
 pywin32-ctypes==0.2.3
-setuptools==84.0.0
+setuptools==84.1.0
 six==1.17.0
 starlette==1.8.0
 typing-inspection==0.4.4
