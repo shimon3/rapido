@@ -20,7 +20,10 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("needs: build", release)
         self.assertIn("if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.build.outputs.release == 'true'", release)
         self.assertIn("contents: write", release)
-        self.assertIn("actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093", release)
+        self.assertRegex(
+            release,
+            r"(?m)^\s+- uses: actions/download-artifact@[0-9a-f]{40}(?:\s+#.*)?$",
+        )
         self.assertNotIn("steps.ver.outputs", release)
 
     @unittest.skipUnless(shutil.which("bash"), "Workflow predicate uses bash")
