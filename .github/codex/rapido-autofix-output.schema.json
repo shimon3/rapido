@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision",
+    "patch",
+    "root_cause",
+    "summary",
+    "test_plan",
+    "risk_notes"
+  ],
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": ["propose", "stop"]
+    },
+    "patch": {
+      "type": "string",
+      "maxLength": 100000
+    },
+    "root_cause": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "test_plan": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    },
+    "risk_notes": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    }
+  }
+}
