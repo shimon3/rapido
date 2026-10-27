@@ -27,8 +27,15 @@ Last updated: 2026-10-27
 - First patched version: `84.1.0`; PyPI reports it as non-yanked, MIT, with no
   active version-specific advisory at the time of review.
 - Change: reviewed build constraint updated to `setuptools==84.1.0`.
-- Validation state: pending the complete Windows GitHub Actions workflow.
-- Retry counter for this root cause: attempt 1 of 3.
+- Validation attempt 1: run `40470512836` installed `84.1.0` and passed the
+  Authenticode fixtures, then stopped at one stale static assertion; 430 tests
+  passed, 6 were skipped, 1 failed, and 271 subtests passed.
+- Confirmed cause: the test treated the dated 2026-10-23 build inventory as a
+  mutable copy of the current constraints. Historical evidence must remain
+  unchanged. Exact candidate versions are already checked against the fresh
+  CI inventory by `check_dependency_advisories.py`.
+- Validation state: focused test correction prepared; complete CI pending.
+- Retry counter for this root cause: attempt 2 of 3.
 
 ## Local preparation checks
 
@@ -63,6 +70,6 @@ Last updated: 2026-10-27
 
 ## Next action
 
-Commit and push the focused dependency and automation changes, then inspect the
-first GitHub Actions run. Correct only confirmed failures, with at most three
-attempts for a single root cause.
+Commit and push the focused historical-inventory test correction, then inspect
+the second GitHub Actions run. Correct only confirmed failures, with at most
+three attempts for a single root cause.

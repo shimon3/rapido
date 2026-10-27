@@ -90,11 +90,14 @@ def test_registry_retry_is_bounded_to_two_attempts():
         assert fetch.call_count == 2
 
 
-def test_reviewed_constraints_cover_the_saved_windows_inventory():
+def test_reviewed_constraints_cover_the_saved_windows_inventory_names():
     import json
     root = Path(__file__).resolve().parents[1]
     pins = read_pins(root/'packaging/constraints-windows-build.txt')
     inventory = json.loads((root/'docs/beta-build-inventory-20261023.json').read_text())
-    # Exact inventory identity check only, without a live network dependency.
-    from scripts.check_dependency_advisories import inventory_packages, pin_problems
-    assert pin_problems(inventory_packages(inventory), pins) == []
+    # This file is immutable evidence for a historical build. Keep checking that
+    # every reviewed package remains covered, but do not rewrite its versions
+    # after a pin update. CI checks exact versions against the freshly collected
+    # candidate inventory before querying PyPI.
+    from scripts.check_dependency_advisories import inventory_packages
+    assert inventory_packages(inventory).keys() == pins.keys()
