@@ -64,5 +64,20 @@ def test_readme_gives_an_explicit_go_no_go_rule():
 
 def test_provenance_records_the_branch_head_commit():
     workflow = (ROOT / ".github" / "workflows" / "windows.yml").read_text(encoding="utf-8")
-    assert "head_commit = '${{ github.event.pull_request.head.sha || github.sha }}'" in workflow
-    assert "branch head ${{ github.event.pull_request.head.sha || github.sha }}" in workflow
+    assert "id: source" in workflow
+    assert 'echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"' in workflow
+    assert "head_commit = '${{ steps.source.outputs.commit }}'" in workflow
+    assert "source ${{ steps.source.outputs.commit }}" in workflow
+
+
+def test_automation_workflow_is_serialized_and_reports_without_publishing():
+    workflow = (ROOT / ".github" / "workflows" / "windows.yml").read_text(encoding="utf-8")
+    assert '"automation/rapido-beta2-*"' in workflow
+    assert 'cron: "17 */3 * * *"' in workflow
+    assert "github.event.pull_request.head.ref" in workflow
+    assert "cancel-in-progress: false" in workflow
+    report = workflow.split("  automation-report:", 1)[1].split("\n  release:", 1)[0]
+    assert "issues: write" in report
+    assert 'TRACKING_ISSUE: "37"' in report
+    assert "gh issue comment" in report
+    assert 'echo "publishable=false"' in workflow

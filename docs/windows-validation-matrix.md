@@ -5,6 +5,17 @@ Nothing in this file has been executed on the owner's computers or virtual
 machines. GitHub Actions runs on **Windows Server 2025**. Its results are
 regression evidence, **not** a Windows 10 or Windows 11 validation.
 
+## Actual beta.2 execution status — 2026-10-27
+
+| Environment | Exact candidate | Result |
+| --- | --- | --- |
+| GitHub Actions Windows Server 2025 | commit `98e7921`, run `40503343084` | Passed: 431 tests, 6 skipped, 271 subtests; build, real-window self-test, installer lifecycle, installed/portable coexistence, Firefox 157.0.1 handoff, licence and advisory gates |
+| Windows 10 Pro 22H2 | No | Pending on an authorized clean VM; earlier beta.1 evidence is historical and does not validate beta.2 |
+| Windows 11 Pro current GA | No | Pending on an authorized clean VM; earlier beta.1 evidence is historical and does not validate beta.2 |
+| Chrome Stable on W10/W11 | No | Static contract/build/registration covered by CI; real browser UX and handoff pending |
+| Edge Stable on W10/W11 | No | Static contract/build/registration covered by CI; real browser UX and handoff pending |
+| Firefox Stable on W10/W11 | Partial | Real Firefox 157.0.1 passes on Server 2025; W10/W11 UX remains pending |
+
 Run every test on the **exact signed candidate** recorded by
 `scripts/verify_release_candidate.ps1 -Record`. Start every machine run with
 `verify_release_candidate.ps1`, so the files under test are proven to be the

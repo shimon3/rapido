@@ -2,10 +2,21 @@ name: Windows build
 
 on:
   push:
-    branches: [main, staging/pr-29-restack-20261014]
+    branches: [main, staging/pr-29-restack-20261014, "automation/rapido-beta2-*"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+  # GitHub activates scheduled workflows only from the default branch. This
+  # schedule is prepared here but remains inactive until an owner-approved
+  # workflow-only change reaches the default branch.
+  schedule:
+    - cron: "17 */3 * * *"
+
+# Never execute two Windows validation runs for the same ref at once. A later
+# run waits instead of cancelling the evidence-producing run already active.
+concurrency:
+  group: windows-build-${{ github.event.pull_request.head.ref || (github.event_name == 'schedule' && 'automation-rapido-beta2-20261027') || github.ref_name }}
+  cancel-in-progress: false
 
 # Compilation et PR en lecture seule ; seul le job release peut publier.
 permissions:
@@ -20,14 +31,29 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       release: ${{ steps.ver.outputs.release }}
       prerelease: ${{ steps.ver.outputs.prerelease }}
+      source_commit: ${{ steps.source.outputs.commit }}
       # Hard-coded false until a reviewed production-signing implementation exists.
       publishable: ${{ steps.ver.outputs.publishable }}
     timeout-minutes: 30
     steps:
       # Actions epinglees sur un commit precis (une etiquette comme "v4" peut etre deplacee)
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - name: Checkout event ref
+        if: github.event_name != 'schedule'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           persist-credentials: false
+
+      - name: Checkout automation branch for scheduled audit
+        if: github.event_name == 'schedule'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+          ref: automation/rapido-beta2-20261027
+
+      - name: Record tested source commit
+        id: source
+        shell: bash
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
@@ -198,8 +224,9 @@ jobs:
             workflow_event = $env:GITHUB_EVENT_NAME
             ref = $env:GITHUB_REF
             commit = $env:GITHUB_SHA
-            # On pull_request, GITHUB_SHA is the test merge commit; this is the branch head.
-            head_commit = '${{ github.event.pull_request.head.sha || github.sha }}'
+            # On pull_request, GITHUB_SHA is the test merge commit; on schedule,
+            # the workflow checks out the dedicated automation branch.
+            head_commit = '${{ steps.source.outputs.commit }}'
             workflow_run_id = $env:GITHUB_RUN_ID
             note = 'CI test artifact only. Not an official Rapido release.'
           }
@@ -341,7 +368,7 @@ jobs:
           if ($files.Count -ne 4) { throw "Expected 4 files to hash, found $($files.Count)" }
           $lines = $files | ForEach-Object { "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)" }
           $lines | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
-          "### SHA-256 (UNPUBLISHED unsigned CI build: branch head ${{ github.event.pull_request.head.sha || github.sha }}, built tree $env:GITHUB_SHA)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          "### SHA-256 (UNPUBLISHED unsigned CI build: source ${{ steps.source.outputs.commit }}, workflow tree $env:GITHUB_SHA)" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
           '```' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
           $lines | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
           '```' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
@@ -358,6 +385,41 @@ jobs:
             dist/SHA256SUMS.txt
             dist/ci-artifact-provenance.json
           retention-days: 14
+
+  automation-report:
+    needs: build
+    if: ${{ always() && (github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/automation/rapido-beta2-')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Append result to persistent automation log
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRACKING_ISSUE: "37"
+          BUILD_RESULT: ${{ needs.build.result }}
+          SOURCE_COMMIT: ${{ needs.build.outputs.source_commit || github.sha }}
+        run: |
+          report="$RUNNER_TEMP/rapido-automation-report.md"
+          {
+            echo "## Automated run ${GITHUB_RUN_ID}"
+            echo
+            echo "- Time (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "- Event: \`${GITHUB_EVENT_NAME}\`"
+            echo "- Requested ref: \`${GITHUB_REF}\`"
+            echo "- Tested source commit: \`${SOURCE_COMMIT}\`"
+            echo "- Build result: **${BUILD_RESULT}**"
+            echo "- Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            if [[ "$BUILD_RESULT" == "success" ]]; then
+              echo "Next action: keep the candidate frozen and proceed with the remaining Windows 10/11 manual gates."
+            else
+              echo "Next action: inspect the first confirmed failing step. Retry the same root cause at most three times."
+            fi
+          } > "$report"
+          gh issue comment "$TRACKING_ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$report"
 
   release:
     needs: build
