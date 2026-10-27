@@ -96,6 +96,7 @@ jobs:
     permissions:
       actions: write
       contents: read
+      pull-requests: read
     steps:
       - name: Dispatch guarded beta validation
         shell: bash
@@ -104,6 +105,36 @@ jobs:
           GUARDED_HEAD_SHA: ${{ needs.guard.outputs.head_sha }}
         run: |
           set -euo pipefail
+
+          # Re-check the complete contract in the only job holding actions:write.
+          # This narrows the branch-move window between the read-only guard and
+          # the workflow-dispatch request.
+          current_head="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/git/ref/heads/${TARGET_BRANCH}" \
+            --jq '.object.sha')"
+          if [[ "$current_head" != "$GUARDED_HEAD_SHA" ]]; then
+            echo "::error::Target branch moved after the guard completed."
+            exit 1
+          fi
+
+          current_pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}")"
+          jq -e \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg head "$TARGET_BRANCH" \
+            --arg base "$TARGET_BASE" \
+            --arg sha "$GUARDED_HEAD_SHA" \
+            '.state == "open" and .draft == true and
+             .head.repo.full_name == $repository and .head.ref == $head and
+             .head.sha == $sha and .base.ref == $base' \
+            <<<"$current_pr" >/dev/null
+
+          current_blob="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/contents/.github/workflows/${VALIDATION_WORKFLOW}?ref=${GUARDED_HEAD_SHA}" \
+            --jq '.sha')"
+          if [[ "$current_blob" != "$EXPECTED_WORKFLOW_BLOB" ]]; then
+            echo "::error::Target validation workflow changed after the guard."
+            exit 1
+          fi
 
           runs="$(gh api -X GET \
             "repos/${GITHUB_REPOSITORY}/actions/workflows/${VALIDATION_WORKFLOW}/runs" \
@@ -125,6 +156,14 @@ jobs:
             echo "Eight dispatch validations already ran in 24 hours; cost guard stopped this run." \
               >> "$GITHUB_STEP_SUMMARY"
             exit 0
+          fi
+
+          dispatch_head="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/git/ref/heads/${TARGET_BRANCH}" \
+            --jq '.object.sha')"
+          if [[ "$dispatch_head" != "$GUARDED_HEAD_SHA" ]]; then
+            echo "::error::Target branch moved immediately before dispatch."
+            exit 1
           fi
 
           gh api -X POST \
