@@ -105,10 +105,14 @@ The loop remains inactive unless **all** of these steps are completed:
   owner-side activation steps, not yet applied.
 - No API key was configured or used; the Codex, publication and dispatch jobs
   remained skipped.
-- Commit `b51bf1d` moves Codex to a read-only JSON patch response and a separate
-  validator job. The Codex action is the final step in its job; a trusted
-  context builder excludes repository instruction files before the action runs.
-  Local policy self-test and Python syntax checks passed; GitHub CI is pending.
+- Commits `b51bf1d` and `1ec8452` move Codex to a read-only JSON patch response
+  and a separate validator job. The Codex action is the final step in its job;
+  a trusted context builder excludes repository instruction files before the
+  action runs. Commit `fc486cd` updates a static test for the log's new safe
+  location after run `40553244007` exposed the stale assertion. The policy
+  dry-run `40553811784` passed; Windows build `40553812185` passed 28 tests,
+  executable self-test, installer, portable archive, and artifact upload. The
+  Codex/push/publish/dispatch jobs were skipped on PR validation.
 
 Set `RAPIDO_CODEX_AUTOFIX_ENABLED` to `false` (or remove it) for an immediate
 logical stop. Removing the API secret is the second kill switch. Existing draft
