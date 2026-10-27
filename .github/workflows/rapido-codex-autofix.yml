@@ -280,7 +280,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
-      issues: write
       pull-requests: write
     outputs:
       fix_branch: ${{ steps.publish.outputs.fix_branch }}
@@ -381,15 +380,42 @@ jobs:
             gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" --body-file pr-body.md
           fi
 
+          # Do not let a future edit to this publisher silently promote a fix.
+          # A draft is also an external postcondition, not only a CLI flag.
+          is_draft=$(gh pr view "$pr_url" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')
+          test "$is_draft" = "true"
+
           {
             echo "fix_branch=$fix_branch"
             echo "fix_sha=$fix_sha"
             echo "pr_url=$pr_url"
           } >> "$GITHUB_OUTPUT"
 
+
+  report_published:
+    name: record the draft PR in the persistent log
+    needs: [gate, publish]
+    if: needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Record the published draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROOT_RUN_ID: ${{ needs.gate.outputs.root }}
+          ATTEMPT: ${{ needs.gate.outputs.attempt }}
+          PR_URL: ${{ needs.publish.outputs.pr_url }}
+        run: |
+          set -euo pipefail
+          [[ "$ROOT_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$ATTEMPT" =~ ^[0-9]+$ ]]
+          [[ "$PR_URL" == https://github.com/${GITHUB_REPOSITORY}/pull/* ]]
           status_body="<!-- rapido-codex-autofix-status root=$ROOT_RUN_ID attempt=$ATTEMPT -->
 
-          Published draft proposal: $pr_url. The isolated dispatch job will request its read-only Windows validation."
+          Published draft proposal: $PR_URL. The isolated dispatch job will request its read-only Windows validation."
           gh api "repos/$GITHUB_REPOSITORY/issues/$STATE_ISSUE/comments" \
             -f body="$status_body" >/dev/null
 

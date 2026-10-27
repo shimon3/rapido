@@ -77,8 +77,28 @@ def test_workflow_trusts_only_bot_attempt_markers_and_separates_privileges():
     assert "RAPIDO_CODEX_OPENAI_API_KEY" in generate
     assert "RAPIDO_CODEX_OPENAI_API_KEY" not in publish
     assert "actions: write" not in publish
+    assert "issues: write" not in publish
     assert "actions: write" in dispatch
     assert "contents: write" not in dispatch
     assert "gh pr merge" not in source
+    assert "gh pr ready" not in source
+    assert "gh pr review" not in source
+    assert "--auto" not in source
     assert "gh release" not in source
     assert "git tag" not in source
+
+
+def test_publisher_requires_the_resulting_pull_request_to_remain_draft():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    publish = source.split("\n  publish:\n", 1)[1].split("\n  dispatch_validation:\n", 1)[0]
+    assert "gh pr create --repo \"$GITHUB_REPOSITORY\" --draft" in publish
+    assert "--json isDraft --jq '.isDraft'" in publish
+    assert 'test "$is_draft" = "true"' in publish
+
+
+def test_publisher_does_not_write_to_the_persistent_issue_log():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    publish = source.split("\n  publish:\n", 1)[1].split("\n  report_published:\n", 1)[0]
+    report = source.split("\n  report_published:\n", 1)[1].split("\n  dispatch_validation:\n", 1)[0]
+    assert "issues: write" not in publish
+    assert "issues: write" in report

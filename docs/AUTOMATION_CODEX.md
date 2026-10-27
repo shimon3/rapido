@@ -35,10 +35,14 @@ The loop remains inactive unless **all** of these steps are completed:
    Actions to create and approve pull requests** only after the beta branch
    protection in the next step is active. This workflow contains no approval or
    merge command.
-3. Keep the active `Protect main` ruleset. Add a second ruleset for
-   `automation/rapido-beta2-20261027` that requires a pull request, one human
-   approval, the `build` check, resolved conversations, and blocks deletion and
-   force-pushes. Do not grant the Actions bot a bypass.
+3. Keep the active `Protect main` ruleset. For the single-maintainer beta
+   branch, require a pull request, the `build` check, resolved conversations,
+   and block deletion and force-pushes, but require **zero approvals** so the
+   sole owner can merge their own reviewed PRs. Give no Actions actor a ruleset
+   bypass. Codex-created proposals are opened as drafts, are checked as drafts
+   after publication, and the workflow has no command that marks them ready,
+   approves, or merges them. Keep repository auto-merge disabled. The owner
+   must manually inspect, mark ready, and merge a proposal.
 4. Create a dedicated OpenAI API project, select an approved current Codex
    model, and configure a small project hard spend limit plus alerts. Spend-limit
    enforcement is not instantaneous, so the workflow's attempt caps remain
