@@ -12,12 +12,16 @@ or update a **draft** pull request targeting the beta automation branch. A
 third job, with `actions: write` but no checkout, write access to contents, or
 OpenAI key, revalidates the draft and dispatches its approved Windows workflow.
 
-It cannot write to `main`, target `main` with its generated PR, merge a PR,
-create a tag, publish a release, use production signing credentials, or change
+Its intended path cannot target `main` with a generated PR, merge a PR, create
+a tag, publish a release, use production signing credentials, or change
 workflows, packaging, dependencies, versions, licenses, or release controls.
 Codex runs without Git credentials and with read-only GitHub permissions. A
-separate deterministic publisher receives only the bounded patch after two
-policy checks; it cannot dispatch workflows.
+Git-only deploy key pushes the validated fix branch; a separate deterministic
+publisher receives only the bounded result and can create/update a draft PR.
+The publisher's GitHub token has `pull-requests:write` and `contents:read`, not
+`contents:write`, so it cannot call GitHub's merge API. The push job uses the
+SSH deploy key for Git transport and a read-only `GITHUB_TOKEN` for API reads;
+the deploy key is not an API credential.
 
 Each failure lineage is limited to three reserved attempts. The entire
 repository is also limited to three Codex attempts in a rolling 24-hour window.
@@ -43,15 +47,15 @@ The loop remains inactive unless **all** of these steps are completed:
    GitHub couples permission to create PRs with permission to approve PRs, and
    the publisher has `pull-requests:write`; a compromised publisher could
    approve a human-authored PR if ordinary approval alone were the gate. The
-   bot is not a Code Owner, so its review cannot satisfy this rule. Do not grant
-   Actions any ruleset bypass. The sole owner can approve a proposal authored
+   bot is not a Code Owner, so its review cannot satisfy this rule. The PR
+   publisher lacks `contents:write`, which GitHub requires for its merge API.
+   The push job uses a repository deploy key for Git-only access, not an API
+   token. Do not grant Actions any ruleset bypass. The sole owner can approve a proposal authored
    by `github-actions[bot]`; for a self-authored PR, configure the owner as a
    bypass actor limited to **pull requests only**, which still blocks direct
    pushes. This bypass is not approval-only: before using it, the owner must
    inspect the diff and confirm all required checks passed. Keep auto-merge
-   disabled. The publisher also needs `contents:write`
-   to push its fix branch, and GitHub's PR merge API accepts that permission.
-   The workflow creates drafts, verifies the author/base/head/draft state and
+   disabled. The workflow creates drafts, verifies the author/base/head/draft state and
    absence of auto-merge after publication, and contains no approval, ready,
    or merge command. These workflow checks are defense in depth; branch rules
    must independently prevent the bot from satisfying the review gate.
@@ -63,12 +67,17 @@ The loop remains inactive unless **all** of these steps are completed:
    current workflow has no explicit token budget and leaves model/CLI version
    at defaults, so choose and test those before activation. Spend-limit
    enforcement is not instantaneous and may slightly exceed the cap.
-5. Create the GitHub environment `rapido-codex-autofix`, restrict its deployment
-   branches to `main`, and add the project key there (not as a repository-wide
-   secret) under the name `RAPIDO_CODEX_OPENAI_API_KEY`.
-6. Add the repository variable `RAPIDO_CODEX_AUTOFIX_ENABLED` with value `true`
+5. Create the `rapido-codex-autofix` environment and restrict its deployment
+   branches to `main`.
+6. Create a dedicated repository deploy key with write access, add its public
+   key under Settings → Deploy keys, and store its private key only in the
+   environment as `RAPIDO_AUTOFIX_PUSH_KEY`. Add the separate project API key
+   there as `RAPIDO_CODEX_OPENAI_API_KEY`. Neither key belongs in repository
+   secrets. The deploy key is used only for Git push; rulesets must block
+   direct writes to protected refs.
+7. Add the repository variable `RAPIDO_CODEX_AUTOFIX_ENABLED` with value `true`
    only after the environment restriction has been verified.
-7. Verify the merged periodic dispatcher and its schedule before activation.
+8. Verify the merged periodic dispatcher and its schedule before activation.
    Do not manually dispatch unreviewed refs.
 
 ## Current review checkpoint
@@ -80,10 +89,12 @@ The loop remains inactive unless **all** of these steps are completed:
 - The first Windows build found only a static-test boundary mistake: the test
   included the adjacent issue-reporting job when measuring the publisher's
   permissions. The workflow permissions were already separated correctly.
-- The publisher verifies the bot author, exact base/head, draft status and
+- The publication job verifies the bot author, exact base/head, draft status and
   absence of auto-merge after each publish or update. It exposes no command to
-  mark a proposal ready, approve, or merge it. This hardening is in the current
-  PR head and must pass CI before review.
+  mark a proposal ready, approve, or merge it. Its token has no `contents:write`,
+  so the merge API rejects it even if the PR has otherwise passed checks. A
+  separate Git-only push job uses the deploy key but no merge-capable token.
+  This hardening is in the current PR head and must pass CI before review.
 - The current branch rules still require zero approvals and give no bypass.
   Owner-only Code Owner review, `CODEOWNERS` coverage on both target branches,
   and owner-only pull-request bypass for self-authored PRs are required

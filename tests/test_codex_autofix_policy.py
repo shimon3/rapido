@@ -69,12 +69,20 @@ def test_workflow_trusts_only_bot_attempt_markers_and_separates_privileges():
     source = WORKFLOW.read_text(encoding="utf-8")
     assert '.user.login == "github-actions[bot]" and .user.type == "Bot"' in source
 
-    generate = source.split("\n  generate:\n", 1)[1].split("\n  publish:\n", 1)[0]
-    publish = source.split("\n  publish:\n", 1)[1].split("\n  report_published:\n", 1)[0]
+    generate = source.split("\n  generate:\n", 1)[1].split("\n  push_fix_branch:\n", 1)[0]
+    push = source.split("\n  push_fix_branch:\n", 1)[1].split("\n  publish_draft:\n", 1)[0]
+    publish = source.split("\n  publish_draft:\n", 1)[1].split("\n  report_published:\n", 1)[0]
     dispatch = source.split("\n  dispatch_validation:\n", 1)[1].split("\n  report_stop:\n", 1)[0]
 
     assert "contents: write" not in generate
     assert "RAPIDO_CODEX_OPENAI_API_KEY" in generate
+    assert "RAPIDO_AUTOFIX_PUSH_KEY" in generate
+    assert "RAPIDO_AUTOFIX_PUSH_KEY" in push
+    assert "contents: write" not in push
+    assert "pull-requests: write" not in push
+    assert "pull-requests: write" in publish
+    assert "contents: write" not in publish
+    assert "RAPIDO_AUTOFIX_PUSH_KEY" not in publish
     assert "RAPIDO_CODEX_OPENAI_API_KEY" not in publish
     assert "actions: write" not in publish
     assert "issues: write" not in publish
@@ -90,7 +98,7 @@ def test_workflow_trusts_only_bot_attempt_markers_and_separates_privileges():
 
 def test_publisher_requires_the_resulting_pull_request_to_remain_draft():
     source = WORKFLOW.read_text(encoding="utf-8")
-    publish = source.split("\n  publish:\n", 1)[1].split("\n  report_published:\n", 1)[0]
+    publish = source.split("\n  publish_draft:\n", 1)[1].split("\n  report_published:\n", 1)[0]
     assert "gh pr create --repo \"$GITHUB_REPOSITORY\" --draft" in publish
     assert "--json isDraft,author,baseRefName,headRefName,autoMergeRequest" in publish
     assert '.author.login == "github-actions[bot]"' in publish
@@ -100,10 +108,25 @@ def test_publisher_requires_the_resulting_pull_request_to_remain_draft():
 
 def test_publisher_does_not_write_to_the_persistent_issue_log():
     source = WORKFLOW.read_text(encoding="utf-8")
-    publish = source.split("\n  publish:\n", 1)[1].split("\n  report_published:\n", 1)[0]
+    publish = source.split("\n  publish_draft:\n", 1)[1].split("\n  report_published:\n", 1)[0]
     report = source.split("\n  report_published:\n", 1)[1].split("\n  dispatch_validation:\n", 1)[0]
     assert "issues: write" not in publish
     assert "issues: write" in report
+
+
+def test_no_single_publisher_job_has_both_git_push_and_merge_api_permission():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    push = source.split("\n  push_fix_branch:\n", 1)[1].split("\n  publish_draft:\n", 1)[0]
+    publish = source.split("\n  publish_draft:\n", 1)[1].split("\n  report_published:\n", 1)[0]
+    assert "ssh-key: ${{ secrets.RAPIDO_AUTOFIX_PUSH_KEY }}" in push
+    assert 'git -C target push origin "HEAD:refs/heads/$fix_branch"' in push
+    assert "contents: write" not in push
+    assert "contents: write" not in publish
+    assert "pull-requests: write" not in push
+    assert "pull-requests: write" in publish
+    assert "RAPIDO_AUTOFIX_PUSH_KEY" not in publish
+    assert "gh pr merge" not in source
+    assert "gh pr ready" not in source
 
 
 def test_activation_requires_owner_codeowner_review_not_generic_approval():

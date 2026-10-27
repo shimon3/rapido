@@ -229,6 +229,12 @@ jobs:
           OPENAI_KEY_PRESENT: ${{ secrets.RAPIDO_CODEX_OPENAI_API_KEY }}
         run: test -n "$OPENAI_KEY_PRESENT"
 
+      - name: Require the Git-only fix-branch key before making an API call
+        shell: bash
+        env:
+          PUSH_KEY_PRESENT: ${{ secrets.RAPIDO_AUTOFIX_PUSH_KEY }}
+        run: test -n "$PUSH_KEY_PRESENT"
+
       - name: Ask Codex for a constrained patch
         id: codex
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1 immutable commit
@@ -272,19 +278,18 @@ jobs:
             echo "patch_b64=$(base64 -w0 codex.patch)"
           } >> "$GITHUB_OUTPUT"
 
-  publish:
-    name: publish a draft PR only
+  push_fix_branch:
+    name: push the validated fix branch with Git-only credentials
     needs: [gate, generate]
     if: needs.generate.outputs.decision == 'propose'
     runs-on: ubuntu-latest
+    environment: rapido-codex-autofix
     timeout-minutes: 10
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     outputs:
-      fix_branch: ${{ steps.publish.outputs.fix_branch }}
-      fix_sha: ${{ steps.publish.outputs.fix_sha }}
-      pr_url: ${{ steps.publish.outputs.pr_url }}
+      fix_branch: ${{ steps.push.outputs.fix_branch }}
+      fix_sha: ${{ steps.push.outputs.fix_sha }}
     steps:
       - name: Checkout trusted control files
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -296,12 +301,13 @@ jobs:
       - name: Checkout the exact failed source without credentials
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          persist-credentials: false
+          persist-credentials: true
           ref: ${{ needs.gate.outputs.sha }}
           path: target
+          ssh-key: ${{ secrets.RAPIDO_AUTOFIX_PUSH_KEY }}
 
-      - name: Revalidate, commit, and open or update a draft PR
-        id: publish
+      - name: Revalidate, commit, and push the fix branch
+        id: push
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -340,16 +346,47 @@ jobs:
           fix_sha=$(git -C target rev-parse HEAD)
           [[ "$fix_sha" =~ ^[0-9a-f]{40}$ ]]
 
-          clean_remote() {
-            git -C target remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
-          }
-          trap clean_remote EXIT
-          git -C target remote set-url origin \
-            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git -C target push origin "HEAD:refs/heads/$fix_branch"
-          clean_remote
-          trap - EXIT
+          {
+            echo "fix_branch=$fix_branch"
+            echo "fix_sha=$fix_sha"
+          } >> "$GITHUB_OUTPUT"
 
+  publish_draft:
+    name: create or update a draft PR without merge permission
+    needs: [gate, generate, push_fix_branch]
+    if: needs.generate.outputs.decision == 'propose'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      fix_branch: ${{ needs.push_fix_branch.outputs.fix_branch }}
+      fix_sha: ${{ needs.push_fix_branch.outputs.fix_sha }}
+      pr_url: ${{ steps.publish.outputs.pr_url }}
+    steps:
+      - name: Create or update the draft proposal and verify its state
+        id: publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT_B64: ${{ needs.generate.outputs.result_b64 }}
+          ROOT_RUN_ID: ${{ needs.gate.outputs.root }}
+          SOURCE_RUN_ID: ${{ needs.gate.outputs.run_id }}
+          FIX_BRANCH: ${{ needs.push_fix_branch.outputs.fix_branch }}
+          FIX_SHA: ${{ needs.push_fix_branch.outputs.fix_sha }}
+          ATTEMPT: ${{ needs.gate.outputs.attempt }}
+        run: |
+          set -euo pipefail
+          [[ "$ROOT_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$FIX_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$FIX_BRANCH" = "codex/rapido-beta2-fix-$ROOT_RUN_ID"
+          actual_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$FIX_BRANCH" --jq '.object.sha')
+          test "$actual_sha" = "$FIX_SHA"
+
+          printf '%s' "$RESULT_B64" | base64 -d > codex-result.json
           summary=$(jq -r '.summary' codex-result.json)
           root_cause=$(jq -r '.root_cause' codex-result.json)
           {
@@ -361,15 +398,15 @@ jobs:
             echo "- Summary: $summary"
             echo "- Root cause: $root_cause"
             echo
-            echo "This PR is deliberately draft. The workflow has no path to mark it ready or merge it, and it cannot publish a release. Human review is required."
+            echo "This PR is deliberately draft. The workflow never marks it ready or merges it. Its GitHub token has no contents-write permission, so it cannot call the merge API. Human Code Owner review is required."
           } > pr-body.md
 
           pr_json=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
-            --head "$fix_branch" --base "$TARGET_BRANCH" --json number,isDraft,url)
+            --head "$FIX_BRANCH" --base "$TARGET_BRANCH" --json number,isDraft,url)
           pr_count=$(jq 'length' <<<"$pr_json")
           if (( pr_count == 0 )); then
             pr_url=$(gh pr create --repo "$GITHUB_REPOSITORY" --draft \
-              --base "$TARGET_BRANCH" --head "$fix_branch" \
+              --base "$TARGET_BRANCH" --head "$FIX_BRANCH" \
               --title "draft: guarded Codex fix for run $ROOT_RUN_ID" \
               --body-file pr-body.md)
           else
@@ -380,28 +417,21 @@ jobs:
             gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" --body-file pr-body.md
           fi
 
-          # Do not let a future edit to this publisher silently promote a fix.
-          # A draft is also an external postcondition, not only a CLI flag.
           pr_state=$(gh pr view "$pr_url" --repo "$GITHUB_REPOSITORY" \
             --json isDraft,author,baseRefName,headRefName,autoMergeRequest)
           jq -e \
             --arg base "$TARGET_BRANCH" \
-            --arg head "$fix_branch" \
+            --arg head "$FIX_BRANCH" \
             '.isDraft == true and .author.login == "github-actions[bot]" and
              .baseRefName == $base and .headRefName == $head and .autoMergeRequest == null' \
             <<<"$pr_state" >/dev/null
-
-          {
-            echo "fix_branch=$fix_branch"
-            echo "fix_sha=$fix_sha"
-            echo "pr_url=$pr_url"
-          } >> "$GITHUB_OUTPUT"
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
 
 
   report_published:
     name: record the draft PR in the persistent log
-    needs: [gate, publish]
-    if: needs.publish.result == 'success'
+    needs: [gate, publish_draft]
+    if: needs.publish_draft.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -413,7 +443,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ROOT_RUN_ID: ${{ needs.gate.outputs.root }}
           ATTEMPT: ${{ needs.gate.outputs.attempt }}
-          PR_URL: ${{ needs.publish.outputs.pr_url }}
+          PR_URL: ${{ needs.publish_draft.outputs.pr_url }}
         run: |
           set -euo pipefail
           [[ "$ROOT_RUN_ID" =~ ^[0-9]+$ ]]
@@ -427,8 +457,8 @@ jobs:
 
   dispatch_validation:
     name: dispatch the approved validation only
-    needs: [gate, generate, publish]
-    if: needs.publish.result == 'success'
+    needs: [gate, generate, push_fix_branch, publish_draft]
+    if: needs.publish_draft.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -440,8 +470,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          FIX_BRANCH: ${{ needs.publish.outputs.fix_branch }}
-          EXPECTED_FIX_SHA: ${{ needs.publish.outputs.fix_sha }}
+          FIX_BRANCH: ${{ needs.publish_draft.outputs.fix_branch }}
+          EXPECTED_FIX_SHA: ${{ needs.publish_draft.outputs.fix_sha }}
           EXPECTED_ROOT: ${{ needs.gate.outputs.root }}
         run: |
           set -euo pipefail
@@ -502,11 +532,12 @@ jobs:
 
   report_failure:
     name: record automation failure
-    needs: [gate, generate, publish, dispatch_validation]
+    needs: [gate, generate, push_fix_branch, publish_draft, dispatch_validation]
     if: >-
       always() &&
       needs.gate.outputs.eligible == 'true' &&
-      (needs.generate.result == 'failure' || needs.publish.result == 'failure' ||
+      (needs.generate.result == 'failure' || needs.push_fix_branch.result == 'failure' ||
+      needs.publish_draft.result == 'failure' ||
       needs.dispatch_validation.result == 'failure')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -520,12 +551,13 @@ jobs:
           ROOT_RUN_ID: ${{ needs.gate.outputs.root }}
           ATTEMPT: ${{ needs.gate.outputs.attempt }}
           GENERATE_RESULT: ${{ needs.generate.result }}
-          PUBLISH_RESULT: ${{ needs.publish.result }}
+          PUSH_RESULT: ${{ needs.push_fix_branch.result }}
+          PUBLISH_RESULT: ${{ needs.publish_draft.result }}
           DISPATCH_RESULT: ${{ needs.dispatch_validation.result }}
         run: |
           set -euo pipefail
           body="<!-- rapido-codex-autofix-status root=$ROOT_RUN_ID attempt=$ATTEMPT -->
 
-          Guarded attempt stopped safely. Generate: **$GENERATE_RESULT**; publish: **$PUBLISH_RESULT**; dispatch: **$DISPATCH_RESULT**. No merge or release was attempted."
+          Guarded attempt stopped safely. Generate: **$GENERATE_RESULT**; push: **$PUSH_RESULT**; publish: **$PUBLISH_RESULT**; dispatch: **$DISPATCH_RESULT**. No merge or release was attempted."
           gh api "repos/$GITHUB_REPOSITORY/issues/$STATE_ISSUE/comments" \
             -f body="$body" >/dev/null
