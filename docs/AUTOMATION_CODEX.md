@@ -29,10 +29,16 @@ persisted as a marker in issue #37 before an API call is possible.
 The loop remains inactive unless **all** of these steps are completed:
 
 1. Review and merge the workflow PR into the default branch.
-2. Keep the repository default workflow permission at `read` and keep Actions
-   unable to approve pull requests.
-3. Protect `main` with a ruleset requiring pull requests and blocking direct
-   pushes. No such protection existed when this workflow was prepared.
+2. Keep the repository default workflow permission at `read`. GitHub currently
+   couples the ability of `GITHUB_TOKEN` to create a pull request with the
+   ability to approve one. The loop needs PR creation, so enable **Allow GitHub
+   Actions to create and approve pull requests** only after the beta branch
+   protection in the next step is active. This workflow contains no approval or
+   merge command.
+3. Keep the active `Protect main` ruleset. Add a second ruleset for
+   `automation/rapido-beta2-20261027` that requires a pull request, one human
+   approval, the `build` check, resolved conversations, and blocks deletion and
+   force-pushes. Do not grant the Actions bot a bypass.
 4. Create a dedicated OpenAI API project, select an approved current Codex
    model, and configure a small project hard spend limit plus alerts. Spend-limit
    enforcement is not instantaneous, so the workflow's attempt caps remain

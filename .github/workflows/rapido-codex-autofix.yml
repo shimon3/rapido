@@ -119,15 +119,18 @@ jobs:
 
           comments=$(gh api --paginate --slurp \
             "repos/$repo/issues/$STATE_ISSUE/comments?per_page=100")
+          trusted_comments=$(jq \
+            '[.[][] | select(.user.login == "github-actions[bot]" and .user.type == "Bot")]' \
+            <<<"$comments")
 
           if [[ "$source_kind" == "target" ]]; then
             root=$(jq -r --arg sha "$sha" '
-              [.[][]
+              [.[]
                 | select((.body // "") | contains("<!-- rapido-codex-autofix root="))
                 | select((.body // "") | contains(" source=" + $sha + " "))
                 | .body
                 | capture("root=(?<root>[0-9]+)").root][0] // empty
-            ' <<<"$comments")
+            ' <<<"$trusted_comments")
             if [[ -z "$root" ]]; then
               root="$SOURCE_RUN_ID"
             elif gh api "repos/$repo/git/ref/heads/codex/rapido-beta2-fix-$root" >/dev/null 2>&1; then
@@ -139,11 +142,11 @@ jobs:
           [[ "$root" =~ ^[0-9]+$ ]]
 
           attempts=$(jq --arg root "$root" '
-            [.[][]
+            [.[]
               | select((.body // "")
               | contains("<!-- rapido-codex-autofix root=" + $root + " "))]
             | length
-          ' <<<"$comments")
+          ' <<<"$trusted_comments")
           if (( attempts >= MAX_ATTEMPTS_PER_ROOT )); then
             echo "Attempt limit already reached for root $root" >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -151,11 +154,11 @@ jobs:
 
           cutoff=$(date -u -d '24 hours ago' +%s)
           daily=$(jq --argjson cutoff "$cutoff" '
-            [.[][]
+            [.[]
               | select((.body // "") | contains("<!-- rapido-codex-autofix root="))
               | select((.created_at | fromdateiso8601) >= $cutoff)]
             | length
-          ' <<<"$comments")
+          ' <<<"$trusted_comments")
           if (( daily >= MAX_ATTEMPTS_PER_24H )); then
             echo "Repository-wide 24-hour attempt limit reached" >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -244,6 +247,8 @@ jobs:
       - name: Collect and pre-validate the untrusted proposal
         id: collect
         shell: bash
+        env:
+          API_KEY_TO_REJECT: ${{ secrets.RAPIDO_CODEX_OPENAI_API_KEY }}
         run: |
           set -euo pipefail
           jq -e . codex-result.json >/dev/null
@@ -254,10 +259,12 @@ jobs:
           git -C target add -N -A
           git -C target diff HEAD --binary --full-index --no-ext-diff > codex.patch
 
-          if [[ "$decision" == "propose" ]]; then
-            python3 control/.github/codex/validate_autofix.py \
-              --result codex-result.json --patch codex.patch
+          if grep -Fq -- "$API_KEY_TO_REJECT" codex-result.json codex.patch; then
+            echo "::error::Codex output contained the provisioned API credential."
+            exit 1
           fi
+          python3 control/.github/codex/validate_autofix.py \
+            --result codex-result.json --patch codex.patch
 
           {
             echo "decision=$decision"
@@ -334,10 +341,15 @@ jobs:
           fix_sha=$(git -C target rev-parse HEAD)
           [[ "$fix_sha" =~ ^[0-9a-f]{40}$ ]]
 
+          clean_remote() {
+            git -C target remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          }
+          trap clean_remote EXIT
           git -C target remote set-url origin \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git -C target push origin "HEAD:refs/heads/$fix_branch"
-          git -C target remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          clean_remote
+          trap - EXIT
 
           summary=$(jq -r '.summary' codex-result.json)
           root_cause=$(jq -r '.root_cause' codex-result.json)
