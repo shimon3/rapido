@@ -1,0 +1,54 @@
+version: 2
+
+updates:
+  # Keep routine Python updates away from main. Security alerts remain a
+  # separate repository setting; automatic security-fix PRs stay disabled
+  # because GitHub always targets the default branch for those updates.
+  - package-ecosystem: pip
+    directory: /
+    target-branch: automation/rapido-beta2-20261027
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:17"
+      timezone: UTC
+    open-pull-requests-limit: 1
+    rebase-strategy: disabled
+    labels:
+      - dependencies
+    commit-message:
+      prefix: deps
+      include: scope
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+    groups:
+      beta-patch-updates:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+
+  # Action updates are proposed separately and never merged automatically.
+  # Updating windows.yml also changes the blob pinned by the guarded scheduler,
+  # so periodic dispatch stops until an owner reviews both changes.
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: automation/rapido-beta2-20261027
+    schedule:
+      interval: monthly
+      time: "04:47"
+      timezone: UTC
+    open-pull-requests-limit: 1
+    rebase-strategy: disabled
+    labels:
+      - dependencies
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      reviewed-actions:
+        patterns:
+          - "*"
