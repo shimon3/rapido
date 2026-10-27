@@ -36,8 +36,11 @@ The loop remains inactive unless **all** of these steps are completed:
    model, and configure a small project hard spend limit plus alerts. Spend-limit
    enforcement is not instantaneous, so the workflow's attempt caps remain
    necessary.
-5. Add the project key as the Actions secret `OPENAI_API_KEY`.
-6. Add the repository variable `RAPIDO_CODEX_AUTOFIX_ENABLED` with value `true`.
+5. Create the GitHub environment `rapido-codex-autofix`, restrict its deployment
+   branches to `main`, and add the project key there (not as a repository-wide
+   secret) under the name `RAPIDO_CODEX_OPENAI_API_KEY`.
+6. Add the repository variable `RAPIDO_CODEX_AUTOFIX_ENABLED` with value `true`
+   only after the environment restriction has been verified.
 7. Merge and observe the separate periodic-dispatcher PR so a fresh failed run
    can start the loop. Do not manually dispatch unreviewed refs.
 

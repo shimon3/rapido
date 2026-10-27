@@ -182,6 +182,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.eligible == 'true'
     runs-on: ubuntu-latest
+    environment: rapido-codex-autofix
     timeout-minutes: 20
     permissions:
       actions: read
@@ -222,14 +223,14 @@ jobs:
       - name: Require an explicitly provisioned API key
         shell: bash
         env:
-          OPENAI_KEY_PRESENT: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_KEY_PRESENT: ${{ secrets.RAPIDO_CODEX_OPENAI_API_KEY }}
         run: test -n "$OPENAI_KEY_PRESENT"
 
       - name: Ask Codex for a constrained patch
         id: codex
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1 immutable commit
         with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          openai-api-key: ${{ secrets.RAPIDO_CODEX_OPENAI_API_KEY }}
           prompt-file: ${{ github.workspace }}/control/.github/codex/rapido-autofix-prompt.md
           output-schema-file: ${{ github.workspace }}/control/.github/codex/rapido-autofix-output.schema.json
           output-file: ${{ github.workspace }}/codex-result.json
