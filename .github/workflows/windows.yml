@@ -6,7 +6,7 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
-# Droits minimum par defaut ; seul le job de compilation peut publier une release.
+# Build and test only. Publishing requires a separate owner-reviewed workflow.
 permissions:
   contents: read
 
@@ -14,7 +14,7 @@ jobs:
   build:
     runs-on: windows-latest
     permissions:
-      contents: write
+      contents: read
     timeout-minutes: 30
     steps:
       # Actions epinglees sur un commit precis (une etiquette comme "v4" peut etre deplacee)
@@ -47,14 +47,6 @@ jobs:
             echo "::error::Le tag ($GITHUB_REF) ne correspond pas a engine.VERSION ($V)"; exit 1
           fi
           python packaging/make_version_file.py "$V" > packaging/version_info.txt
-          # nouvelle version sur main (tag absent) => on publie une release automatiquement
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "release=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$GITHUB_REF" == refs/heads/main && -z "$(git ls-remote --tags "https://github.com/$GITHUB_REPOSITORY" "refs/tags/v$V")" ]]; then
-            echo "release=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "release=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Build Rapido.exe (PyInstaller)
         run: >
@@ -103,28 +95,8 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: Rapido-${{ steps.ver.outputs.version }}-windows
+          name: UNPUBLISHED-Rapido-${{ steps.ver.outputs.version }}-windows
           path: |
             dist/Rapido-Setup-*.exe
             dist/Rapido-*-portable.zip
-
-      - name: GitHub release
-        if: steps.ver.outputs.release == 'true'
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2.6.2
-        with:
-          tag_name: v${{ steps.ver.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          make_latest: true
-          name: Rapido ${{ steps.ver.outputs.version }}
-          files: |
-            dist/Rapido-Setup-*.exe
-            dist/Rapido-*-portable.zip
-          body: |
-            **Installer :** télécharge `Rapido-Setup-${{ steps.ver.outputs.version }}.exe` et lance-le (pas besoin de droits administrateur).
-
-            Windows peut afficher « Windows a protégé votre ordinateur » : le programme n'est pas signé numériquement.
-            Clique sur **Informations complémentaires** puis **Exécuter quand même**.
-
-            Version portable : `Rapido-${{ steps.ver.outputs.version }}-portable.zip`, à dézipper puis lancer `Rapido.exe`.
-
-            Extension Chrome : Rapido > Options > Outils > « Installer l'extension Chrome… ».
+          retention-days: 14
