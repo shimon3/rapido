@@ -47,7 +47,9 @@ The loop remains inactive unless **all** of these steps are completed:
    Actions any ruleset bypass. The sole owner can approve a proposal authored
    by `github-actions[bot]`; for a self-authored PR, configure the owner as a
    bypass actor limited to **pull requests only**, which still blocks direct
-   pushes. Keep auto-merge disabled. The publisher also needs `contents:write`
+   pushes. This bypass is not approval-only: before using it, the owner must
+   inspect the diff and confirm all required checks passed. Keep auto-merge
+   disabled. The publisher also needs `contents:write`
    to push its fix branch, and GitHub's PR merge API accepts that permission.
    The workflow creates drafts, verifies the author/base/head/draft state and
    absence of auto-merge after publication, and contains no approval, ready,

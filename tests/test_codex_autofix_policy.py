@@ -115,6 +115,7 @@ def test_activation_requires_owner_codeowner_review_not_generic_approval():
     assert "present on both target branches" in activation
     assert "compromised publisher could" in activation
     assert "Do not grant" in activation and "Actions any ruleset bypass" in activation
+    assert "This bypass is not approval-only" in activation
     assert "one approval" not in activation
 
 
