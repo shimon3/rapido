@@ -22,6 +22,7 @@ spec.loader.exec_module(policy)
 def result(decision: str = "propose") -> dict:
     return {
         "decision": decision,
+        "patch": SAFE_PATCH.decode("utf-8") if decision == "propose" else "",
         "root_cause": "Confirmed regression",
         "summary": "Constrained correction",
         "test_plan": ["Run the focused regression test"],
@@ -51,9 +52,20 @@ def test_patch_headers_cannot_escape_the_allowlist():
 def test_stop_decision_requires_an_empty_patch(tmp_path):
     result_path = tmp_path / "result.json"
     patch_path = tmp_path / "change.patch"
-    result_path.write_text(json.dumps(result("stop")), encoding="utf-8")
+    stopped = result("stop")
+    stopped["patch"] = SAFE_PATCH.decode("utf-8")
+    result_path.write_text(json.dumps(stopped), encoding="utf-8")
     patch_path.write_bytes(SAFE_PATCH)
     with pytest.raises(policy.PolicyError, match="must not modify"):
+        policy.validate_files(result_path, patch_path)
+
+
+def test_validator_requires_patch_bytes_to_match_the_json_proposal(tmp_path):
+    result_path = tmp_path / "result.json"
+    patch_path = tmp_path / "change.patch"
+    result_path.write_text(json.dumps(result()), encoding="utf-8")
+    patch_path.write_bytes(SAFE_PATCH + b"\n")
+    with pytest.raises(policy.PolicyError, match="does not match"):
         policy.validate_files(result_path, patch_path)
 
 
@@ -69,12 +81,23 @@ def test_workflow_trusts_only_bot_attempt_markers_and_separates_privileges():
     source = WORKFLOW.read_text(encoding="utf-8")
     assert '.user.login == "github-actions[bot]" and .user.type == "Bot"' in source
 
-    generate = source.split("\n  generate:\n", 1)[1].split("\n  push_fix_branch:\n", 1)[0]
+    generate = source.split("\n  generate:\n", 1)[1].split("\n  validate_proposal:\n", 1)[0]
+    validate = source.split("\n  validate_proposal:\n", 1)[1].split("\n  push_fix_branch:\n", 1)[0]
     push = source.split("\n  push_fix_branch:\n", 1)[1].split("\n  publish_draft:\n", 1)[0]
     publish = source.split("\n  publish_draft:\n", 1)[1].split("\n  report_published:\n", 1)[0]
     dispatch = source.split("\n  dispatch_validation:\n", 1)[1].split("\n  report_stop:\n", 1)[0]
 
     assert "contents: write" not in generate
+    codex_step = generate.split("- name: Ask Codex for a constrained patch", 1)[1]
+    assert "permission-profile: \":read-only\"" in codex_step
+    assert "working-directory: ${{ github.workspace }}/target" in codex_step
+    assert "final-message" in generate
+    assert "- name:" not in codex_step
+    assert '"patch"' in (ROOT / ".github" / "codex" / "rapido-autofix-output.schema.json").read_text(encoding="utf-8")
+    assert "needs.validate_proposal.outputs.patch_b64" in push
+    assert "needs.validate_proposal.outputs.result_b64" in push
+    assert "contents: write" not in validate
+    assert "RAPIDO_CODEX_OPENAI_API_KEY" not in validate
     assert "RAPIDO_CODEX_OPENAI_API_KEY" in generate
     assert "RAPIDO_AUTOFIX_PUSH_KEY" in generate
     assert "RAPIDO_AUTOFIX_PUSH_KEY" in push

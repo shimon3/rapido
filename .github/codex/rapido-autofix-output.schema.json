@@ -4,6 +4,7 @@
   "additionalProperties": false,
   "required": [
     "decision",
+    "patch",
     "root_cause",
     "summary",
     "test_plan",
@@ -13,6 +14,10 @@
     "decision": {
       "type": "string",
       "enum": ["propose", "stop"]
+    },
+    "patch": {
+      "type": "string",
+      "maxLength": 100000
     },
     "root_cause": {
       "type": "string",

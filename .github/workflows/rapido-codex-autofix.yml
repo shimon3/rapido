@@ -181,7 +181,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   generate:
-    name: diagnose in a credential-free workspace
+    name: generate a read-only patch proposal
     needs: gate
     if: needs.gate.outputs.eligible == 'true'
     runs-on: ubuntu-latest
@@ -193,9 +193,7 @@ jobs:
       issues: read
       pull-requests: read
     outputs:
-      decision: ${{ steps.collect.outputs.decision }}
-      patch_b64: ${{ steps.collect.outputs.patch_b64 }}
-      result_b64: ${{ steps.collect.outputs.result_b64 }}
+      final_message: ${{ steps.codex.outputs.final-message }}
     steps:
       - name: Checkout trusted control files
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -244,35 +242,57 @@ jobs:
           openai-api-key: ${{ secrets.RAPIDO_CODEX_OPENAI_API_KEY }}
           prompt-file: ${{ github.workspace }}/control/.github/codex/rapido-autofix-prompt.md
           output-schema-file: ${{ github.workspace }}/control/.github/codex/rapido-autofix-output.schema.json
-          output-file: ${{ github.workspace }}/codex-result.json
           working-directory: ${{ github.workspace }}/target
-          permission-profile: ":workspace"
+          permission-profile: ":read-only"
           safety-strategy: drop-sudo
           effort: medium
           allow-bots: "true"
           allow-bot-users: "github-actions[bot]"
 
-      - name: Collect and pre-validate the untrusted proposal
-        id: collect
+  validate_proposal:
+    name: validate the isolated patch proposal
+    needs: [gate, generate]
+    if: needs.gate.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.validate.outputs.decision }}
+      patch_b64: ${{ steps.validate.outputs.patch_b64 }}
+      result_b64: ${{ steps.validate.outputs.result_b64 }}
+    steps:
+      - name: Checkout trusted control files
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+          path: control
+
+      - name: Checkout the exact failed source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          ref: ${{ needs.gate.outputs.sha }}
+          path: target
+
+      - name: Validate the returned JSON and patch
+        id: validate
         shell: bash
         env:
-          API_KEY_TO_REJECT: ${{ secrets.RAPIDO_CODEX_OPENAI_API_KEY }}
+          FINAL_MESSAGE: ${{ needs.generate.outputs.final_message }}
         run: |
           set -euo pipefail
+          printf '%s' "$FINAL_MESSAGE" > codex-result.json
           jq -e . codex-result.json >/dev/null
           decision=$(jq -r '.decision' codex-result.json)
           [[ "$decision" == "propose" || "$decision" == "stop" ]]
-
-          rm -f target/.codex-ci-failure.log
-          git -C target add -N -A
-          git -C target diff HEAD --binary --full-index --no-ext-diff > codex.patch
-
-          if grep -Fq -- "$API_KEY_TO_REJECT" codex-result.json codex.patch; then
-            echo "::error::Codex output contained the provisioned API credential."
-            exit 1
-          fi
+          jq -jr '.patch' codex-result.json > codex.patch
           python3 control/.github/codex/validate_autofix.py \
             --result codex-result.json --patch codex.patch
+          if [[ "$decision" == "propose" ]]; then
+            git -C target apply --check --whitespace=error-all "$GITHUB_WORKSPACE/codex.patch"
+          fi
 
           {
             echo "decision=$decision"
@@ -282,8 +302,8 @@ jobs:
 
   push_fix_branch:
     name: push the validated fix branch with Git-only credentials
-    needs: [gate, generate]
-    if: needs.generate.outputs.decision == 'propose'
+    needs: [gate, generate, validate_proposal]
+    if: needs.validate_proposal.outputs.decision == 'propose'
     runs-on: ubuntu-latest
     environment: rapido-codex-autofix
     timeout-minutes: 10
@@ -313,8 +333,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PATCH_B64: ${{ needs.generate.outputs.patch_b64 }}
-          RESULT_B64: ${{ needs.generate.outputs.result_b64 }}
+          PATCH_B64: ${{ needs.validate_proposal.outputs.patch_b64 }}
+          RESULT_B64: ${{ needs.validate_proposal.outputs.result_b64 }}
           ROOT_RUN_ID: ${{ needs.gate.outputs.root }}
           SOURCE_BRANCH: ${{ needs.gate.outputs.branch }}
           SOURCE_RUN_ID: ${{ needs.gate.outputs.run_id }}
@@ -356,8 +376,8 @@ jobs:
 
   publish_draft:
     name: create or update a draft PR without merge permission
-    needs: [gate, generate, push_fix_branch]
-    if: needs.generate.outputs.decision == 'propose'
+    needs: [gate, generate, validate_proposal, push_fix_branch]
+    if: needs.validate_proposal.outputs.decision == 'propose'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -373,7 +393,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RESULT_B64: ${{ needs.generate.outputs.result_b64 }}
+          RESULT_B64: ${{ needs.validate_proposal.outputs.result_b64 }}
           ROOT_RUN_ID: ${{ needs.gate.outputs.root }}
           SOURCE_RUN_ID: ${{ needs.gate.outputs.run_id }}
           FIX_BRANCH: ${{ needs.push_fix_branch.outputs.fix_branch }}
@@ -511,8 +531,8 @@ jobs:
 
   report_stop:
     name: record a no-change diagnosis
-    needs: [gate, generate]
-    if: needs.generate.outputs.decision == 'stop'
+    needs: [gate, generate, validate_proposal]
+    if: needs.validate_proposal.outputs.decision == 'stop'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -534,11 +554,12 @@ jobs:
 
   report_failure:
     name: record automation failure
-    needs: [gate, generate, push_fix_branch, publish_draft, dispatch_validation]
+    needs: [gate, generate, validate_proposal, push_fix_branch, publish_draft, dispatch_validation]
     if: >-
       always() &&
       needs.gate.outputs.eligible == 'true' &&
-      (needs.generate.result == 'failure' || needs.push_fix_branch.result == 'failure' ||
+      (needs.generate.result == 'failure' || needs.validate_proposal.result == 'failure' ||
+      needs.push_fix_branch.result == 'failure' ||
       needs.publish_draft.result == 'failure' ||
       needs.dispatch_validation.result == 'failure')
     runs-on: ubuntu-latest
@@ -553,6 +574,7 @@ jobs:
           ROOT_RUN_ID: ${{ needs.gate.outputs.root }}
           ATTEMPT: ${{ needs.gate.outputs.attempt }}
           GENERATE_RESULT: ${{ needs.generate.result }}
+          VALIDATE_RESULT: ${{ needs.validate_proposal.result }}
           PUSH_RESULT: ${{ needs.push_fix_branch.result }}
           PUBLISH_RESULT: ${{ needs.publish_draft.result }}
           DISPATCH_RESULT: ${{ needs.dispatch_validation.result }}
@@ -560,6 +582,6 @@ jobs:
           set -euo pipefail
           body="<!-- rapido-codex-autofix-status root=$ROOT_RUN_ID attempt=$ATTEMPT -->
 
-          Guarded attempt stopped safely. Generate: **$GENERATE_RESULT**; push: **$PUSH_RESULT**; publish: **$PUBLISH_RESULT**; dispatch: **$DISPATCH_RESULT**. No merge or release was attempted."
+          Guarded attempt stopped safely. Generate: **$GENERATE_RESULT**; validate: **$VALIDATE_RESULT**; push: **$PUSH_RESULT**; publish: **$PUBLISH_RESULT**; dispatch: **$DISPATCH_RESULT**. No merge or release was attempted."
           gh api "repos/$GITHUB_REPOSITORY/issues/$STATE_ISSUE/comments" \
             -f body="$body" >/dev/null

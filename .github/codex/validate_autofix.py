@@ -59,11 +59,13 @@ def allowed_path(path: str) -> bool:
 def validate_result(data: object) -> dict:
     if not isinstance(data, dict):
         raise PolicyError("Codex result must be a JSON object")
-    expected = {"decision", "root_cause", "summary", "test_plan", "risk_notes"}
+    expected = {"decision", "patch", "root_cause", "summary", "test_plan", "risk_notes"}
     if set(data) != expected:
         raise PolicyError("Codex result has missing or unexpected properties")
     if data["decision"] not in {"propose", "stop"}:
         raise PolicyError("Invalid decision")
+    if not isinstance(data["patch"], str) or len(data["patch"].encode("utf-8")) > MAX_PATCH_BYTES:
+        raise PolicyError("Invalid or oversized patch field")
     for name, limit in (("root_cause", 2000), ("summary", 1000)):
         if not isinstance(data[name], str) or not data[name].strip() or len(data[name]) > limit:
             raise PolicyError(f"Invalid {name}")
@@ -186,6 +188,12 @@ def validate_patch(patch: bytes) -> dict:
 def validate_files(result_path: Path, patch_path: Path) -> dict:
     result = validate_result(json.loads(result_path.read_text(encoding="utf-8")))
     patch = patch_path.read_bytes()
+    try:
+        proposal = result["patch"].encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise PolicyError("Patch field is not valid UTF-8") from exc
+    if proposal != patch:
+        raise PolicyError("Patch file does not match the JSON patch field")
     if result["decision"] == "stop":
         if patch.strip():
             raise PolicyError("A stop decision must not modify tracked files")
@@ -197,13 +205,6 @@ def validate_files(result_path: Path, patch_path: Path) -> dict:
 
 
 def self_test() -> None:
-    result = {
-        "decision": "propose",
-        "root_cause": "Confirmed regression",
-        "summary": "Constrained correction",
-        "test_plan": ["Run the existing regression test"],
-        "risk_notes": ["Human review remains required"],
-    }
     safe_patch = b"""diff --git a/engine.py b/engine.py
 index 1111111..2222222 100644
 --- a/engine.py
@@ -212,6 +213,14 @@ index 1111111..2222222 100644
 -OLD = True
 +OLD = False
 """
+    result = {
+        "decision": "propose",
+        "patch": safe_patch.decode("utf-8"),
+        "root_cause": "Confirmed regression",
+        "summary": "Constrained correction",
+        "test_plan": ["Run the existing regression test"],
+        "risk_notes": ["Human review remains required"],
+    }
     unsafe_patch = safe_patch.replace(b"engine.py", b".github/workflows/windows.yml")
     delete_patch = safe_patch.replace(b"index 1111111..2222222 100644", b"deleted file mode 100644")
     spoofed_headers = safe_patch.replace(
@@ -232,7 +241,16 @@ index 1111111..2222222 100644
         (root / "result.json").write_text(json.dumps(result), encoding="utf-8")
         (root / "change.patch").write_bytes(safe_patch)
         validate_files(root / "result.json", root / "change.patch")
+        (root / "change.patch").write_bytes(safe_patch + b"\n")
+        try:
+            validate_files(root / "result.json", root / "change.patch")
+        except PolicyError:
+            pass
+        else:
+            raise AssertionError("A patch that differs from the JSON proposal passed")
+        (root / "change.patch").write_bytes(safe_patch)
         result["decision"] = "stop"
+        result["patch"] = ""
         (root / "result.json").write_text(json.dumps(result), encoding="utf-8")
         (root / "change.patch").write_bytes(b"")
         validate_files(root / "result.json", root / "change.patch")
