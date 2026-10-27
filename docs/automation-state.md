@@ -46,16 +46,16 @@ Last updated: 2026-10-27
 
 ## Current unpublished candidate
 
-- Validated source commit: `75d3ddbc67f83057b176649bf36f348de6a91655`.
-- Workflow run: `40470899050`.
-- Artifact: `12719195364`,
+- Validated source commit: `98e79211c1a02cd4981f5acb4b306af4d2359846`.
+- Workflow run: `40503343084`.
+- Artifact: `12734780024`,
   `UNPUBLISHED-Rapido-1.3.0-beta.2-windows`, retained until 2026-11-10.
 - Artifact archive digest:
-  `dbd5705c7b92341947e456aa57e5d1b9a3284152ed09337d9d13577b8525d684`.
+  `09ed1f1ebc67afcff418dff99c85561a4a35941a8ca584ce4dda7c5ca0fc56bf`.
 - Installer SHA-256:
-  `f44ef1c777f39942d9c667443b065b1421fc9836bce5b31d1f48f6b29f692e7d`.
+  `de1935d565ea20bdba3e044682a0a74f29b5d363445b3f498d63fc48883f11ae`.
 - Portable ZIP SHA-256:
-  `076c85258efb8c356e29a1351f58235554bf5f92c63331ff1f009f41150c264e`.
+  `a9d01a2fd59d67905174dd89a0a77e026d3887b366ed0e6445ee633af806ca9a`.
 - The release job was skipped; no release or production signature was created.
 
 ## CI reliability follow-up
@@ -68,8 +68,9 @@ Last updated: 2026-10-27
 - The production save path already requests exactly one replacement attempt.
   The regression test now observes that explicit `attempts=1` contract without
   changing global time or running Rapido.
-- Retry counter for this root cause: attempt 1 of 3 is pending full isolated
-  Windows CI validation.
+- Retry counter for this root cause: attempt 1 of 3 succeeded in run
+  `40503343084`; 431 tests passed, 6 were skipped, 1 warning remained and 271
+  subtests passed. No second attempt was started.
 
 ## Local preparation checks
 
@@ -80,16 +81,19 @@ Last updated: 2026-10-27
   the owner computer. The complete validation is delegated to GitHub Actions.
 - Rapido was not installed or executed locally.
 
-## Automation configured in this branch
+## Automation status
 
 - Pushes to `automation/rapido-beta2-*` run the existing complete Windows
   workflow.
 - Concurrency prevents simultaneous runs for the same ref.
-- A prepared cron expression (`17 */3 * * *`, UTC) targets the dedicated
-  branch every three hours.
-- GitHub only activates scheduled workflows stored on the default branch.
-  Therefore the cron is **prepared but not active** while this workflow exists
-  only on the dedicated branch.
+- The guarded dispatcher is present and active on `main` with cron expression
+  `17 */3 * * *` UTC. Manual run `40500457713` dispatched successful beta run
+  `40500511039`. No `schedule` event had appeared yet at this checkpoint, so
+  unattended periodic execution is configured but not yet empirically proven.
+- Dependabot is active and has opened PRs #43 through #46. PR #45 exposed the
+  flaky assertion fixed above; action-major updates remain unmerged.
+- The guarded Codex workflow remains draft in PR #41 and has no activation
+  variable, environment or API secret. It has made no paid API call.
 - Each eligible run appends its commit, result and run URL to issue #37.
 - CI artifacts remain unsigned, unpublished and retained for 14 days.
 
@@ -100,13 +104,12 @@ Last updated: 2026-10-27
 2. Prepare and execute exact-candidate Windows 10 and Windows 11 VM checklists.
 3. Validate Chrome and Edge on authorized isolated profiles. Firefox 157.0.1
    passed the automated real-browser handoff, but manual UX checks remain.
-4. Consolidate stale beta.1/security wording for the beta.2 candidate.
-5. Address the non-blocking Node 20 action-runtime and Starlette deprecation
+4. Address the non-blocking Node 20 action-runtime and Starlette deprecation
    warnings without widening beta scope.
-6. Await owner decisions for issue #26, legal review and production signing.
+5. Await owner decisions for issue #26, legal review and production signing.
 
 ## Next action
 
-Validate the test-isolation correction in the complete Windows workflow. Then
-review the exact-candidate evidence, prepare the Windows 10/11 and Chromium
-manual gates, and do not publish or sign without explicit owner approval.
+Review the exact-candidate evidence, execute the Windows 10/11 and Chromium
+manual gates on authorized disposable machines, and do not publish or sign
+without explicit owner approval.

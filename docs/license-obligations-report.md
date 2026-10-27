@@ -1,6 +1,6 @@
-# Licence obligations report — Rapido 1.3.0-beta.1 for Windows
+# Licence obligations report — Rapido 1.3.0-beta.2 for Windows
 
-Status date: 2026-10-18. Scope: the Windows installer and portable ZIP built by
+Status date: 2026-10-27. Scope: the Windows installer and portable ZIP built by
 `.github/workflows/windows.yml` from the pinned environment in
 `packaging/constraints-windows-build.txt`.
 
@@ -15,8 +15,8 @@ and does not declare Rapido legally compliant.
 | Licence and notice files copied for every installed distribution | `scripts/collect_license_evidence.py` → `third-party/inventory.json` | Python licence or incorporated CPython notices missing or not matching the reviewed hashes |
 | pystray 0.19.5 (LGPLv3): 13 installed source files compared with upstream commit `1907f868…` | same | any file differs, the version changes, or the source copy is missing |
 | pystray source shipped as `third-party/source/pystray-0.19.5/` | same | no verified source files were copied |
-| certifi 2026.7.22 (MPL-2.0): 7 files, including `cacert.pem`, compared with upstream commit `5379b709…` | same | any file differs, the version changes, or the source copy is missing |
-| certifi Source Code Form shipped as `third-party/source/certifi-2026.7.22/` plus full `MPL-2.0.txt` | same | no verified source files were copied |
+| certifi 2026.10.19 (MPL-2.0): installed source files, including `cacert.pem`, compared with upstream commit `662df63d…` | same | any file differs, the version changes, or the source copy is missing |
+| certifi Source Code Form shipped as `third-party/source/certifi-2026.10.19/` plus full `MPL-2.0.txt` | same | no verified source files were copied |
 | proxy_tools 0.1.0: upstream BSD text supplied, MIT/BSD metadata discrepancy kept visible | same | the module or supplemental licence does not match the reviewed hash |
 | WebView2 SDK binaries matched to NuGet 1.0.3856.49, LICENSE and NOTICE shipped | same | binary or text hash differs |
 | Pillow, cffi/libffi, pydantic-core crates, pywebview interop DLLs: shipped binaries matched to official wheels | same | binary hash differs |
@@ -24,9 +24,9 @@ and does not declare Rapido legally compliant.
 | Bundle content inspected (modules, native libraries, archives); test frameworks forbidden | `scripts/collect_payload_evidence.py` | `pytest`/`_pytest` found in the bundle |
 | PyPI advisory check for all 41 pinned distributions | `scripts/check_dependency_advisories.py` | a pinned version has an advisory or a response cannot be verified |
 
-Evidence of the latest passing run before this change: CI #240
-(https://github.com/shimon3/rapido/actions/runs/39120997040), 41 distributions
-collected, 41/41 advisory responses verified.
+Latest passing exact beta.2 evidence before this documentation update: run
+`40500511039`, 41 distributions collected and 41/41 advisory responses
+verified. A newer candidate run is recorded in `docs/automation-state.md`.
 
 ## 2. Obligations per component and how the bundle addresses them
 
@@ -55,11 +55,11 @@ collected, 41/41 advisory responses verified.
   that tag permanently reachable, for example through the GitHub release
   source archive.
 
-### certifi 2026.7.22 — MPL-2.0
+### certifi 2026.10.19 — MPL-2.0
 
 - **Executable-form notice** (§3.2(a)): `THIRD-PARTY-NOTICES.md` and
   `SOURCE.md` say where the Source Code Form is; the form itself is shipped in
-  `third-party/source/certifi-2026.7.22/`.
+  `third-party/source/certifi-2026.10.19/`.
 - **Licence text**: full `MPL-2.0.txt` shipped, since the package's own
   `LICENSE` only refers to it.
 - **File-level copyleft**: Rapido does not modify certifi files, so it has no
@@ -94,7 +94,7 @@ collected, 41/41 advisory responses verified.
 - Apache-2.0 §4(d): OpenSSL 3.x ships no NOTICE file, so there is nothing more
   to reproduce. The reviewer should confirm this for 3.5.9.
 
-### Pillow 12.3.0 and bundled native libraries
+### Pillow 13.0.0 and bundled native libraries
 
 - Pillow's own `LICENSE` reproduces the licences of its bundled libraries.
   The FreeType FTL credit line is in `NOTICE.md`.
