@@ -35,14 +35,18 @@ The loop remains inactive unless **all** of these steps are completed:
    Actions to create and approve pull requests** only after the beta branch
    protection in the next step is active. This workflow contains no approval or
    merge command.
-3. Keep the active `Protect main` ruleset. For the single-maintainer beta
-   branch, require a pull request, the `build` check, resolved conversations,
-   and block deletion and force-pushes, but require **zero approvals** so the
-   sole owner can merge their own reviewed PRs. Give no Actions actor a ruleset
-   bypass. Codex-created proposals are opened as drafts, are checked as drafts
-   after publication, and the workflow has no command that marks them ready,
-   approves, or merges them. Keep repository auto-merge disabled. The owner
-   must manually inspect, mark ready, and merge a proposal.
+3. Protect both `main` and `automation/rapido-beta2-20261027` with a pull
+   request, one approval, the `build` check, resolved conversations, and rules
+   blocking deletion and force-push. Do not grant Actions any bypass. The sole
+   owner can approve a proposal authored by `github-actions[bot]`; for a
+   self-authored PR, configure the owner as a bypass actor limited to **pull
+   requests only**, which still blocks direct pushes. Keep auto-merge disabled.
+   This is necessary because the publisher needs `contents:write` to push its
+   fix branch, and GitHub's PR merge API accepts that permission. Zero required
+   approvals would therefore leave a path for a changed or compromised
+   publisher token to merge a ready PR. The workflow creates drafts, verifies
+   the author/base/head/draft state and absence of auto-merge after publication,
+   and contains no approval, ready, or merge command.
 4. Create a dedicated OpenAI API project, explicitly select an approved Codex
    model and CLI version, and configure a small project hard spend limit plus
    alerts. The workflow allows at most three Codex sessions per rolling 24-hour
@@ -62,14 +66,19 @@ The loop remains inactive unless **all** of these steps are completed:
 ## Current review checkpoint
 
 - On 2026-10-27, commit `b447687` added an API postcondition that rejects any
-  Codex proposal PR that is no longer draft, and moved issue logging into a
-  separate `issues:write` job. The policy dry-run passed.
+  Codex proposal PR that is not a draft, and moved issue logging into a
+  separate `issues:write` job. Commit `498b103` corrected the test boundary;
+  run `40536424501` passed the full Windows build.
 - The first Windows build found only a static-test boundary mistake: the test
   included the adjacent issue-reporting job when measuring the publisher's
   permissions. The workflow permissions were already separated correctly.
-- Retry 1 for this test-only cause succeeded after the section boundary was
-  corrected. Run `40536424501` passed the policy tests, all regression tests,
-  the Windows build, isolated self-test, installer and portable packaging.
+- The publisher verifies the bot author, exact base/head, draft status and
+  absence of auto-merge after each publish or update. It exposes no command to
+  mark a proposal ready, approve, or merge it. This hardening is in the current
+  PR head and must pass CI before review.
+- The current branch rules still require zero approvals and give no bypass.
+  The one-approval and owner-only pull-request bypass configuration is a
+  required owner-side activation step, not yet applied.
 - No API key was configured or used; the Codex, publication and dispatch jobs
   remained skipped.
 

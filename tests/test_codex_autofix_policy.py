@@ -92,8 +92,10 @@ def test_publisher_requires_the_resulting_pull_request_to_remain_draft():
     source = WORKFLOW.read_text(encoding="utf-8")
     publish = source.split("\n  publish:\n", 1)[1].split("\n  report_published:\n", 1)[0]
     assert "gh pr create --repo \"$GITHUB_REPOSITORY\" --draft" in publish
-    assert "--json isDraft --jq '.isDraft'" in publish
-    assert 'test "$is_draft" = "true"' in publish
+    assert "--json isDraft,author,baseRefName,headRefName,autoMergeRequest" in publish
+    assert '.author.login == "github-actions[bot]"' in publish
+    assert ".autoMergeRequest == null" in publish
+    assert '.baseRefName == $base and .headRefName == $head' in publish
 
 
 def test_publisher_does_not_write_to_the_persistent_issue_log():

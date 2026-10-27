@@ -361,7 +361,7 @@ jobs:
             echo "- Summary: $summary"
             echo "- Root cause: $root_cause"
             echo
-            echo "This PR is deliberately draft. It cannot merge itself or publish a release. Human review is required."
+            echo "This PR is deliberately draft. The workflow has no path to mark it ready or merge it, and it cannot publish a release. Human review is required."
           } > pr-body.md
 
           pr_json=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
@@ -382,8 +382,14 @@ jobs:
 
           # Do not let a future edit to this publisher silently promote a fix.
           # A draft is also an external postcondition, not only a CLI flag.
-          is_draft=$(gh pr view "$pr_url" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')
-          test "$is_draft" = "true"
+          pr_state=$(gh pr view "$pr_url" --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,author,baseRefName,headRefName,autoMergeRequest)
+          jq -e \
+            --arg base "$TARGET_BRANCH" \
+            --arg head "$fix_branch" \
+            '.isDraft == true and .author.login == "github-actions[bot]" and
+             .baseRefName == $base and .headRefName == $head and .autoMergeRequest == null' \
+            <<<"$pr_state" >/dev/null
 
           {
             echo "fix_branch=$fix_branch"
