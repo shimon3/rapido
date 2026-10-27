@@ -11,7 +11,7 @@ Last updated: 2026-10-27
 - Persistent GitHub log: issue #37
 - Local isolated clone: `C:\Users\samue\Downloads\rapido-auto-20261027`
 
-## Last validated baseline
+## Reference baseline
 
 - GitHub Actions run `39929795694` succeeded on reference commit `5e08c95`.
 - Regression suite: 430 passed, 6 skipped, 1 warning, 271 subtests passed.
@@ -34,8 +34,29 @@ Last updated: 2026-10-27
   mutable copy of the current constraints. Historical evidence must remain
   unchanged. Exact candidate versions are already checked against the fresh
   CI inventory by `check_dependency_advisories.py`.
-- Validation state: focused test correction prepared; complete CI pending.
-- Retry counter for this root cause: attempt 2 of 3.
+- Validation attempt 2: run `40470899050` succeeded on commit `75d3ddb`.
+- Final test counts: 431 passed, 6 skipped, 1 Starlette deprecation
+  warning, and 271 subtests passed. Authenticode: 15 passed and 39 subtests.
+- The fresh build inventory contained 41 reviewed distributions and the PyPI
+  advisory gate verified 41/41 responses successfully.
+- Packaging, graphical self-test, native messaging, installer lifecycle,
+  installed/portable coexistence and real Firefox 157.0.1 handoff passed.
+- Retry counter for this root cause: attempt 2 of 3 succeeded; no third attempt
+  was started.
+
+## Current unpublished candidate
+
+- Validated source commit: `75d3ddbc67f83057b176649bf36f348de6a91655`.
+- Workflow run: `40470899050`.
+- Artifact: `12719195364`,
+  `UNPUBLISHED-Rapido-1.3.0-beta.2-windows`, retained until 2026-11-10.
+- Artifact archive digest:
+  `dbd5705c7b92341947e456aa57e5d1b9a3284152ed09337d9d13577b8525d684`.
+- Installer SHA-256:
+  `f44ef1c777f39942d9c667443b065b1421fc9836bce5b31d1f48f6b29f692e7d`.
+- Portable ZIP SHA-256:
+  `076c85258efb8c356e29a1351f58235554bf5f92c63331ff1f009f41150c264e`.
+- The release job was skipped; no release or production signature was created.
 
 ## Local preparation checks
 
@@ -61,15 +82,18 @@ Last updated: 2026-10-27
 
 ## Open tasks
 
-1. Obtain a complete green CI run after the setuptools update.
-2. Inspect the generated dependency, licence and payload evidence.
-3. Prepare exact-candidate Windows 10 and Windows 11 VM checklists.
-4. Validate Chrome, Edge and Firefox on authorized isolated profiles.
-5. Consolidate stale beta.1/security wording for the beta.2 candidate.
+1. Review the exact-candidate licence and payload evidence; CI generation and
+   automated gates passed, but they are not a legal compliance verdict.
+2. Prepare and execute exact-candidate Windows 10 and Windows 11 VM checklists.
+3. Validate Chrome and Edge on authorized isolated profiles. Firefox 157.0.1
+   passed the automated real-browser handoff, but manual UX checks remain.
+4. Consolidate stale beta.1/security wording for the beta.2 candidate.
+5. Address the non-blocking Node 20 action-runtime and Starlette deprecation
+   warnings without widening beta scope.
 6. Await owner decisions for issue #26, legal review and production signing.
 
 ## Next action
 
-Commit and push the focused historical-inventory test correction, then inspect
-the second GitHub Actions run. Correct only confirmed failures, with at most
-three attempts for a single root cause.
+Keep the validated source frozen. Review the exact-candidate evidence, prepare
+the Windows 10/11 and Chromium manual gates, and do not publish or sign without
+explicit owner approval.
