@@ -43,10 +43,14 @@ The loop remains inactive unless **all** of these steps are completed:
    after publication, and the workflow has no command that marks them ready,
    approves, or merges them. Keep repository auto-merge disabled. The owner
    must manually inspect, mark ready, and merge a proposal.
-4. Create a dedicated OpenAI API project, select an approved current Codex
-   model, and configure a small project hard spend limit plus alerts. Spend-limit
-   enforcement is not instantaneous, so the workflow's attempt caps remain
-   necessary.
+4. Create a dedicated OpenAI API project, explicitly select an approved Codex
+   model and CLI version, and configure a small project hard spend limit plus
+   alerts. The workflow allows at most three Codex sessions per rolling 24-hour
+   period, with a 20-minute job timeout; that is not a limit of three API
+   requests because one Codex session may make multiple billed requests. The
+   current workflow has no explicit token budget and leaves model/CLI version
+   at defaults, so choose and test those before activation. Spend-limit
+   enforcement is not instantaneous and may slightly exceed the cap.
 5. Create the GitHub environment `rapido-codex-autofix`, restrict its deployment
    branches to `main`, and add the project key there (not as a repository-wide
    secret) under the name `RAPIDO_CODEX_OPENAI_API_KEY`.
@@ -63,8 +67,11 @@ The loop remains inactive unless **all** of these steps are completed:
 - The first Windows build found only a static-test boundary mistake: the test
   included the adjacent issue-reporting job when measuring the publisher's
   permissions. The workflow permissions were already separated correctly.
-- Retry 1 for this test-only cause is being corrected on the PR branch. No API
-  key was configured or used; the Codex and publication jobs remained skipped.
+- Retry 1 for this test-only cause succeeded after the section boundary was
+  corrected. Run `40536424501` passed the policy tests, all regression tests,
+  the Windows build, isolated self-test, installer and portable packaging.
+- No API key was configured or used; the Codex, publication and dispatch jobs
+  remained skipped.
 
 Set `RAPIDO_CODEX_AUTOFIX_ENABLED` to `false` (or remove it) for an immediate
 logical stop. Removing the API secret is the second kill switch. Existing draft
