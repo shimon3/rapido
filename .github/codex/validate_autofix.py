@@ -53,6 +53,8 @@ def allowed_path(path: str) -> bool:
         return False
     if path.startswith("/") or path.startswith(".") or ".." in path.split("/"):
         return False
+    if path.rsplit("/", 1)[-1].casefold() in {"agents.md", "agents.override.md"}:
+        return False
     return path in ALLOWED_EXACT or path.startswith(ALLOWED_PREFIXES)
 
 

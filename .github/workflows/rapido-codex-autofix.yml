@@ -218,10 +218,19 @@ jobs:
           set -euo pipefail
           temporary_log=$(mktemp)
           gh run view "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed > "$temporary_log"
-          # The failed source is untrusted and may contain a symlink at this path.
-          rm -f target/.codex-ci-failure.log
-          tail -c 120000 "$temporary_log" > target/.codex-ci-failure.log
+          tail -c 120000 "$temporary_log" > "$RUNNER_TEMP/codex-ci-failure.log"
           rm -f "$temporary_log"
+
+      - name: Prepare allowlisted source context without repository instructions
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ needs.gate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          python3 control/.github/codex/prepare_context.py \
+            --repo target --revision "$SOURCE_SHA" \
+            --destination "$GITHUB_WORKSPACE/context" \
+            --log "$RUNNER_TEMP/codex-ci-failure.log"
 
       - name: Require an explicitly provisioned API key
         shell: bash
@@ -242,7 +251,7 @@ jobs:
           openai-api-key: ${{ secrets.RAPIDO_CODEX_OPENAI_API_KEY }}
           prompt-file: ${{ github.workspace }}/control/.github/codex/rapido-autofix-prompt.md
           output-schema-file: ${{ github.workspace }}/control/.github/codex/rapido-autofix-output.schema.json
-          working-directory: ${{ github.workspace }}/target
+          working-directory: ${{ github.workspace }}/context
           permission-profile: ":read-only"
           safety-strategy: drop-sudo
           effort: medium

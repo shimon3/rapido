@@ -6,10 +6,14 @@ on `automation/rapido-beta2-20261027` or on the loop's own draft-fix branch.
 
 ## What it can and cannot do
 
-The loop can inspect bounded failed-job logs, ask Codex to edit an isolated
-checkout, validate the resulting text patch, push a dedicated fix branch, open
-or update a **draft** pull request targeting the beta automation branch. A
-third job, with `actions: write` but no checkout, write access to contents, or
+The loop can inspect bounded failed-job logs, ask Codex for a patch proposal,
+validate it in a separate job, push a dedicated fix branch, and open or update
+a **draft** pull request targeting the beta automation branch. Codex runs as
+the last step of its job, with a read-only profile and no GitHub write token.
+It returns a bounded JSON patch instead of editing the workspace. The next job
+rebuilds a small context from regular files in the allowlist and omits repository
+instruction files, then validates the proposal against the exact source commit.
+A later job, with `actions: write` but no checkout, write access to contents, or
 OpenAI key, revalidates the draft and dispatches its approved Windows workflow.
 
 Its intended path cannot target `main` with a generated PR, merge a PR, create
@@ -101,6 +105,10 @@ The loop remains inactive unless **all** of these steps are completed:
   owner-side activation steps, not yet applied.
 - No API key was configured or used; the Codex, publication and dispatch jobs
   remained skipped.
+- Commit `b51bf1d` moves Codex to a read-only JSON patch response and a separate
+  validator job. The Codex action is the final step in its job; a trusted
+  context builder excludes repository instruction files before the action runs.
+  Local policy self-test and Python syntax checks passed; GitHub CI is pending.
 
 Set `RAPIDO_CODEX_AUTOFIX_ENABLED` to `false` (or remove it) for an immediate
 logical stop. Removing the API secret is the second kill switch. Existing draft
