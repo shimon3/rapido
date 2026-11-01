@@ -90,13 +90,21 @@ def _operation(k, handle, deadline, function, *args):
             remaining = max(0, int((deadline - time.monotonic()) * 1000))
             outcome = k.WaitForSingleObject(event, remaining)
             if outcome != 0:
+                wait_error = ctypes.get_last_error()
                 k.CancelIoEx(handle, ctypes.byref(ov))
                 # Drain cancellation before freeing the OVERLAPPED/buffer.
-                ignored = wintypes.DWORD()
-                k.GetOverlappedResult(handle, ctypes.byref(ov), ctypes.byref(ignored), True)
+                drained = wintypes.DWORD()
+                completed = k.GetOverlappedResult(handle, ctypes.byref(ov), ctypes.byref(drained), True)
+                completion_error = 0 if completed else ctypes.get_last_error()
                 if outcome == 258:
+                    # This is the server's idle accept poll, not the RPC budget.
+                    # CancelIoEx may lose to a successful incoming connection.
+                    if function == k.ConnectNamedPipe and completed:
+                        return drained.value
+                    if not completed and completion_error != 995:
+                        raise ctypes.WinError(completion_error)
                     raise TimeoutError("Named-pipe operation timed out")
-                raise ctypes.WinError(ctypes.get_last_error())
+                raise ctypes.WinError(wait_error)
         transferred = wintypes.DWORD()
         if not k.GetOverlappedResult(handle, ctypes.byref(ov), ctypes.byref(transferred), False):
             raise ctypes.WinError(ctypes.get_last_error())
@@ -218,6 +226,7 @@ class PipeServer:
         try:
             while not self._stop.is_set():
                 phase, kind = 'connect', None
+                reset_pipe = True
                 try:
                     _operation(k, handle, _deadline(.25), k.ConnectNamedPipe)
                     if self._stop.is_set():
@@ -242,11 +251,25 @@ class PipeServer:
                         event('server', 'ack', operation=kind)
                         phase = 'peer'  # final identity check on context exit
                 except (OSError, ValueError, TimeoutError) as error:
-                    if phase != 'connect' or not isinstance(error, TimeoutError):
+                    if phase == 'connect' and isinstance(error, TimeoutError):
+                        # The idle poll was cancelled without accepting a peer.
+                        # A client may connect right now. Leave that instance for
+                        # the next ConnectNamedPipe (ERROR_PIPE_CONNECTED), rather
+                        # than disconnecting and discarding its unread request.
+                        reset_pipe = False
+                        event('server', 'cancel', outcome='closed')
+                    else:
                         event('server', phase, operation=kind, outcome='error', error=error)
                     # Refuse exactly as before. Diagnostics never include payloads.
                 finally:
-                    k.DisconnectNamedPipe(handle)
+                    if reset_pipe:
+                        event('server', 'disconnect', operation=kind, outcome='begin')
+                        if k.DisconnectNamedPipe(handle):
+                            event('server', 'disconnect', operation=kind)
+                        else:
+                            code = ctypes.get_last_error()
+                            event('server', 'disconnect', operation=kind,
+                                  outcome='closed' if code == 233 else 'error', winerror=code)
         except Exception as error:
             event('server', phase, operation=kind, outcome='error', error=error)
             raise

@@ -288,3 +288,46 @@ without explicit owner approval.
   DOM-fixture and BOM causes remain separate fixes with their own evidence.
 - New CI build and Windows 10 campaign required. No merge, tag, release,
   production signing, peer/SID/DACL policy or Windows protection changes.
+
+## Demonstrated Windows 233 idle-connect race, 2026-11-01
+
+- Verified branch head 71c2376 and successful CI run 41316902235 before editing.
+- Read all 20 native event streams and compared success/failure traces from
+  interactive-results/20261101-165637-2084-c339a4e1. Immutable audit:
+  pipe233-71c2376-analysis/audit.json, four chronological JSON timelines.
+  5643 events, 201 proof files. Actual file count is 57/60 (cycle 1 verifies
+  all three files but correctly fails the first-commit protocol assertion).
+- Cycles 1/4/8/11: same admitted/live host and server; connection and send succeed,
+  then receive fails 233. No server peer/dispatch event exists for the lost RPC.
+  Prior ACK-to-new-connect gaps: 272.579, 577.924, 328.872, 292.652 ms, around the
+  250 ms idle accept poll. Server shutdown, worker EOF and normal job cleanup
+  happen later; no child or Job Object termination precedes these errors.
+- Cause demonstrated with real authenticated fixture pipes and deterministic
+  barriers at two idle-cancel boundaries: (1) ConnectNamedPipe completes after
+  WaitForSingleObject times out but before CancelIoEx; original code ignores
+  successful GetOverlappedResult and throws TimeoutError; (2) cancellation
+  completes, then a new client connects before the unconditional finally reset.
+  Original server disconnects both clients before reading, producing exact
+  errno 22 / winerror 233 and zero handler invocations.
+- Fix only this lifecycle: honor an actually completed ConnectNamedPipe after the
+  idle-poll cancel drain, and do not DisconnectNamedPipe on an unaccepted idle
+  cancellation. Next accept handles ERROR_PIPE_CONNECTED normally. Real accept,
+  admission, read/write or handler failures still reset the instance. Shutdown
+  still rejects newly arriving clients and terminates the thread.
+- Check the real cancellation completion/error and preserve the original wait
+  failure instead of overwriting it with cancellation's error. RPC read/write
+  deadlines remain strict even if their completion arrives late. No replay,
+  sleep, retry budget, SID/DACL/origin or time limit increase.
+- Add safe cancel/disconnect state events. Existing authenticated peer checks,
+  durable handoff state/rollback, first and repeated commit checks unchanged.
+- Proof: two standalone before cases produce 233 with zero dispatch; after cases
+  each return their sole dispatched request once. Regression baseline: four
+  failures/two passes before the final added completion case; final focused
+  suite 34 passed, 2 subtests including shutdown, genuine errors, unchanged read
+  deadline, native-host descendant cleanup and security diagnostics.
+- Full local suite currently being collected; unchanged sandbox restrictions
+  are not substituted for Windows 10 validation.
+- Root-specific retry counter: idle-connect cancel/reset race attempt 1/3.
+  Prior final-ACK reply-loss correction is a separate lifecycle edge.
+- New full CI and new 20-cycle Windows 10 run required. No main/tag/merge/release,
+  production signing, policy or Windows protection change.

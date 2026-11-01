@@ -12,7 +12,7 @@ _components = {'host', 'client', 'server', 'handoff', 'session', 'manager', 'dpa
 _phases = {'start', 'created', 'connect', 'peer', 'send', 'receive', 'ack', 'dispatch',
            'protect', 'persist', 'rollback', 'prepare', 'commit', 'abort', 'stop',
            'reply', 'validate', 'launcher', 'wait', 'loop', 'job', 'exit', 'ready',
-           'parent', 'origin', 'paths'}
+           'parent', 'origin', 'paths', 'cancel', 'disconnect'}
 _operations = {'capabilities', 'settings_public', 'capture_public', 'capture_prepare',
                'capture_commit', 'capture_abort', 'show', 'ping'}
 _outcomes = {'begin', 'ok', 'error', 'closed', 'timeout', 'rollback', 'returned'}
