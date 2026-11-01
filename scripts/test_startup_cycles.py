@@ -67,6 +67,8 @@ def main():
         except OSError:
             row['port_released'] = False
         row['ok'] = bool(code == 0 and all(result.get(key) is True for key in required)
+                         and all(result.get(key, {}).get('ok') is True for key in
+                                 ('download_integrity', 'native_download', 'handoff_download'))
                          and result.get('main_title') == 'Rapido' and row['port_released'])
         report['cycles'].append(row)
         save()

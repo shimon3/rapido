@@ -197,6 +197,11 @@ def setup_logging(data_dir: Path):
     log.write(f"\n--- demarrage {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
     sys.stdout = sys.stdout or log
     sys.stderr = sys.stderr or log
+    # Redirected Windows consoles can use cp1255, which cannot encode French
+    # diagnostics. Preserve the console encoding, escaping unsupported text.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
 
 
 def main() -> int:
@@ -283,6 +288,8 @@ def main() -> int:
     notified = threading.Event()
     popup_tasks = SerialTaskQueue("rapido-popup-queue")
     tray = None
+    watchdog = None
+    watchdog_thread = None
 
     main_win = webview.create_window(
         "Rapido", BASE_URL + "/", width=1180, height=720, min_size=(760, 460),
@@ -306,12 +313,16 @@ def main() -> int:
     main_win.events.closing += on_main_closing
 
     def start_watchdog():
+        nonlocal watchdog, watchdog_thread
+        if quitting.is_set():
+            return
         form = getattr(main_win, "native", None)
         if form is None or not hasattr(form, "BeginInvoke"):
             return
         from System import Action
-        dog = UiWatchdog(lambda ack: form.BeginInvoke(Action(ack)), dump_threads)
-        in_background(dog.run, name="rapido-ui-watchdog")
+        watchdog = UiWatchdog(lambda ack: form.BeginInvoke(Action(ack)), dump_threads)
+        watchdog_thread = threading.Thread(target=watchdog.run, name="rapido-ui-watchdog", daemon=True)
+        watchdog_thread.start()
 
     main_win.events.shown += start_watchdog
     # Registered before webview.start() so no window event can be missed.
@@ -327,6 +338,8 @@ def main() -> int:
 
     def quit_all():
         quitting.set()
+        if watchdog is not None:
+            watchdog.stop()
         popup_tasks.stop()
         for w in list(webview.windows):
             try:
@@ -423,6 +436,10 @@ def main() -> int:
         if trace is not None:
             trace.phase("gui-stopped")
         quitting.set()
+        if watchdog is not None:
+            watchdog.stop()
+        if watchdog_thread is not None:
+            watchdog_thread.join(timeout=2)
         popup_tasks.stop()
         if tray is not None:
             try:
@@ -439,7 +456,7 @@ def main() -> int:
     if args.selftest:
         trace.phase("finished")          # also writes the final result
         trace.stop_watching()
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print_selftest_result(result)
         return 0 if result.get("ok") else 1
     return 0
 
@@ -567,12 +584,15 @@ class UiWatchdog:
         self.last_ack = clock()
         self.reported = False
         self.stopped = False
+        self._stop_event = threading.Event()
 
     def _ack(self):
         self.last_ack = self.clock()
         self.reported = False
 
     def tick(self):
+        if self.stopped:
+            return
         try:
             self.post(self._ack)
         except Exception:
@@ -584,7 +604,38 @@ class UiWatchdog:
     def run(self):
         while not self.stopped:
             self.tick()
-            self.sleep(self.interval)
+            self._stop_event.wait(self.interval)
+
+    def stop(self):
+        self.stopped = True
+        self._stop_event.set()
+
+
+def print_selftest_result(result):
+    # ASCII JSON round-trips all Unicode, including on redirected cp1255 stdout.
+    print(json.dumps(result, indent=2, ensure_ascii=True), flush=True)
+
+
+def verify_selftest_download(dl_id, expected_sha256, *, confirm=False, timeout=30):
+    """A capture acknowledgement is not a completed download or a verified file."""
+    import hashlib
+    if confirm:
+        state = api(f"/api/downloads/{dl_id}")
+        if state["status"] != "pending":
+            raise RuntimeError(f"Expected pending native capture, got {state['status']}")
+        api(f"/api/downloads/{dl_id}/confirm", {})
+    deadline = time.monotonic() + timeout
+    while True:
+        state = api(f"/api/downloads/{dl_id}")
+        if state["status"] in ("completed", "error") or time.monotonic() >= deadline:
+            break
+        time.sleep(.1)
+    path = Path(state["path"]) if state.get("path") else None
+    digest = hashlib.sha256(path.read_bytes()).hexdigest() if path and path.is_file() else None
+    return {"status": state["status"], "path": str(path) if path else None,
+            "sha256": digest, "expected_sha256": expected_sha256,
+            "ok": bool(state["status"] == "completed" and digest == expected_sha256
+                       and path.stat().st_size == state.get("size"))}
 
 
 def dump_threads(stalled_for: float):
@@ -791,6 +842,8 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         mark("popup")
         popup = open_popup(f"/w?view=progress&id={dl['id']}", 520, 360)
         result["popup_loaded"] = popup.events.loaded.wait(SELFTEST_POPUP_LOAD_TIMEOUT)
+        if not result["popup_loaded"]:
+            raise RuntimeError("WebView2 popup page did not load")
         time.sleep(1.5)
         result["popup_title"] = popup.evaluate_js("document.title")
         result["popup_token"] = popup.evaluate_js("!!new URLSearchParams(location.search).get('w')")
@@ -812,6 +865,9 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         mark("yt-dlp")
         import asyncio
         import app as rapido
+        import hashlib
+        expected_sha256 = hashlib.sha256((rapido.BASE / "extension" / "icon128.png").read_bytes()).hexdigest()
+        result["download_integrity"] = verify_selftest_download(dl['id'], expected_sha256)
         fut = asyncio.run_coroutine_threadsafe(rapido.manager._yt_process(
             "extract", BASE_URL + "/favicon.ico", {"quiet": True, "no_warnings": True}, timeout=90),
             rapido.manager.loop)
@@ -845,11 +901,18 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         from native_selftest import NativeHostSession
         with NativeHostSession([str(Path(sys.executable).with_name("RapidoNativeHost.exe"))]) as session:
             native_message = session.request
+            # Keep real confirmation semantics. Explicitly confirm each pending
+            # native capture through the authenticated desktop API before exit.
+            before_capture = set(rapido.manager.downloads)
             capabilities = native_message({"type":"capabilities"})
             result["native_pipe"] = capabilities.get("protocol") == 1 and "capture_public" in capabilities.get("features",[])
             reply = native_message({"type":"capture_public","url":BASE_URL+"/favicon.ico",
                                     "referrer":None,"filename":"native-selftest.png"})
             result["native_capture"] = reply == {"type":"capture_result","ok":True}
+            captures = [item for key, item in rapido.manager.downloads.items() if key not in before_capture]
+            if not result["native_capture"] or len(captures) != 1:
+                raise RuntimeError("Native capture did not create exactly one download")
+            result["native_download"] = verify_selftest_download(captures[0].id, expected_sha256, confirm=True)
             # Actual packaged prepare/abort/commit: durable staging and no duplicate.
             baseline = len(rapido.manager.downloads)
             prepared = native_message({"type":"capture_prepare","url":BASE_URL+"/favicon.ico",
@@ -867,6 +930,10 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
             result["native_handoff"] = bool(staged_ok and abort_ok and
                 first == {"type":"capture_result","ok":True} and first == second and
                 len(rapido.manager.downloads) == baseline + 1)
+            committed = [item for item in rapido.manager.downloads.values() if item.handoff_ticket == ticket]
+            if not result["native_handoff"] or len(committed) != 1:
+                raise RuntimeError("Native handoff did not commit exactly one download")
+            result["handoff_download"] = verify_selftest_download(committed[0].id, expected_sha256, confirm=True)
 
 
 
@@ -879,6 +946,7 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
             and result["dpapi_ok"] and result["motw_ok"] and result["ytdlp_process"]
             and result["webview_auth"] and result["unauthenticated_api"]
             and result["native_pipe"] and result["native_capture"] and result["native_handoff"]
+            and all(result[key]["ok"] for key in ("download_integrity", "native_download", "handoff_download"))
             and result["main_confirmations"].get("ok") and result["popup_confirmations"].get("ok")
         )
     except Exception as e:

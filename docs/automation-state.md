@@ -171,3 +171,30 @@ Last updated: 2026-10-27
 Review the exact-candidate evidence, execute the Windows 10/11 and Chromium
 manual gates on authorized disposable machines, and do not publish or sign
 without explicit owner approval.
+
+## Windows 10 interactive evidence correction, 2026-11-01
+
+- Branch head verified at 208613f; run 41296361048 succeeded on Server 2025.
+- Preserved local interactive-results/20261101-134029-2084 without edits:
+  four recorded cycles loaded the main DOM and popup, passed native acceptance,
+  but only selftest.png existed. A fifth on-disk selftest reports popup load failure.
+- Root cause of absent native files is in the test: capture_public and committed
+  handoff intentionally remain pending until user confirmation by default. The
+  test never confirmed them and exited without waiting for completed bytes.
+  Keep product confirmation semantics; confirm through the authenticated API,
+  then require completion, size and SHA-256 for all three transfers.
+- Confirmed cp1255 UnicodeEncodeError at desktop.py:442 when final JSON prints
+  the French popup title. Emit ASCII-escaped JSON, preserve UTF-8 result files,
+  and escape unsupported diagnostic characters in existing redirected streams.
+- Confirmed watchdog activity after gui-stopped/finished. Explicitly stop it
+  before window destruction and join its worker before CLR finalization.
+  This removes a lifetime bug; no claim that all WinForms shutdown hangs are fixed.
+- Popup timeout now fails before evaluate_js on an unloaded window, preserving
+  the failed loaded flag rather than waiting again in JavaScript evaluation.
+- Regression attempt 1: 40 passed, 1 skipped, 4 subtests locally, with DPAPI and
+  real WebView2 still unavailable under CodexSandboxOffline. Full suite pending.
+- Build strengthened: all 20 CI cycles require completed native transfer hashes,
+  not just protocol acknowledgements. No security/signing/publication gate changed.
+- Retry counters: native transfer test semantics 1/3; cp1255 output 1/3;
+  watchdog shutdown 1/3. Windows 10 interactive revalidation still required.
+- No merge, tag, release, production signature or Windows policy change.
