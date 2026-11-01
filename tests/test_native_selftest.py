@@ -2,12 +2,23 @@
 import json
 import struct
 import sys
+import os
+import time
 import unittest
 
 from native_selftest import NativeHostSession
 
 
 class NativeSessionTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Windows bootloader process lifetime')
+    def test_timeout_closes_descendants_holding_stdout(self):
+        source = "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c','import time;time.sleep(2)'],stdout=sys.stdout);time.sleep(2)"
+        started = time.monotonic()
+        with NativeHostSession(self.command(source), timeout=.2) as host:
+            with self.assertRaises(TimeoutError):
+                host.request({'type':'ping'})
+        self.assertLess(time.monotonic()-started,1.5,'a surviving child kept stdout open past the deadline')
+
     def command(self, source):
         return [sys.executable, '-u', '-c', source]
 

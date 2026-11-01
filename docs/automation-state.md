@@ -40,6 +40,14 @@ Last updated: 2026-10-27
   print the failed row and always upload startup JSON/console logs. Do not
   call this a product root cause or a successful 20-cycle campaign. Run
   41295196912 on the CRLF-only follow-up is already in progress, not restarted.
+- Confirmed timeout cleanup mechanism: a helper descendant retaining stdout
+  made a 0.2-second request take 2.207 seconds after only the launcher was killed.
+  Add a per-session Windows KILL_ON_JOB_CLOSE job, distinct from other workers;
+  close that owned job before draining streams on timeout. The descendant
+  regression failed before the fix and passed after it. Focused suite now
+  19 passed, 1 skipped. This fixes bounded cleanup; it does not prove the root
+  cause of the historical eight-second authenticated capture_prepare timeout.
+- Full local suite rerun for this final lifetime change is in progress.
   Previous local suite: 398 passed, 23 failed, 9 skipped, 7 deselected; 19 failures
   depend on unavailable DPAPI, four require absent yt-dlp. No gate weakened.
 - The historical portable capture_prepare timeout is NOT declared fixed:
