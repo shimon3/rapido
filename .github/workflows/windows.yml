@@ -172,17 +172,6 @@ jobs:
         timeout-minutes: 15
         run: python scripts/test_startup_cycles.py --exe dist/Rapido/Rapido.exe --work "${{ runner.temp }}/rapido-startup-cycles" --out dist/startup-cycles.json --count 20
 
-      - name: Preserve startup cycle diagnostics on success or failure
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-        with:
-          name: STARTUP-CYCLES-${{ steps.source.outputs.commit }}
-          path: |
-            dist/startup-cycles.json
-            ${{ runner.temp }}/rapido-startup-cycles/**/selftest.json
-            ${{ runner.temp }}/rapido-startup-cycles/**/console.log
-          retention-days: 14
-
       - name: Native Messaging protocol smoke test
         shell: pwsh
         run: |
@@ -400,6 +389,17 @@ jobs:
             dist/SHA256SUMS.txt
             dist/ci-artifact-provenance.json
             dist/startup-cycles.json
+          retention-days: 14
+
+      - name: Preserve startup cycle diagnostics on success or failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: STARTUP-CYCLES-${{ steps.source.outputs.commit }}
+          path: |
+            dist/startup-cycles.json
+            ${{ runner.temp }}/rapido-startup-cycles/**/selftest.json
+            ${{ runner.temp }}/rapido-startup-cycles/**/console.log
           retention-days: 14
 
   automation-report:

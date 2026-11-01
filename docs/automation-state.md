@@ -48,6 +48,11 @@ Last updated: 2026-10-27
   19 passed, 1 skipped. This fixes bounded cleanup; it does not prove the root
   cause of the historical eight-second authenticated capture_prepare timeout.
 - Full local suite rerun for this final lifetime change is in progress.
+- Evidence upload initially preceded the distributable upload and exposed a
+  release-policy assertion that selects the first upload block (run 41295295262).
+  Preserve the unchanged security assertion: move diagnostics upload after
+  the distributable upload, still guarded by always(). This retains failed
+  cycle logs without changing signing or publication policy. Attempt 1.
   Previous local suite: 398 passed, 23 failed, 9 skipped, 7 deselected; 19 failures
   depend on unavailable DPAPI, four require absent yt-dlp. No gate weakened.
 - The historical portable capture_prepare timeout is NOT declared fixed:
