@@ -56,17 +56,28 @@ def main():
                 save()
                 return 1
         result = json.loads(out.read_text(encoding='utf-8')) if out.exists() else {}
+        diagnostic_files = list((profile / 'native-diagnostics').glob('*.jsonl'))
+        events = [json.loads(line) for file in diagnostic_files
+                  for line in file.read_text(encoding='utf-8').splitlines()]
+        session_exits = [e for e in events if e['component'] == 'session' and e['phase'] == 'exit']
+        diagnostic_ok = (result.get('native_diagnostics', {}).get('enabled') is True
+                         and any(e['component'] == 'server' and e['phase'] == 'ready' for e in events)
+                         and any(e['component'] == 'host' and e['phase'] == 'start' for e in events)
+                         and bool(session_exits) and all(e.get('returncode') == 0 for e in session_exits))
         required = ('ok', 'main_loaded', 'main_url_ok', 'main_rows_html',
                     'webview_auth', 'native_pipe', 'native_capture', 'native_handoff')
         row = {'number': number, 'pid': process.pid, 'exit_code': code,
                'seconds': round(time.monotonic() - start, 3), 'forced_termination': False,
                'selftest': result}
+        row['native_diagnostics'] = {'ok': diagnostic_ok, 'files': len(diagnostic_files),
+            'events': len(events), 'host_pids': sorted({e['pid'] for e in events if e['component'] == 'host'}),
+            'errors': [e for e in events if e['outcome'] == 'error']}
         try:
             port_is_free()
             row['port_released'] = True
         except OSError:
             row['port_released'] = False
-        row['ok'] = bool(code == 0 and all(result.get(key) is True for key in required)
+        row['ok'] = bool(code == 0 and diagnostic_ok and all(result.get(key) is True for key in required)
                          and all(result.get(key, {}).get('ok') is True for key in
                                  ('download_integrity', 'native_download', 'handoff_download'))
                          and result.get('main_title') == 'Rapido' and row['port_released'])

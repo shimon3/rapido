@@ -400,6 +400,7 @@ jobs:
             dist/startup-cycles.json
             ${{ runner.temp }}/rapido-startup-cycles/**/selftest.json
             ${{ runner.temp }}/rapido-startup-cycles/**/console.log
+            ${{ runner.temp }}/rapido-startup-cycles/**/native-diagnostics/*.jsonl
           retention-days: 14
 
   automation-report:

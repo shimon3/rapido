@@ -246,3 +246,45 @@ without explicit owner approval.
   BOM settings 1/3. Prior native selftest semantics remains a separate cause.
 - New full CI and new Windows 10 campaign required. No main/tag/release/merge,
   production signing, peer-policy, DACL, origin or Windows protection changes.
+
+## Instrumentation of prepare unavailability after b4cf48c, 2026-11-01
+
+- Head b4cf48c verified; run 41312317040 succeeded (452 tests, 20 CI cycles).
+  Owner explicitly requests continued unpublished work on the same branch.
+- Compared all 20 Windows 10 cycles in interactive-results/20261101-155847-2084-1b9c1cc3:
+  16 successes, 56 verified files, no application timeout or residual process.
+  Cycles 2/14/17 return handoff_unavailable at prepare-abort; 19 fails at
+  prepare-commit after a valid prepare and abort. Main, WebView2, public native
+  capture, security and confirmation checks pass in all cycles.
+- Snapshot and hashes of 160 original proof files: b4cf48c-prepare-analysis/audit.json.
+  Generic host replies omit original errors. Neither pipe initialization,
+  protection/persistence nor admission failures can be selected as exact cause
+  from these old logs. No speculative repair is claimed.
+- Add opt-in per-process JSONL diagnostics for host start/parent, framed-message
+  sequence, owned job and exit; pipe creation/readiness, connect attempts,
+  peer verification, send/receive/ACK; manager queue/dispatch timing; strict
+  protected handoff persistence and rollback. Keep enum/numeric fields only;
+  never log request content, URL, filename, headers, tokens, tickets or paths.
+- Confirmed diagnostic defect: Download.to_disk replaced a protection exception
+  with a sanitized record, then native handoff raised a generic error. Add a
+  strict encrypted-envelope method for callers requiring durable acknowledgement.
+  Preserve the original error, including DPAPI's actual Windows error from
+  use_last_error=True with typed FFI; leave ordinary history's fail-closed
+  fallback and all rollback/acceptance semantics intact.
+- Standard selftest sets diagnostics in its own isolated RAPIDO_DATA only.
+  Do not change browser Native Messaging stdout framing or public error schema.
+  Tests prove original errors propagate, rejected requests remain rejected,
+  the server handles a following valid request, and secret data never reaches logs.
+- CI startup evidence now includes JSONL sidecars even on failure and requires
+  server-ready, actual host-start and normal session exit in addition to existing
+  20-cycle/60-transfer checks. Controller summarizes errors and process parents.
+- Unchanged budgets: manager start 3 s/reply 4 s, native pipe 5 s, stdio exchange
+  8 s, helper cleanup 2 s. No retry/replay or timing-based workaround added.
+- Focused checks: 46 passed/6 subtests; final diagnostics suite 8 passed.
+  Full local suite: 427 passed, identical 23 environment failures, 9 skips,
+  7 deselections, 277 subtests. 25 PowerShell assertions pass.
+- Root-specific counter: prepare-unavailability instrumentation attempt 1/3;
+  exact remaining root cause is not yet demonstrated. Previous final-ACK,
+  DOM-fixture and BOM causes remain separate fixes with their own evidence.
+- New CI build and Windows 10 campaign required. No merge, tag, release,
+  production signing, peer/SID/DACL policy or Windows protection changes.

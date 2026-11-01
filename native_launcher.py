@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 from native_paths import has_linked_component
 from windows_peer import inspect_process, canonical_image
+from native_diagnostics import event, trace
 
 CHROMIUM_ORIGIN = "chrome-extension://hlpkfnodjoglfdiekijebbppfgkjkbmp/"
 FIREFOX_ID = "rapido-capture@rapido.local"
@@ -110,8 +111,9 @@ def trusted_launcher(executable, args, *, desktop_image=None):
     # These best-effort checks do not prevent replacement/path races or replace
     # a protected installation and independent trust anchor.
     desktop_path = desktop_image or ntpath.join(ntpath.dirname(executable), "Rapido.exe")
-    if has_linked_component(executable) or has_linked_component(desktop_path):
-        raise PermissionError("Linked native executable path is not trusted")
+    with trace('host', 'paths'):
+        if has_linked_component(executable) or has_linked_component(desktop_path):
+            raise PermissionError("Linked native executable path is not trusted")
     desktop = canonical_image(desktop_path)
     helper = canonical_image(executable)
     with ExitStack() as stack:
@@ -119,8 +121,12 @@ def trusted_launcher(executable, args, *, desktop_image=None):
         via_shell=False
         # The one-file PyInstaller bootloader may sit above the helper, and
         # Chromium may relay through exactly one System32 cmd.exe.
-        for _ in range(4):
-            parent=stack.enter_context(inspect_process(parent_pid(child.pid)))
+        for depth in range(4):
+            with trace('host', 'parent', child_pid=child.pid, attempt=depth+1):
+                parent=stack.enter_context(inspect_process(parent_pid(child.pid)))
+            event('host', 'parent', child_pid=child.pid, peer_pid=parent.pid, attempt=depth+1,
+                  same_user=int(parent.user_sid==child.user_sid),
+                  creation_order_ok=int(parent.creation_time<=child.creation_time))
             if parent.user_sid!=child.user_sid or parent.creation_time>child.creation_time:
                 raise PermissionError("Invalid launcher identity/creation order")
             if parent.image_path in (desktop, helper) and via_shell:
@@ -129,6 +135,7 @@ def trusted_launcher(executable, args, *, desktop_image=None):
                 role="desktop"
                 break
             if parent.image_path==helper:
+                event('host', 'launcher', child_pid=child.pid, peer_pid=parent.pid, launcher_role='helper')
                 child=parent
                 continue
             role=browser_images().get(parent.image_path)
@@ -152,5 +159,7 @@ def trusted_launcher(executable, args, *, desktop_image=None):
         else:
             raise PermissionError("Unsupported helper parent chain")
         if not valid_origin(role,args,executable):
+            event('host', 'origin', outcome='error', launcher_role=role)
             raise PermissionError("Unexpected extension origin")
+        event('host', 'origin', launcher_role=role)
         yield role

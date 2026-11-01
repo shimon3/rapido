@@ -338,14 +338,20 @@ NATIVE_REPLY_TIMEOUT = 4.0
 NATIVE_START_DEADLINE = 3.0
 
 
-def _on_manager_loop(make_coroutine):
+def _on_manager_loop(make_coroutine, *, operation=None):
+    from native_diagnostics import event, trace
+    scheduled = time.monotonic()
+    event('manager', 'loop', operation=operation, outcome='begin')
     start_by = time.monotonic() + NATIVE_START_DEADLINE
 
     async def guarded():
+        event('manager', 'wait', operation=operation, elapsed_ms=(time.monotonic()-scheduled)*1000)
         if time.monotonic() > start_by:
             raise TimeoutError("Rapido was busy; the request expired before it started")
-        return await make_coroutine()
-    return asyncio.run_coroutine_threadsafe(guarded(), manager.loop).result(timeout=NATIVE_REPLY_TIMEOUT)
+        with trace('manager', 'dispatch', operation=operation):
+            return await make_coroutine()
+    with trace('manager', 'wait', operation=operation):
+        return asyncio.run_coroutine_threadsafe(guarded(), manager.loop).result(timeout=NATIVE_REPLY_TIMEOUT)
 
 
 def native_dispatch(role: str, data: dict):
@@ -371,7 +377,7 @@ def native_dispatch(role: str, data: dict):
                 "min_capture_kb": manager.settings.get("min_capture_kb", 512)}
     if kind in ("capture_prepare","capture_commit","capture_abort"):
         from native_handoff import dispatch
-        return _on_manager_loop(lambda: dispatch(manager, data))
+        return _on_manager_loop(lambda: dispatch(manager, data), operation=kind)
     if kind != "capture_public":
         raise ValueError("Unsupported native request")
     value = public_capture(data)

@@ -227,6 +227,10 @@ def main() -> int:
     trace = None
     if args.selftest:
         trace = SelftestTrace(args.selftest_out or Path(tempfile.gettempdir()) / "rapido-selftest.json")
+        from native_diagnostics import ENV, event
+        os.environ[ENV] = str(data_dir / 'native-diagnostics')
+        trace.result['native_diagnostics'] = {'enabled': event('session', 'start'),
+            'directory': str(data_dir / 'native-diagnostics')}
         trace.watch_for_stalls()
         trace.phase("instance-check")
 

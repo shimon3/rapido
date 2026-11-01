@@ -5,6 +5,7 @@ import secrets
 import uuid
 import engine
 from native_protocol import public_capture
+from native_diagnostics import event, trace
 
 MAX_PREPARED = 128
 
@@ -12,10 +13,12 @@ from native_protocol import handoff_message as validate
 
 def _persist(manager,dl):
     # A preparation acknowledgement requires durable protected state.
-    record=dl.to_disk()
-    if not engine.IS_WINDOWS or "private_state_enc" not in record:
+    if not engine.IS_WINDOWS:
         raise OSError("Protected handoff persistence unavailable")
-    manager.save(force=True,protected_record=(dl.id,record))
+    with trace('handoff', 'protect', records=len(manager.downloads)):
+        record=dl.protected_record()
+    with trace('handoff', 'persist', records=len(manager.downloads)):
+        manager.save(force=True,protected_record=(dl.id,record))
 
 def activate(manager,dl):
     if dl.status!="handoff":
@@ -26,6 +29,7 @@ def activate(manager,dl):
         _persist(manager,dl)
     except Exception:
         dl.status="handoff"
+        event('handoff', 'rollback', operation='capture_commit', records=len(manager.downloads))
         raise
     # Never start the network/probe/window before the commit is persisted.
     if dialog:
@@ -43,6 +47,8 @@ def activate(manager,dl):
 
 async def dispatch(manager,data):
     kind,value=validate(data)
+    event('handoff', 'validate', operation=kind, records=len(manager.downloads),
+          prepared=sum(d.status=='handoff' for d in manager.downloads.values()))
     if kind=="capture_prepare":
         if sum(d.status=="handoff" for d in manager.downloads.values())>=MAX_PREPARED:
             raise ValueError("Too many pending handoffs")
@@ -52,10 +58,12 @@ async def dispatch(manager,data):
             connections=int(manager.settings["connections"]),handoff_ticket=secrets.token_hex(32))
         dl.category=engine.category_for(dl.filename or dl.url)
         manager.downloads[dl.id]=dl
+        event('handoff', 'created', operation=kind, records=len(manager.downloads))
         try:
             _persist(manager,dl)
         except Exception:
             manager.downloads.pop(dl.id,None)
+            event('handoff', 'rollback', operation=kind, records=len(manager.downloads))
             raise
         return {"type":"capture_prepared","ticket":dl.handoff_ticket}
     dl=next((d for d in manager.downloads.values() if d.handoff_ticket and
@@ -68,8 +76,10 @@ async def dispatch(manager,data):
         return {"type":"error","code":"already_committed"}
     manager.downloads.pop(dl.id)
     try:
-        manager.save(force=True)
+        with trace('handoff', 'persist', operation=kind, records=len(manager.downloads)):
+            manager.save(force=True)
     except Exception:
         manager.downloads[dl.id]=dl
+        event('handoff', 'rollback', operation=kind, records=len(manager.downloads))
         raise
     return {"type":"capture_aborted","ok":True}

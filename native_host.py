@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from native_protocol import public_capture
 from native_pipe import _pairs
+from native_diagnostics import event, trace
 
 MAX_MESSAGE_BYTES = 64 * 1024
 
@@ -58,9 +59,11 @@ def _native_request(data):
         raise OSError("Native IPC capture requires the packaged Windows host")
     from native_pipe import request
     from native_launcher import trusted_launcher
-    with trusted_launcher(sys.executable, sys.argv[1:]):
-        return request(data, server_images=[str(Path(sys.executable).with_name("Rapido.exe"))],
-                       timeout=5)
+    with trace('host', 'launcher', operation=data.get('type')):
+        with trusted_launcher(sys.executable, sys.argv[1:]):
+            event('host', 'peer', operation=data.get('type'))
+            return request(data, server_images=[str(Path(sys.executable).with_name("Rapido.exe"))],
+                           timeout=5)
 
 
 def _safe_public_capture(data):
@@ -98,20 +101,28 @@ def handle_message(data):
         return {"type":"error","code":"rapido_unavailable"}
     if data.get("type") in ("capture_prepare","capture_commit","capture_abort"):
         from native_protocol import handoff_message as validate
+        phase = 'validate'
         try:
+            event('host', phase, operation=data.get('type'), outcome='begin')
             validate(data)
+            phase = 'dispatch'
             response = _native_request(data)
+            phase = 'reply'
+            event('host', phase, operation=data.get('type'),
+                  response_type=response.get('type') if isinstance(response, dict) else None,
+                  response_code=response.get('code') if isinstance(response, dict) else None)
             if not isinstance(response,dict):
                 raise ValueError("Invalid handoff response")
             if data["type"] == "capture_prepare":
                 ticket=response.get("ticket")
                 validate({"type":"capture_commit","ticket":ticket})
                 if response.get("type")=="capture_prepared":
+                    event('host', phase, operation=data.get('type'))
                     return {"type":"capture_prepared","ticket":ticket}
             elif response.get("type") == ("capture_result" if data["type"]=="capture_commit" else "capture_aborted") and response.get("ok") is True:
                 return {"type":response["type"],"ok":True}
-        except (OSError,ValueError,TypeError,TimeoutError):
-            pass
+        except (OSError,ValueError,TypeError,TimeoutError) as error:
+            event('host', phase, operation=data.get('type'), outcome='error', error=error)
         return {"type":"error","code":"handoff_unavailable"}
     if data.get("type") == "capture_public":
         return _safe_public_capture(data)
@@ -119,6 +130,7 @@ def handle_message(data):
 
 
 def main():
+    event('host', 'start')
     if sys.argv[1:] in (["--register-native-hosts"], ["--unregister-native-hosts"]):
         if not getattr(sys, "frozen", False) or sys.platform != "win32":
             return 2
@@ -129,13 +141,19 @@ def main():
         except (OSError, ValueError):
             return 1
         return 0
+    sequence = 0
     while True:
         try:
             request = read_message(sys.stdin.buffer)
             if request is None:
+                event('host', 'exit', sequence=sequence, returncode=0)
                 return 0
+            sequence += 1
+            event('host', 'receive', operation=request.get('type'), sequence=sequence)
             write_message(sys.stdout.buffer, handle_message(request))
-        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            event('host', 'send', operation=request.get('type'), sequence=sequence)
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            event('host', 'exit', outcome='error', error=error, sequence=sequence, returncode=1)
             # Never print request content, tokens or browser cookies to stderr.
             return 1
 

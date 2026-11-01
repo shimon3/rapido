@@ -14,6 +14,7 @@ import time
 from ctypes import wintypes
 from windows_ipc import validate_pipe_name, require_windows_identity_policy
 from windows_peer import inspect_process, verified_pipe_peer, canonical_image
+from native_diagnostics import event, trace
 
 MAX_FRAME = 65536
 
@@ -204,7 +205,8 @@ class PipeServer:
         if self._thread is not None:
             raise RuntimeError("Pipe server already started")
         k = _kernel()
-        self._handle = _create(k, self.name, self._sid)
+        with trace('server', 'created'):
+            self._handle = _create(k, self.name, self._sid)
         self._thread = threading.Thread(target=self._run, name="rapido-native-pipe", daemon=True)
         self._thread.start()
         return self
@@ -212,28 +214,48 @@ class PipeServer:
     def _run(self):
         k = _kernel()
         handle = self._handle
+        event('server', 'ready')
         try:
             while not self._stop.is_set():
+                phase, kind = 'connect', None
                 try:
                     _operation(k, handle, _deadline(.25), k.ConnectNamedPipe)
                     if self._stop.is_set():
                         break
+                    phase = 'peer'
                     with verified_pipe_peer(handle, server=False, user_sid=self._sid,
                                             image_paths=list(self._clients)) as peer:
+                        event('server', 'peer', peer_pid=peer.pid)
                         deadline = _deadline(self._timeout)
+                        phase = 'receive'
                         request = _receive(k, handle, deadline)
-                        response = self._handler(self._clients[peer.image_path], request)
+                        kind = request.get('type')
+                        phase = 'dispatch'
+                        with trace('server', 'dispatch', operation=kind, peer_pid=peer.pid):
+                            response = self._handler(self._clients[peer.image_path], request)
+                        phase = 'send'
                         _send(k, handle, response, deadline)
+                        event('server', 'send', operation=kind)
+                        phase = 'ack'
                         if _receive(k, handle, deadline) != {"ack": True}:
                             raise ValueError("Invalid reply acknowledgement")
-                except (OSError, ValueError, TimeoutError):
-                    pass  # Refuse silently: never log request contents or credentials.
+                        event('server', 'ack', operation=kind)
+                        phase = 'peer'  # final identity check on context exit
+                except (OSError, ValueError, TimeoutError) as error:
+                    if phase != 'connect' or not isinstance(error, TimeoutError):
+                        event('server', phase, operation=kind, outcome='error', error=error)
+                    # Refuse exactly as before. Diagnostics never include payloads.
                 finally:
                     k.DisconnectNamedPipe(handle)
+        except Exception as error:
+            event('server', phase, operation=kind, outcome='error', error=error)
+            raise
         finally:
+            event('server', 'exit')
             k.CloseHandle(handle)
 
     def stop(self):
+        event('server', 'stop', outcome='begin')
         self._stop.set()
         if self._thread is not None:
             k = _kernel()
@@ -241,6 +263,7 @@ class PipeServer:
             self._thread.join(timeout=self._timeout + 1)
             if self._thread.is_alive():
                 raise TimeoutError("Native pipe server did not stop")
+        event('server', 'stop')
 
 
 def request(value, *, server_images, sid=None, name=None, timeout=5):
@@ -250,7 +273,11 @@ def request(value, *, server_images, sid=None, name=None, timeout=5):
     path = validate_pipe_name(name or channel_name(sid))
     k = _kernel()
     handle = None
+    kind = value.get('type') if isinstance(value, dict) else None
+    event('client', 'connect', operation=kind, outcome='begin')
+    attempts = 0
     while time.monotonic() < deadline:
+        attempts += 1
         # Only read/write data + SYNCHRONIZE: do not request pipe creation rights.
         handle = k.CreateFileW(path, 0x100003, 0, None, 3,
                               0x40000000 | 0x100000 | 0x10000, None)
@@ -258,23 +285,32 @@ def request(value, *, server_images, sid=None, name=None, timeout=5):
             break
         error = ctypes.get_last_error()
         if error not in (2, 231):
+            event('client', 'connect', operation=kind, outcome='error', winerror=error, attempt=attempts)
             raise ctypes.WinError(error)
         time.sleep(.02)
     else:
+        event('client', 'connect', operation=kind, outcome='timeout', attempt=attempts)
         raise TimeoutError("Native pipe is unavailable")
     try:
-        with verified_pipe_peer(handle, server=True, user_sid=sid, image_paths=server_images):
-            _send(k, handle, value, deadline)
-            result = _receive(k, handle, deadline)
+        event('client', 'connect', operation=kind, attempt=attempts)
+        with trace('client', 'peer', operation=kind):
+            with verified_pipe_peer(handle, server=True, user_sid=sid, image_paths=server_images) as peer:
+                event('client', 'peer', operation=kind, peer_pid=getattr(peer, 'pid', None))
+                with trace('client', 'send', operation=kind):
+                    _send(k, handle, value, deadline)
+                with trace('client', 'receive', operation=kind):
+                    result = _receive(k, handle, deadline)
         # The server retains the connection until the response has been consumed.
         try:
-            _send(k, handle, {"ack": True}, deadline)
+            with trace('client', 'ack', operation=kind):
+                _send(k, handle, {"ack": True}, deadline)
         except OSError as error:
             # The authenticated response was already read in full. The server
             # can disconnect while this final cleanup acknowledgement is sent.
             # Do not turn an accepted mutation into "unavailable" or replay it.
             if getattr(error, 'winerror', None) not in (109, 232, 233):
                 raise
+            event('client', 'ack', operation=kind, outcome='closed', error=error)
         return result
     finally:
         k.CloseHandle(handle)

@@ -10,6 +10,7 @@ import subprocess
 import threading
 
 from native_host import read_message, write_message
+from native_diagnostics import event
 
 
 class NativeHostSession:
@@ -24,15 +25,18 @@ class NativeHostSession:
             self.process = subprocess.Popen(command, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+            event('session', 'created', child_pid=self.process.pid)
             if self._job is not None:
                 handle = self._kernel.OpenProcess(0x0101, False, self.process.pid)
                 try:
                     if not handle or not self._kernel.AssignProcessToJobObject(self._job, handle):
                         raise OSError('Cannot scope native selftest helper to its own Windows job')
+                    event('session', 'job', child_pid=self.process.pid)
                 finally:
                     if handle:
                         self._kernel.CloseHandle(handle)
-        except Exception:
+        except Exception as error:
+            event('session', 'job', outcome='error', error=error)
             self._close_job()
             if hasattr(self, 'process') and self.process.poll() is None:
                 self.process.kill()
@@ -40,6 +44,7 @@ class NativeHostSession:
             raise
         self._lock = threading.Lock()
         self._closed = False
+        self._sequence = 0
 
     def __enter__(self):
         return self
@@ -48,6 +53,10 @@ class NativeHostSession:
         with self._lock:
             if self._closed:
                 raise RuntimeError('Native host session is closed')
+            self._sequence += 1
+            operation = value.get('type')
+            event('session', 'send', operation=operation, sequence=self._sequence,
+                  child_pid=self.process.pid, returncode=self.process.poll())
             reply = queue.Queue(maxsize=1)
 
             def exchange():
@@ -65,12 +74,20 @@ class NativeHostSession:
             try:
                 result, error = reply.get(timeout=self.timeout)
             except queue.Empty:
+                event('session', 'receive', operation=operation, outcome='timeout', sequence=self._sequence,
+                      child_pid=self.process.pid, returncode=self.process.poll())
                 self.close(force=True)
                 worker.join(timeout=2)
                 raise TimeoutError('Packaged native reply timed out') from None
             if error is not None:
+                event('session', 'receive', operation=operation, outcome='error', error=error,
+                      sequence=self._sequence, child_pid=self.process.pid, returncode=self.process.poll())
                 self.close(force=True)
                 raise RuntimeError('Invalid packaged native reply') from error
+            event('session', 'receive', operation=operation,
+                  outcome='error' if result.get('type') == 'error' else 'ok',
+                  sequence=self._sequence, child_pid=self.process.pid, returncode=self.process.poll(),
+                  response_type=result.get('type'), response_code=result.get('code'))
             return result
 
     def close(self, force=False):
@@ -98,6 +115,7 @@ class NativeHostSession:
             self.process.wait(timeout=2)
         self._close_job()
         self.process.stdout.close()
+        event('session', 'exit', child_pid=self.process.pid, returncode=self.process.poll())
 
     def _close_job(self):
         if self._job is not None:

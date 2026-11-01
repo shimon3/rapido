@@ -183,12 +183,20 @@ def _dpapi(data: bytes, encrypt: bool) -> bytes:
     buf = ctypes.create_string_buffer(data, len(data))
     blob_in = Blob(len(data), ctypes.cast(buf, ctypes.c_void_p))
     blob_out = Blob()
-    crypt32, kernel32 = ctypes.windll.crypt32, ctypes.windll.kernel32
+    # Preserve the actual per-thread Windows error, rather than replacing every
+    # protection failure with an uninformative generic OSError.
+    crypt32 = ctypes.WinDLL('crypt32', use_last_error=True)
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
     kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
     fn = crypt32.CryptProtectData if encrypt else crypt32.CryptUnprotectData
+    fn.argtypes = [ctypes.POINTER(Blob), ctypes.c_void_p, ctypes.c_void_p,
+                   ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(Blob)]
+    fn.restype = wintypes.BOOL
+    ctypes.set_last_error(0)
     ok = fn(ctypes.byref(blob_in), None, None, None, None, 0x1, ctypes.byref(blob_out))  # 0x1 = pas d'interface
     if not ok:
-        raise OSError("DPAPI a echoue")
+        raise ctypes.WinError(ctypes.get_last_error())
     try:
         return ctypes.string_at(blob_out.pbData, blob_out.cbData)
     finally:
@@ -366,14 +374,18 @@ class Download:
             d.pop(k, None)
         return d
 
+    def protected_record(self, fields=None) -> dict:
+        """Strict protected envelope: callers requiring durability need the real error."""
+        return {"id": self.id, "private_state_version": 1,
+                "private_state_enc": protect(json.dumps(self.disk_fields() if fields is None else fields, ensure_ascii=False))}
+
     def to_disk(self) -> dict:
         d = self.disk_fields()
         if IS_WINDOWS:
             try:
                 # Protect the entire record, including signed URLs, referrers,
                 # candidates, thumbnails and errors which may contain URLs.
-                return {"id": self.id, "private_state_version": 1,
-                        "private_state_enc": protect(json.dumps(d, ensure_ascii=False))}
+                return self.protected_record(d)
             except (OSError, ValueError, TypeError, UnicodeError):
                 # No plaintext fallback, including during DPAPI failure.
                 return {"id": self.id, "url": "", "status": "error",
