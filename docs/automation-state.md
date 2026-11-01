@@ -2,6 +2,34 @@
 
 Last updated: 2026-10-27
 
+## Windows 10 follow-up, 2026-11-01
+
+- Owner authorized correction branch: `automation/rapido-beta2-webview-20261101`,
+  based on exact frozen candidate `105dd961df203e52bbbf1b3e10f1cd16cee1316d`.
+- Latest unchanged-branch Windows CI run `41279231023` succeeded: 431 tests,
+  6 skips, 271 subtests; release skipped. This is Windows Server 2025 evidence.
+- Instrumented Python 3.13.16 / pywebview 6.2.1 baseline on Windows 10 detected
+  runtime 156.0.4314.50. Initialization succeeds, but GPU children exit with
+  STATUS_ACCESS_DENIED (0xc0000022), renderer launch fails (49), and browser
+  exits. A minimal HTTP page receives a backend request and still fails.
+  Software rendering reproduces the failure. Current executor token is
+  restricted; independent DPAPI probe fails with Windows error 2. These are
+  environmental blockers, not evidence of a repaired graphical startup.
+- Focused corrections: stop the self-test before JavaScript evaluation when
+  the loaded event is missing; use one persistent, framed stdio host session
+  for the dependent Native Messaging checks instead of seven process launches.
+  Keep the existing 8-second per-exchange deadline and peer/security policy.
+- Regression attempt 1 found a cleanup error on a timed-out blocked writer.
+  Attempt 2 preserves the original timeout while reaping its owned child;
+  focused suite passed (18 passed, 1 skipped). No third correction attempt.
+- Full source suite rerun and new branch build are pending at this checkpoint.
+  Previous local suite: 398 passed, 23 failed, 9 skipped, 7 deselected; 19 failures
+  depend on unavailable DPAPI, four require absent yt-dlp. No gate weakened.
+- The historical portable capture_prepare timeout is NOT declared fixed:
+  persistent framing and fail-closed behavior pass with the exact old helper,
+  but authenticated prepare/abort/commit and 20 graphical starts of the rebuilt
+  candidate on Windows 10 remain required. No release or merge authorized.
+
 ## Identity
 
 - Repository: `shimon3/rapido`

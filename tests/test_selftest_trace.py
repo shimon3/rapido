@@ -97,6 +97,20 @@ class SelftestTraceTests(unittest.TestCase):
 
 
 class SelftestPhaseTests(unittest.TestCase):
+    def test_missing_loaded_event_never_evaluates_javascript(self):
+        class Missing:
+            def wait(self, timeout):
+                return False
+        def forbidden(script):
+            raise AssertionError('JavaScript must not run on a page that never loaded')
+        window = SimpleNamespace(events=SimpleNamespace(loaded=Missing()), evaluate_js=forbidden)
+        result = {'ok': False}
+        with patch.dict(sys.modules, {'webview': SimpleNamespace(renderer='edgechromium')}):
+            desktop.run_selftest(window, None, result)
+        self.assertFalse(result['main_loaded'])
+        self.assertIn('WebView2 main page did not load', result['error'])
+        self.assertNotIn('AssertionError', result['error'])
+
     def test_a_failure_names_the_phase_it_happened_in(self):
         class Broken:
             def wait(self, timeout):

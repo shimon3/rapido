@@ -766,7 +766,8 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
     try:
         result["renderer"] = webview.renderer
         mark("main-window")
-        wait_main_loaded(main_win, result, main_timeline)
+        if not wait_main_loaded(main_win, result, main_timeline):
+            raise RuntimeError("WebView2 main page did not load; see main_load_timeline and runtime diagnostics")
         time.sleep(1.5)
         result["main_title"] = main_win.evaluate_js("document.title")
         result["main_rows_html"] = main_win.evaluate_js("document.querySelector('#thead') !== null")
@@ -841,40 +842,31 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
             result["unauthenticated_api"] &= forbidden_response(req, timeout=2)
         mark("native-host")
         # The actual packaged native host must authenticate the actual desktop pipe.
-        import subprocess, struct
-        def native_message(value):
-            payload = json.dumps(value).encode()
-            process = subprocess.run([str(Path(sys.executable).with_name("RapidoNativeHost.exe"))],
-                input=struct.pack("<I",len(payload))+payload, capture_output=True, timeout=8,
-                creationflags=subprocess.CREATE_NO_WINDOW)
-            if process.returncode != 0 or len(process.stdout) < 4:
-                raise RuntimeError("Packaged native host failed")
-            size = struct.unpack("<I",process.stdout[:4])[0]
-            if size > 65536 or len(process.stdout) != size+4:
-                raise RuntimeError("Invalid packaged native reply")
-            return json.loads(process.stdout[4:])
-        capabilities = native_message({"type":"capabilities"})
-        result["native_pipe"] = capabilities.get("protocol") == 1 and "capture_public" in capabilities.get("features",[])
-        reply = native_message({"type":"capture_public","url":BASE_URL+"/favicon.ico",
-                                "referrer":None,"filename":"native-selftest.png"})
-        result["native_capture"] = reply == {"type":"capture_result","ok":True}
-        # Actual packaged prepare/abort/commit: durable staging and no duplicate.
-        baseline = len(rapido.manager.downloads)
-        prepared = native_message({"type":"capture_prepare","url":BASE_URL+"/favicon.ico",
-                                   "referrer":None,"filename":"handoff-selftest.png"})
-        ticket = prepared.get("ticket")
-        staged = [value for value in rapido.manager.downloads.values() if value.handoff_ticket == ticket]
-        staged_ok = prepared.get("type") == "capture_prepared" and len(staged) == 1 and staged[0].status == "handoff"
-        aborted = native_message({"type":"capture_abort","ticket":ticket})
-        abort_ok = aborted == {"type":"capture_aborted","ok":True} and len(rapido.manager.downloads) == baseline
-        prepared = native_message({"type":"capture_prepare","url":BASE_URL+"/favicon.ico",
-                                   "referrer":None,"filename":"handoff-selftest.png"})
-        ticket = prepared.get("ticket")
-        first = native_message({"type":"capture_commit","ticket":ticket})
-        second = native_message({"type":"capture_commit","ticket":ticket})
-        result["native_handoff"] = bool(staged_ok and abort_ok and
-            first == {"type":"capture_result","ok":True} and first == second and
-            len(rapido.manager.downloads) == baseline + 1)
+        from native_selftest import NativeHostSession
+        with NativeHostSession([str(Path(sys.executable).with_name("RapidoNativeHost.exe"))]) as session:
+            native_message = session.request
+            capabilities = native_message({"type":"capabilities"})
+            result["native_pipe"] = capabilities.get("protocol") == 1 and "capture_public" in capabilities.get("features",[])
+            reply = native_message({"type":"capture_public","url":BASE_URL+"/favicon.ico",
+                                    "referrer":None,"filename":"native-selftest.png"})
+            result["native_capture"] = reply == {"type":"capture_result","ok":True}
+            # Actual packaged prepare/abort/commit: durable staging and no duplicate.
+            baseline = len(rapido.manager.downloads)
+            prepared = native_message({"type":"capture_prepare","url":BASE_URL+"/favicon.ico",
+                                       "referrer":None,"filename":"handoff-selftest.png"})
+            ticket = prepared.get("ticket")
+            staged = [value for value in rapido.manager.downloads.values() if value.handoff_ticket == ticket]
+            staged_ok = prepared.get("type") == "capture_prepared" and len(staged) == 1 and staged[0].status == "handoff"
+            aborted = native_message({"type":"capture_abort","ticket":ticket})
+            abort_ok = aborted == {"type":"capture_aborted","ok":True} and len(rapido.manager.downloads) == baseline
+            prepared = native_message({"type":"capture_prepare","url":BASE_URL+"/favicon.ico",
+                                       "referrer":None,"filename":"handoff-selftest.png"})
+            ticket = prepared.get("ticket")
+            first = native_message({"type":"capture_commit","ticket":ticket})
+            second = native_message({"type":"capture_commit","ticket":ticket})
+            result["native_handoff"] = bool(staged_ok and abort_ok and
+                first == {"type":"capture_result","ok":True} and first == second and
+                len(rapido.manager.downloads) == baseline + 1)
 
 
 
