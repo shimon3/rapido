@@ -29,6 +29,12 @@ Last updated: 2026-10-27
   every cycle requires the real loaded main page, authenticated WebView API,
   prepare/abort/commit, normal exit and released port. Its JSON report records
   the OS and executable digest; Server 2025 results do not count as Windows 10.
+- Run 41293695793 succeeded with 437 passed, 6 skipped, 273 subtests, real GUI,
+  authenticated native handoff, installer lifecycle, portable coexistence and
+  Firefox. Run 41294030093 is executing the 20-cycle campaign on 80b62fc.
+- Final diff review preserves desktop.py's original CRLF bytes through a Git
+  blob upload; no further Python behavior changed. The resulting source commit
+  must receive its own build and 20-cycle evidence before it is called tested.
   Previous local suite: 398 passed, 23 failed, 9 skipped, 7 deselected; 19 failures
   depend on unavailable DPAPI, four require absent yt-dlp. No gate weakened.
 - The historical portable capture_prepare timeout is NOT declared fixed:
