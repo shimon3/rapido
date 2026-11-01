@@ -49,6 +49,18 @@ class SelftestLoopbackRetryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             desktop.forbidden_response(self.request, timeout=2, attempts=0)
 
+    def test_status_or_transport_is_recorded_without_request_secrets(self):
+        observations = []
+        with patch('desktop.urllib.request.urlopen', side_effect=[ConnectionResetError(10054, 'secret-url'), self.http_error(403)]), patch('desktop.time.sleep'):
+            self.assertTrue(desktop.forbidden_response(self.request, timeout=2, observations=observations))
+        self.assertEqual(observations[0]['transport'], 'ConnectionResetError')
+        self.assertEqual(observations[1]['status'], 403)
+        self.assertNotIn('secret-url', str(observations))
+        observations = []
+        with patch('desktop.urllib.request.urlopen', side_effect=self.http_error(500)):
+            self.assertFalse(desktop.forbidden_response(self.request, timeout=2, observations=observations))
+        self.assertEqual(observations, [{'attempt': 1, 'status': 500}])
+
 
 if __name__ == "__main__":
     unittest.main()

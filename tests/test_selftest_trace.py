@@ -133,7 +133,8 @@ class SelftestPhaseTests(unittest.TestCase):
         result = {"ok": False}
         with patch.dict(sys.modules, {"webview": SimpleNamespace(renderer="edgechromium")}):
             desktop.run_selftest(SimpleNamespace(events=SimpleNamespace(loaded=Broken())), None, result)
-        self.assertEqual(set(result), {"ok", "renderer", "error"})
+        self.assertEqual(set(result), {"ok", "renderer", "error", "failed_checks"})
+        self.assertIn('main_loaded', result['failed_checks'])
 
     def test_main_traces_only_the_selftest(self):
         source = inspect.getsource(desktop.main)

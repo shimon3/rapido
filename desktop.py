@@ -78,7 +78,7 @@ def api(path: str, body: dict | None = None, timeout: float = 3):
 
 
 def forbidden_response(request, *, timeout: float, attempts: int = 3,
-                       retry_delay: float = .1) -> bool:
+                       retry_delay: float = .1, observations=None) -> bool:
     """Require an actual 403, retrying transient loopback transport failures.
 
     Windows can occasionally abort a newly opened loopback connection before
@@ -89,11 +89,22 @@ def forbidden_response(request, *, timeout: float, attempts: int = 3,
         raise ValueError("attempts must be positive")
     for attempt in range(attempts):
         try:
-            with urllib.request.urlopen(request, timeout=timeout):
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                if observations is not None:
+                    observations.append({"attempt": attempt + 1, "status": response.status})
                 return False
         except urllib.error.HTTPError as error:
-            return error.code == 403
-        except (urllib.error.URLError, OSError):
+            try:
+                if observations is not None:
+                    observations.append({"attempt": attempt + 1, "status": error.code})
+                return error.code == 403
+            finally:
+                error.close()
+        except (urllib.error.URLError, OSError) as error:
+            if observations is not None:
+                reason = getattr(error, "reason", error)
+                observations.append({"attempt": attempt + 1, "transport": type(reason).__name__,
+                                     "winerror": getattr(reason, "winerror", None)})
             if attempt + 1 == attempts:
                 return False
             time.sleep(retry_delay)
@@ -242,6 +253,7 @@ def main() -> int:
     _rapido = rapido
 
     if args.selftest:
+        rapido.manager.settings["monitor_clipboard"] = False
         rapido.manager.settings["download_dir"] = str(data_dir / "Downloads")
         rapido.manager.settings["show_complete_dialog"] = False
 
@@ -661,6 +673,7 @@ def check_confirmation_ui(window, fixture_id, *, popup=False):
       let closes = 0, failPause = false;
       const savedApi = api;
       const savedClose = typeof closeWin === 'function' ? closeWin : null;
+      const savedRender = typeof renderProgress === 'function' ? renderProgress : null;
       try {
         let pending = askConfirm('<img src=x onerror=alert(1)>');
         check(dialog.open && document.activeElement.id === 'confirmNo', 'default refusal focus');
@@ -680,7 +693,10 @@ def check_confirmation_ui(window, fixture_id, *, popup=False):
         };
         if(__POPUP__) {
           clearInterval(timer);
-          dl = {...dl, status:'paused'};
+          // An already-started tick can still return after clearInterval.
+          // Keep the fixture stable for every render during the dialog test.
+          const fixture = {...dl, status:'paused'};
+          renderProgress = () => { dl = fixture; savedRender(); };
           renderProgress();
           closeWin = () => { closes++; };
           for(const refuse of [no, escape, () => dialog.close()]) {
@@ -716,6 +732,7 @@ def check_confirmation_ui(window, fixture_id, *, popup=False):
       } finally {
         api = savedApi;
         if(savedClose) closeWin = savedClose;
+        if(savedRender) renderProgress = savedRender;
       }
     })(); true
     '''
@@ -858,9 +875,11 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         result["csp"] = "script-src 'sha256-" in urllib.request.urlopen(BASE_URL + "/").headers.get(
             "Content-Security-Policy", "")
         # securite : un site web ne doit pas pouvoir piloter Rapido
+        result["security_probes"] = {"origin": [], "unauthenticated": []}
         result["guard_ok"] = forbidden_response(urllib.request.Request(
             BASE_URL + "/api/show", data=b"{}", method="POST",
-            headers={"Content-Type": "application/json", "Origin": "https://evil.example"}), timeout=3)
+            headers={"Content-Type": "application/json", "Origin": "https://evil.example"}), timeout=3,
+            observations=result["security_probes"]["origin"])
         # yt-dlp tourne dans un processus separe (sinon Rapido gele pendant l'analyse YouTube)
         mark("yt-dlp")
         import asyncio
@@ -893,9 +912,12 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         # An arbitrary local client cannot read private state or mutate the API.
         result["unauthenticated_api"] = True
         for path, body in (("/api/settings",None), ("/api/state",None), ("/api/capture",{"url":BASE_URL+"/favicon.ico"})):
+            observations = []
             req = urllib.request.Request(BASE_URL+path, data=None if body is None else json.dumps(body).encode(),
                 method="GET" if body is None else "POST", headers={"Content-Type":"application/json"})
-            result["unauthenticated_api"] &= forbidden_response(req, timeout=2)
+            denied = forbidden_response(req, timeout=2, observations=observations)
+            result["security_probes"]["unauthenticated"].append({"path": path, "ok": denied, "attempts": observations})
+            result["unauthenticated_api"] &= denied
         mark("native-host")
         # The actual packaged native host must authenticate the actual desktop pipe.
         from native_selftest import NativeHostSession
@@ -913,27 +935,17 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
             if not result["native_capture"] or len(captures) != 1:
                 raise RuntimeError("Native capture did not create exactly one download")
             result["native_download"] = verify_selftest_download(captures[0].id, expected_sha256, confirm=True)
-            # Actual packaged prepare/abort/commit: durable staging and no duplicate.
-            baseline = len(rapido.manager.downloads)
-            prepared = native_message({"type":"capture_prepare","url":BASE_URL+"/favicon.ico",
-                                       "referrer":None,"filename":"handoff-selftest.png"})
-            ticket = prepared.get("ticket")
-            staged = [value for value in rapido.manager.downloads.values() if value.handoff_ticket == ticket]
-            staged_ok = prepared.get("type") == "capture_prepared" and len(staged) == 1 and staged[0].status == "handoff"
-            aborted = native_message({"type":"capture_abort","ticket":ticket})
-            abort_ok = aborted == {"type":"capture_aborted","ok":True} and len(rapido.manager.downloads) == baseline
-            prepared = native_message({"type":"capture_prepare","url":BASE_URL+"/favicon.ico",
-                                       "referrer":None,"filename":"handoff-selftest.png"})
-            ticket = prepared.get("ticket")
-            first = native_message({"type":"capture_commit","ticket":ticket})
-            second = native_message({"type":"capture_commit","ticket":ticket})
-            result["native_handoff"] = bool(staged_ok and abort_ok and
-                first == {"type":"capture_result","ok":True} and first == second and
-                len(rapido.manager.downloads) == baseline + 1)
-            committed = [item for item in rapido.manager.downloads.values() if item.handoff_ticket == ticket]
-            if not result["native_handoff"] or len(committed) != 1:
-                raise RuntimeError("Native handoff did not commit exactly one download")
-            result["handoff_download"] = verify_selftest_download(committed[0].id, expected_sha256, confirm=True)
+            from selftest_handoff import check_handoff
+            def snapshot(ticket):
+                async def collect():
+                    return [{"id": item.id, "status": item.status,
+                             "matching_ticket": bool(ticket) and item.handoff_ticket == ticket}
+                            for item in rapido.manager.downloads.values()]
+                return asyncio.run_coroutine_threadsafe(collect(), rapido.manager.loop).result(3)
+            committed_id = check_handoff(native_message, snapshot, result, BASE_URL+"/favicon.ico")
+            if committed_id is None:
+                raise RuntimeError("Native handoff failed; see handoff_steps")
+            result["handoff_download"] = verify_selftest_download(committed_id, expected_sha256, confirm=True)
 
 
 
@@ -953,6 +965,15 @@ def run_selftest(main_win, open_popup, result: dict, main_timeline: dict | None 
         import traceback
         result["error"] = "".join(traceback.format_exception(e))[-2000:]
         mark("error")
+    result["failed_checks"] = [key for key in (
+        "main_loaded", "main_url_ok", "main_rows_html", "download_file_ok",
+        "popup_loaded", "popup_token", "popup_resized", "csp", "guard_ok",
+        "ytdlp_process", "dpapi_ok", "motw_ok", "settings_desktop", "webview_auth",
+        "unauthenticated_api", "native_pipe", "native_capture", "native_handoff")
+        if result.get(key) is not True]
+    result["failed_checks"] += [key for key in ("main_confirmations", "popup_confirmations",
+        "download_integrity", "native_download", "handoff_download")
+        if result.get(key, {}).get("ok") is not True]
 
 
 if __name__ == "__main__":

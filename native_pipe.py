@@ -267,7 +267,14 @@ def request(value, *, server_images, sid=None, name=None, timeout=5):
             _send(k, handle, value, deadline)
             result = _receive(k, handle, deadline)
         # The server retains the connection until the response has been consumed.
-        _send(k, handle, {"ack": True}, deadline)
+        try:
+            _send(k, handle, {"ack": True}, deadline)
+        except OSError as error:
+            # The authenticated response was already read in full. The server
+            # can disconnect while this final cleanup acknowledgement is sent.
+            # Do not turn an accepted mutation into "unavailable" or replay it.
+            if getattr(error, 'winerror', None) not in (109, 232, 233):
+                raise
         return result
     finally:
         k.CloseHandle(handle)

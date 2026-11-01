@@ -98,4 +98,35 @@ function editingShortcuts(){
   }
   handler({key:'Delete',target:{closest(){return null;},isContentEditable:true}});assert.equal(calls,1);
 }
-(async()=>{await helperCases('index.html');await helperCases('window.html');await mainActions();await popupCancellation();editingShortcuts();console.log('Dialog behavior passed: refusal, approval, snapshots, busy guards, failures and editing shortcuts');})().catch(error=>{console.error(error);process.exitCode=1;});
+async function popupSelftestRace(){
+  const {context,nodes,dialog,script,document}=setup('window.html');
+  document.querySelector=s=>nodes[s] || null;
+  for(const [selector,node] of Object.entries(nodes)){
+    node.id=selector.slice(1);node.click=()=>node.onclick?.();
+  }
+  dialog.dispatchEvent=()=>dialog.oncancel({preventDefault(){}});
+  const progress=script.slice(script.indexOf('function renderProgress'),script.indexOf('function renderDone'));
+  const cancelBody=progress.split('$("#cancel").onclick = async () => {')[1].split('\n    };')[0];
+  Object.assign(context,{window:context,ID:'abc123',timer:1,clearInterval(){},Event:class {},
+    api:async()=>({}),closeWin(){},renderProgress:null});
+  vm.runInContext('let dl={status:"completed"};let pausedBusy=false; async function cancelProgress(){'+cancelBody+'}',context);
+  let lateTickScheduled=false;
+  const shippedRender=()=>{
+    if(vm.runInContext('dl.status',context)==='completed'){delete nodes['#cancel'];return;}
+    nodes['#cancel']={onclick:context.cancelProgress};
+    if(!lateTickScheduled){
+      lateTickScheduled=true;
+      Promise.resolve().then(()=>vm.runInContext('dl={...dl,status:"completed"};renderProgress();',context));
+    }
+  };
+  context.renderProgress=shippedRender;
+  const desktop=process.argv[2]?fs.readFileSync(process.argv[2],'utf8'):read('desktop.py');
+  const checkSource=desktop.slice(desktop.indexOf('def check_confirmation_ui'));
+  const generated=checkSource.match(/script = r'''([\s\S]*?)'''/)[1]
+    .replaceAll('__POPUP__','true').replaceAll('__FIXTURE__','"abc123"');
+  vm.runInContext(generated,context);
+  for(let n=0;n<30 && context._confirmationCheck===null;n++) await flush();
+  assert.equal(context._confirmationCheck?.ok,true,JSON.stringify(context._confirmationCheck));
+  assert.equal(context.renderProgress,shippedRender,'renderer restored after test');
+}
+(async()=>{await helperCases('index.html');await helperCases('window.html');await mainActions();await popupCancellation();editingShortcuts();await popupSelftestRace();console.log('Dialog behavior passed: refusal, approval, snapshots, busy guards, failures, editing shortcuts and late polling race');})().catch(error=>{console.error(error);process.exitCode=1;});

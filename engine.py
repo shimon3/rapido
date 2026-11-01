@@ -165,7 +165,7 @@ def _retry_while_locked(action, attempts: int = 12, delay: float = 0.01):
 
 
 def _read_text_retrying(path: Path, attempts: int = 12) -> str:
-    return _retry_while_locked(lambda: path.read_text("utf-8"), attempts)
+    return _retry_while_locked(lambda: path.read_text("utf-8-sig"), attempts)
 
 
 def _replace_retrying(src: Path, dst: Path, attempts: int = 12):

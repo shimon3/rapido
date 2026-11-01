@@ -86,6 +86,31 @@ class RealWindowsPipeTests(unittest.TestCase):
                                           name=server.name, timeout=3)
             self.assertEqual(result, {"role":"native","value":{"number":number}})
 
+    def test_verified_response_survives_server_disconnect_before_final_ack(self):
+        dispatched = []
+        server = self.server(lambda _, value: dispatched.append(value) or {'ok': True}, timeout=.08)
+        send = native_pipe._send
+        def late_ack(k, handle, value, deadline):
+            if value == {'ack': True}:
+                time.sleep(.2)
+            return send(k, handle, value, deadline)
+        with patch('native_pipe._send', side_effect=late_ack):
+            response = native_pipe.request({'number': 1}, server_images=[sys.executable], name=server.name, timeout=2)
+        self.assertEqual(response, {'ok': True})
+        self.assertEqual(dispatched, [{'number': 1}], 'mutation must never be replayed')
+
+    def test_ack_timeout_or_access_denied_is_not_ignored(self):
+        for error in (TimeoutError('expired'), PermissionError('denied')):
+            with self.subTest(error=type(error).__name__):
+                server = self.server(timeout=.08)
+                send = native_pipe._send
+                def failed_ack(k, handle, value, deadline):
+                    if value == {'ack': True}:
+                        raise error
+                    return send(k, handle, value, deadline)
+                with patch('native_pipe._send', side_effect=failed_ack), self.assertRaises(type(error)):
+                    native_pipe.request({'number': 1}, server_images=[sys.executable], name=server.name, timeout=2)
+
     def test_untrusted_server_is_rejected_before_payload(self):
         received = []
         server = self.server(lambda role, msg: received.append(msg) or {"ok":True})

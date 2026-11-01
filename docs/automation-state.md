@@ -198,3 +198,51 @@ without explicit owner approval.
 - Retry counters: native transfer test semantics 1/3; cp1255 output 1/3;
   watchdog shutdown 1/3. Windows 10 interactive revalidation still required.
 - No merge, tag, release, production signature or Windows policy change.
+
+## Follow-up after 20 Windows 10 cycles of e5cb33d, 2026-11-01
+
+- Head e5cb33d verified; previous run 41304920284 succeeded on Server 2025
+  (444 tests, 20 cycles). Owner requests a new non-publishing candidate.
+- Read all 20 selftest JSON files, stdout, stderr and download files, comparing
+  successful and failed cycles. Immutable local audit: handoff-e5cb33d-analysis.
+  Actual local totals: 11/20 successes, 55/60 verified files, 0 timeouts, 0
+  residual processes; all 20 main pages and popups loaded. No cp1255 regression.
+- Handoff failures 2/3/5/7/14 all hit one aggregate assertion. Authorized read-only
+  DPAPI inspection confirms committed pending handoffs in 2/5/7/14; cycle 3 has
+  no surviving handoff. The old logs omit native responses, so the exact failing
+  sub-operation in each historical cycle cannot be proven.
+- Reproduced a real IPC reply-loss bug on an isolated authenticated fixture:
+  server dispatches and client fully reads its verified reply; server times out
+  waiting for the cleanup ACK; client writes ACK after disconnect and receives
+  error 233, discarding an already accepted operation. Before: dispatched=true,
+  response lost. After: same single dispatch, verified response preserved.
+  Ignore only closed-pipe ACK errors 109/232/233 AFTER a fully authenticated reply;
+  never retry a mutation. Access denied, timeouts and verification/frame errors
+  still fail. This mechanism matches the pending-commit evidence but is not
+  claimed as the proven cause of every historical handoff failure.
+- Record all five handoff exchanges plus event-loop state snapshots, without
+  tickets or request contents. Keep all staging, abort, idempotence and duplicate
+  checks. An accepted file may be verified even if a reply check fails; that
+  protocol failure still fails the overall selftest.
+- Exit 1 with all files: 15/19 guard_ok=false; 16 unauthenticated_api=false and
+  popup_confirmations=false; 18 popup_confirmations=false; 19 also popup false.
+  Existing booleans cannot identify HTTP status versus transport. New diagnostics
+  record status/error type per attempt, and close HTTPError response streams.
+  A real 403 remains mandatory; no retry budget or security assertion weakened.
+- Deterministic Node reproduction: pending poll returns after clearInterval,
+  renders completed DOM and removes #cancel during the confirmation selftest.
+  Old selftest fails, fixed selftest passes. Freeze only its fixture rendering
+  and restore the renderer afterward; no shipped UI behavior change.
+- All 20 settings files were quarantined because Windows PowerShell emitted a
+  UTF-8 BOM. Read valid UTF-8 BOM JSON, emit BOM-free controller settings, and
+  explicitly disable clipboard monitoring in the selftest. Corrupt JSON still
+  fails and is preserved. Isolated settings regression passes.
+- Local full suite before final IPC change: 417 passed, same 23 environment
+  failures, 9 skips, 7 deselections; no new failure. Final focused suite 33 passed;
+  final real transport suite 13 passed, 2 subtests including negative ACK errors.
+  A 500-reconnection unchanged-transport probe also passed; it alone is not
+  evidence against the separately reproduced late-ACK race.
+- Root-specific retry counters: final-ACK reply loss 1/3; popup fixture race 1/3;
+  BOM settings 1/3. Prior native selftest semantics remains a separate cause.
+- New full CI and new Windows 10 campaign required. No main/tag/release/merge,
+  production signing, peer-policy, DACL, origin or Windows protection changes.
