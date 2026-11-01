@@ -72,6 +72,7 @@ def main():
         save()
         print(f"GUI cycle {number}/{args.count}: ok={row['ok']} seconds={row['seconds']}", flush=True)
         if not row['ok']:
+            print(json.dumps(row, ensure_ascii=True), flush=True)
             return 1
     report['ok'] = hashlib.sha256(image.read_bytes()).hexdigest() == report['image_sha256']
     save()

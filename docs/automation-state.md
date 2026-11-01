@@ -35,6 +35,11 @@ Last updated: 2026-10-27
 - Final diff review preserves desktop.py's original CRLF bytes through a Git
   blob upload; no further Python behavior changed. The resulting source commit
   must receive its own build and 20-cycle evidence before it is called tested.
+- Run 41294030093 passed 13 full cycles and failed cycle 14; its initial runner
+  did not preserve the failed selftest JSON. Evidence-collection correction 1:
+  print the failed row and always upload startup JSON/console logs. Do not
+  call this a product root cause or a successful 20-cycle campaign. Run
+  41295196912 on the CRLF-only follow-up is already in progress, not restarted.
   Previous local suite: 398 passed, 23 failed, 9 skipped, 7 deselected; 19 failures
   depend on unavailable DPAPI, four require absent yt-dlp. No gate weakened.
 - The historical portable capture_prepare timeout is NOT declared fixed:
