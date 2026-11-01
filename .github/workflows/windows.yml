@@ -168,6 +168,10 @@ jobs:
           if (Test-Path "$env:RAPIDO_DATA\rapido.log") { Write-Host "--- rapido.log ---"; Get-Content "$env:RAPIDO_DATA\rapido.log" -Tail 80 }
           if ($p.ExitCode -ne 0) { exit 1 }
 
+      - name: Twenty real graphical startup and shutdown cycles
+        timeout-minutes: 15
+        run: python scripts/test_startup_cycles.py --exe dist/Rapido/Rapido.exe --work "${{ runner.temp }}/rapido-startup-cycles" --out dist/startup-cycles.json --count 20
+
       - name: Native Messaging protocol smoke test
         shell: pwsh
         run: |
@@ -384,6 +388,7 @@ jobs:
             dist/signing-rehearsal.json
             dist/SHA256SUMS.txt
             dist/ci-artifact-provenance.json
+            dist/startup-cycles.json
           retention-days: 14
 
   automation-report:

@@ -22,7 +22,13 @@ Last updated: 2026-10-27
 - Regression attempt 1 found a cleanup error on a timed-out blocked writer.
   Attempt 2 preserves the original timeout while reaping its owned child;
   focused suite passed (18 passed, 1 skipped). No third correction attempt.
-- Full source suite rerun and new branch build are pending at this checkpoint.
+- Full source suite rerun: 404 passed, the same 23 failed, 9 skipped,
+  7 deselected, 265 subtests. No new failure introduced. Build run 41293695793
+  on 7ef43c1 is in progress at this checkpoint.
+- Added a fail-fast 20-cycle compiled GUI/Native Messaging check to Windows CI;
+  every cycle requires the real loaded main page, authenticated WebView API,
+  prepare/abort/commit, normal exit and released port. Its JSON report records
+  the OS and executable digest; Server 2025 results do not count as Windows 10.
   Previous local suite: 398 passed, 23 failed, 9 skipped, 7 deselected; 19 failures
   depend on unavailable DPAPI, four require absent yt-dlp. No gate weakened.
 - The historical portable capture_prepare timeout is NOT declared fixed:
