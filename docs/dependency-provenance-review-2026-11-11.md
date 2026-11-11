@@ -47,6 +47,28 @@ This outputs relative file paths and file digests only. It deliberately does
 NOT modify `SOURCE_NOTICES`, the distribution lock, the collected notice text,
 or any build/release policy.
 
+## Offline pydantic-core CPython 3.13 x64 wheel audit (not admission)
+
+For the exact Windows x64 wheel, PyPI publishes SHA-256
+`e5c801bdf3cc92274b8fc2c7023c8751e5ae81260c009ac558ff55ce712a2d45`.
+See [PyPI release](https://pypi.org/project/pydantic_core/2.50.2/).
+The upstream distribution does **not** have a PyPI provenance attestation.
+
+Download the original `pydantic_core-2.50.2-cp313-cp313-win_amd64.whl`
+independently into an isolated review environment. Verify its archive identity,
+expected native module and raw binary SHA-256 with:
+
+```powershell
+python -m scripts.verify_pydantic_core_wheel .\\pydantic_core-2.50.2-cp313-cp313-win_amd64.whl
+```
+
+The output explicitly says `REVIEW_CANDIDATE_ONLY`. The tool neither checks
+the Rust source-to-binary build path nor collects all Rust crate legal notices.
+Before considering this update, independently review the matching source tree,
+the compiled `.pyd`, the complete `crates.json` and texts for its Rust crates,
+and the compatibility of the paired `pydantic` version. Never turn a recorded
+hash into a trust decision without this review.
+
 ## Required before admitting updated dependencies
 
 1. Download the exact official PyPI wheel/sdist independently and verify full
