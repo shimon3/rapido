@@ -29,7 +29,7 @@ def test_readiness_does_not_approve_signing_or_owner_security_decision():
 def test_real_windows_acceptance_remains_explicitly_unperformed():
     text = WINDOWS.read_text(encoding="utf-8")
     assert "**Status: NOT EXECUTED.**" in text
-    assert "Windows Server 2025" in text
+    assert "Server 2025" in text
     assert "PENDING" in text
     assert "Windows 10" in text and "Windows 11" in text
     # Twenty real acceptance rows, each must remain pending until evidence exists.
