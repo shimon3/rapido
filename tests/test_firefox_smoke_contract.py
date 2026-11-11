@@ -119,7 +119,7 @@ class FirefoxProbeTests(unittest.TestCase):
     def test_actual_probe_script_runs_each_phase_once_and_reports_native_failure(self):
         script = r'''
 const fs = require('fs'), vm = require('vm'), assert = require('assert');
-async function scenario(fail) {
+async function scenario(mode) {
   const reports = [], downloads = [], native = [];
   const phases = ['start','start','fallback'];
   let index = 0;
@@ -128,14 +128,14 @@ async function scenario(fail) {
     chrome: {
       runtime: {sendNativeMessage: async (host, message) => {
         assert.equal(host, 'com.rapido.bridge'); native.push(message.type);
-        if(message.type === 'capabilities') return {protocol:1,features:fail?[]:['capture_handoff']};
+        if(message.type === 'capabilities') return {protocol:1,features:mode === 'capabilities' ? [] : ['capture_handoff']};
         if(message.type === 'capture_prepare') return {type:'capture_prepared',ticket:'fixture'};
         if(message.type === 'capture_abort') return {ok:true};
         throw Error('unexpected native operation');
       }},
       downloads: {
         download: async args => {downloads.push(args.url); return downloads.length;},
-        search: async ({id}) => id === 1 ? [] : [{state:'complete'}],
+        search: async ({id}) => id === 1 ? (mode === 'completed' ? [{state:'complete'}] : []) : [{state:'complete'}],
       },
     },
     fetch: async (url, options) => {
@@ -144,10 +144,15 @@ async function scenario(fail) {
     },
   };
   await vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8'), context);
-  if(fail) {
+  if(mode === 'capabilities') {
     assert.equal(reports.length,1); assert.equal(reports[0].result.ok,false);
     assert.equal(reports[0].result.stage,'capabilities');
     assert.equal(downloads.length,0);
+  } else if(mode === 'completed') {
+    assert.equal(reports.length,1); assert.equal(reports[0].result.ok,false);
+    assert.equal(reports[0].result.stage,'automatic_handoff');
+    assert(reports[0].result.error.includes('observed_states=complete'));
+    assert(!reports[0].result.error.includes('fixture'));
   } else {
     assert.deepEqual(reports.map(r=>r.phase),['start','fallback']);
     assert(reports.every(r=>r.result.ok)); assert.equal(downloads.length,2);
@@ -155,7 +160,7 @@ async function scenario(fail) {
     assert(reports[1].result.host_absent_keeps_browser_download);
   }
 }
-(async()=>{await scenario(false); await scenario(true);})().catch(e=>{console.error(e);process.exitCode=1;});
+(async()=>{await scenario('success'); await scenario('capabilities'); await scenario('completed');})().catch(e=>{console.error(e);process.exitCode=1;});
 '''
         source = Path(__file__).resolve().parents[1]/"scripts/firefox_native_probe.js"
         reply = subprocess.run([shutil.which("node"), "-e", script, str(source)],
