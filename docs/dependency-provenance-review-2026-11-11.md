@@ -14,6 +14,25 @@ document does not replace third-party licence review.
 - pydantic-core 2.50.2: [PyPI release](https://pypi.org/project/pydantic_core/2.50.2/).
   - A CPython 3.13 Windows x64 wheel exists, but PyPI labels the listed release files as **without provenance**. Independently review the upstream source, wheel identity and Rust crate licence payload before accepting a new binary hash.
 
+## Offline certifi wheel verification (not admission)
+
+The new `scripts/verify_certifi_wheel.py` accepts only the original wheel
+`certifi-2026.10.23-py3-none-any.whl` downloaded independently from PyPI.
+It compares the complete archive SHA-256 to the reviewed PyPI digest, rejects
+unsafe member paths, symlinks and excess payload sizes, then emits LF-normalized
+source-file SHA-256 values. Use an isolated offline reviewer machine:
+
+```powershell
+python -m scripts.verify_certifi_wheel .\\certifi-2026.10.23-py3-none-any.whl
+```
+
+Reject any verification failure, retain the archive and generated JSON as
+review evidence, and independently compare the output with the upstream tagged
+source. This tool **does not** approve `certifi` or modify `SOURCE_NOTICES`.
+The unit tests use synthetic archives and do not prove verification of the
+actual upstream wheel; a real-download checksum and upstream source review
+remain pending.
+
 ## Read-only local inventory
 
 On an isolated reviewer environment that has an explicitly chosen version
