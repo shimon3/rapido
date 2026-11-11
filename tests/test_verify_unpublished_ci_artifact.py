@@ -61,11 +61,10 @@ class UnpublishedArtifactTests(unittest.TestCase):
             z.writestr("Rapido/Rapido.exe", b"modified desktop")
             z.writestr("Rapido/RapidoNativeHost.exe", b"native")
         self.write_hashes()
-        # Tampered zipped binary must differ from independently recorded source binary hash.
-        text = (self.root / "SHA256SUMS.txt").read_text()
-        text = text.replace(hashlib.sha256(b"desktop").hexdigest(),
-                            hashlib.sha256(b"original-desktop").hexdigest())
-        (self.root / "SHA256SUMS.txt").write_text(text)
+        # SHA256SUMS records the original desktop digest, independently of the
+        # now-modified portable ZIP's correct whole-archive digest.
+        self.assertIn(hashlib.sha256(b"desktop").hexdigest(),
+                      (self.root / "SHA256SUMS.txt").read_text())
         with self.assertRaisesRegex(ValueError, "Portable executable SHA-256 mismatch"):
             verify(self.root, RUN, COMMIT)
 
