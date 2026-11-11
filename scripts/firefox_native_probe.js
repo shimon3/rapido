@@ -26,11 +26,21 @@ async function start() {
     stage = "automatic_download";
     const id=await chrome.downloads.download({url:BASE+"/automatic.zip",filename:"automatic.zip",saveAs:false});
     stage = "automatic_handoff";
-    await until(async()=> {
-      const rows=await search(id);
-      if(rows[0]?.state==="complete") throw new Error("Automatic capture stayed in Firefox");
-      return rows.length===0;
-    });
+    // CI-only sanitized state transitions; never record URLs, filenames or tickets.
+    const observedStates = [];
+    try {
+      await until(async()=> {
+        const rows=await search(id);
+        const rawState=rows.length===0 ? "missing" : rows[0]?.state;
+        const state=["missing","in_progress","complete","interrupted"].includes(rawState) ? rawState : "unknown";
+        if(observedStates.at(-1)!==state && observedStates.length<8) observedStates.push(state);
+        if(state==="complete") throw new Error("Automatic capture stayed in Firefox");
+        return rows.length===0;
+      });
+    } catch(error) {
+      throw new Error(String(error).replace(/^Error: /,"")+
+        " [observed_states="+observedStates.join(",")+"]");
+    }
     return {ok:true,verified_native:true,automatic_handoff:true};
   } catch(error) {
     return {ok:false,stage,error:String(error)};
