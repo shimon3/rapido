@@ -1,6 +1,6 @@
 # Rapido 1.3.0-beta.2 — remaining publication tasks
 
-Status date: 2026-10-27. This checklist lists **only the work still to do**.
+Status snapshot: 2026-11-11. This checklist lists **only the work still to do**.
 Completed items are recorded in the CI evidence and in the documents linked
 below. It does not authorize a merge, tag, release, deployment, purchase or
 production signature. **Do not publish** while a blocking task of the target
@@ -11,17 +11,32 @@ track is open.
 - Track S (**public beta**, signed): this checklist plus
   `docs/authenticode-signing-procedure.md`.
 
-Latest evidence: [Windows build run 40503343084](https://github.com/shimon3/rapido/actions/runs/40503343084)
-on commit `98e7921`: 431 tests passed, 6 skipped and 271 subtests passed. Its
-non-publishing artifact is `12734780024`; the job summary records SHA-256 for
-the installer and portable ZIP. The disposable signing rehearsal passed, but
-no production certificate or signature was used.
+Latest verified CI: [Windows run #43033951242](https://github.com/shimon3/rapido/actions/runs/43033951242)
+at `bbe3925a35b380b0a754d1b7eb0733dd4ce94947`: 444 tests passed,
+6 skipped, 2 warnings and 277 subtests passed. All Windows Server 2025 jobs
+for this commit passed; `release` was skipped. The unpublished artifact is
+`13863311886` (expires 2026-11-25). Its GitHub upload digest is **not** the
+same evidence as individual installer and ZIP SHA-256 values, which must be
+read from the run summary and verified on the downloaded files.
+
+**Public beta verdict: NO-GO.** No approved production certificate/signature,
+no owner-signed issue #26 decision, no exact signed-candidate Windows 10/11
+manual matrix, no human licence clearance, and no review/merge authorization.
+Draft [PR #51](https://github.com/shimon3/rapido/pull/51) contains the
+integration work. [Firefox #52](https://github.com/shimon3/rapido/issues/52)
+remains under investigation despite passing the latest run.
+
+See the current executable handoff dossier:
+[`docs/beta2-public-release-readiness-2026-11-11.md`](beta2-public-release-readiness-2026-11-11.md).
+The table below may mention older evidence as **history** only; no earlier
+artifact can substitute for the exact final build.
+
 
 ## Track P — private unsigned beta
 
 | ID | Task and objective | Real state | Evidence | Missing | Blocking | Next owner | Validation criterion |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P1 | Freeze the candidate: one commit, one green run, one artifact | Commit `98e7921`, run `40503343084`, artifact `12734780024` | Run summary with SHA-256 block, `SHA256SUMS.txt` | Owner downloads and archives the artifact before 2026-11-10 | Yes | Owner | Archived files match the job-summary hashes |
+| P1 | Freeze the candidate: one commit, one green run, one artifact | Candidate `bbe3925`, run `43033951242`, unpublished artifact `13863311886` | [Current run](https://github.com/shimon3/rapido/actions/runs/43033951242), `SHA256SUMS.txt` in artifact | Owner downloads and archives the artifact before **2026-11-25**, checks installer/ZIP individual SHA-256 against run summary; freezes exact file set | Yes | Owner | Archived candidate bytes match independently recorded run-summary hashes |
 | P2 | Clean Windows 10 validation of that exact artifact | Earlier artifacts passed on a Windows 10 VM (CI #218, `docs/windows-10-vm-verification-20261018.md`) | Earlier report only | Run `docs/private-beta/checklist-windows.md` on the frozen artifact | Yes | Owner (machine access) | Checklist sections A–F meet the "validated for sending" rule |
 | P3 | Clean Windows 11 validation of that exact artifact | Earlier artifacts passed on Windows 11 (CI #221, `docs/windows-11-pc-verification-20261018.md`) | Earlier report only | Same as P2 on Windows 11 | Yes | Owner | Same as P2 |
 | P4 | Chrome, Edge and Firefox work end to end on both systems | Firefox 157.0.1 automated on Server 2025; shared contracts and registration pass for all three | Current CI Firefox step and `docs/browser-support-plan.md` | Exact beta.2 manual rows D1–D3 on W10/W11 | Yes | Owner | All three are recorded; failures are either fixed or declared unsupported |
@@ -39,7 +54,7 @@ no production certificate or signature was used.
 | S4 | Downloaded file equals the tested file | Script rehearsed in CI (identical copy accepted, planted DLL rejected) | `scripts/verify_release_candidate.ps1` | Run on the real signed candidate | Yes | Owner | Script reports a match |
 | S5 | Issue #26 decision | Options written | `docs/issue-26-beta-options.md` | Owner chooses A or B and approves the residual-risk wording | Yes | Owner | Decision recorded; #26 stays open unless its criteria are proven |
 | S6 | Human legal review | Technical report ready | `docs/license-obligations-report.md` (questions L1–L6) | Reviewer chosen by the owner | Yes | Owner | Written answers to L1–L6 |
-| S7 | Integrate the tested beta | PR #38 targets `public/1.3.0-beta.2`; `main` hosts only automation controls | PR #38 and issue #37 | Review and owner authorization for #38, then a separate reviewed integration PR to `main` | Yes | Owner | The integrated tree is byte-for-byte derived from the tested commit |
+| S7 | Integrate the tested beta | PR #38 targets `public/1.3.0-beta.2`; draft PR #51 targets the automation branch, not `main` | PRs #38 and #51; issue #37 | Review beta branch ancestry and changes, obtain owner approval, then separately authorize the exact reviewed integration into `main` | Yes | Owner | The integrated tree exactly corresponds to the independently tested/signed source commit |
 | S8 | Release notes with support scope and residual risk | Draft exists | `docs/beta-release-notes.md` | Final wording after S5 | Yes | Maintainer | Owner approves |
 
 ## Proving the signed artifact is the tested one
