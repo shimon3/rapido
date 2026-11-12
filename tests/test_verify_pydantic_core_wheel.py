@@ -52,7 +52,8 @@ class PydanticWheelAuditTests(unittest.TestCase):
             path = Path(folder) / WHEEL
             with zipfile.ZipFile(path, "w") as z:
                 z.writestr(MODULE, b"abc")
-                z.writestr(MODULE, b"xyz")
+                with self.assertWarnsRegex(UserWarning, "Duplicate name"):
+                    z.writestr(MODULE, b"xyz")
             sha = hashlib.sha256(path.read_bytes()).hexdigest()
             with self.assertRaisesRegex(ValueError, "duplicate"):
                 inspect_wheel(path, expected_sha256=sha)
