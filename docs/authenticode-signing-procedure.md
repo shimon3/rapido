@@ -8,6 +8,31 @@ certificates (`scripts/rehearse_release_signing.ps1`). Their subject reads
 
 Provider comparison and identity preparation: `docs/authenticode-options-israel.md`.
 
+## 2026-11-11 primary-source clarification — certificate lifetime and IV automation
+
+The **CA/Browser Forum Code Signing Baseline Requirements, section 6.3.2**
+set a **460-day maximum** for new public code-signing certificates issued
+on or after March 1, 2026:
+https://cabforum.org/working-groups/code-signing/requirements/
+
+SSL.com's own updated documentation instead describes an **issuer operational
+cap of 458 days** starting February 27, 2026:
+https://www.ssl.com/how-to/validation-process-for-document-signing-code-signing-and-ev-code-signing-certificates/
+
+These are not the same claim: 458 days is SSL.com's published policy,
+**not** the CA/Browser Forum's universal 460-day maximum. A multi-year
+purchase term does not guarantee a multi-year single certificate, and any
+reissuance may require certificate-pin rollover and fresh review.
+
+SSL.com's eSigner FAQ says IV certificates are eligible for eSigner enrolment:
+https://www.ssl.com/faqs/esigner-faq/
+This **does not establish** that an IV certificate can use the exact
+headless GitHub Actions CKA/SignTool path proposed for Rapido. Its specific
+CI method, approval/OTP behavior, individual eligibility in Israel, accepted
+Hebrew identity documents and final total price **still require written
+vendor confirmation before purchase**. The older USD 129 figure below is
+historical, not a November 2026 guaranteed price.
+
 ## 1. Provider facts re-checked on 2026-10-18
 
 | Fact | Source | Status |
@@ -112,8 +137,10 @@ These changes are reviewed in a PR and are not done now:
   stays valid after the certificate expires.
 - `signtool verify /pa /v` runs as an independent check. The module also
   requires `Hash of file (sha256)` in its output.
-- The CA/Browser Forum caps new public code-signing certificates at 460 days
-  from 2026-03-01. Plan the renewal overlap so a new certificate is ready
+- The CA/Browser Forum caps new public code-signing certificates at **460 days**
+  from 2026-03-01 (section 6.3.2); SSL.com advertises its own **458-day**
+  issuance cap. Confirm the actual issued certificate lifetime and plan the
+  renewal overlap so a new certificate is ready
   before the old one expires. Changing the certificate changes the pin, so
   update the pin before the first release with the new certificate.
 
