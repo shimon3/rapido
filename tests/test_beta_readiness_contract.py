@@ -4,6 +4,7 @@ These tests never authorize a release; they protect documentation from
 mistakenly presenting an unsigned CI artifact as production-ready.
 """
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -66,4 +67,8 @@ def test_release_guard_remains_hardcoded_false_and_readiness_matches():
     assert "needs.build.outputs.publishable == 'true'" in release
     assert "NO-GO" in readiness and "NO-GO" in checklist
     assert "before 2026-11-10" not in checklist
-    assert "13863311886" in checklist
+    dossier_artifact = re.search(r'^\| Unpublished artifact \|.*artifact ID `(\d+)`', readiness, re.MULTILINE)
+    checklist_artifact = re.search(r'^\| P1 \|.*artifact `(\d+)`', checklist, re.MULTILINE)
+    assert dossier_artifact, "readiness dossier must identify its current unpublished artifact"
+    assert checklist_artifact, "private-beta checklist must identify the frozen artifact"
+    assert dossier_artifact.group(1) == checklist_artifact.group(1)
