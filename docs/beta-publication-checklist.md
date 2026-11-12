@@ -1,6 +1,6 @@
 # Rapido 1.3.0-beta.2 — remaining publication tasks
 
-Status snapshot: 2026-11-11. This checklist lists **only the work still to do**.
+Status snapshot: 2026-11-12. This checklist lists **only the work still to do**.
 Completed items are recorded in the CI evidence and in the documents linked
 below. It does not authorize a merge, tag, release, deployment, purchase or
 production signature. **Do not publish** while a blocking task of the target
@@ -11,13 +11,17 @@ track is open.
 - Track S (**public beta**, signed): this checklist plus
   `docs/authenticode-signing-procedure.md`.
 
-Latest verified CI: [Windows run #43033951242](https://github.com/shimon3/rapido/actions/runs/43033951242)
-at `bbe3925a35b380b0a754d1b7eb0733dd4ce94947`: 444 tests passed,
-6 skipped, 2 warnings and 277 subtests passed. All Windows Server 2025 jobs
-for this commit passed; `release` was skipped. The unpublished artifact is
-`13863311886` (expires 2026-11-25). Its GitHub upload digest is **not** the
-same evidence as individual installer and ZIP SHA-256 values, which must be
-read from the run summary and verified on the downloaded files.
+Latest verified CI: [Windows run #43099301287](https://github.com/shimon3/rapido/actions/runs/43099301287)
+at exact PR head `2e4fef34fe6eef49f8b12e259f8a7abe032870d5`: success. The
+regression-test, build, disposable signing rehearsal, dependency/advisory,
+installer lifecycle, Firefox native handoff, portable ZIP, SHA-256 and artifact
+upload steps passed; the release job was skipped. The run metadata available
+here does not report a numeric test total. Artifact `13892505549` is
+`UNPUBLISHED-Rapido-1.3.0-beta.2-windows` (80,856,930 bytes), expiring
+2026-11-25 21:06 UTC. GitHub archive digest:
+`sha256:d739903eb503cca5a410b57a906baf41eb5152337e5aa81358b1d26bc2268359`.
+That digest is not a substitute for checking individual installer and ZIP
+SHA-256 values against the original Actions summary.
 
 **Public beta verdict: NO-GO.** No approved production certificate/signature,
 no owner-signed issue #26 decision, no exact signed-candidate Windows 10/11
@@ -36,10 +40,10 @@ artifact can substitute for the exact final build.
 
 | ID | Task and objective | Real state | Evidence | Missing | Blocking | Next owner | Validation criterion |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P1 | Freeze the candidate: one commit, one green run, one artifact | Candidate `bbe3925`, run `43033951242`, unpublished artifact `13863311886` | [Current run](https://github.com/shimon3/rapido/actions/runs/43033951242), `SHA256SUMS.txt` in artifact | Owner downloads and archives the artifact before **2026-11-25**, checks installer/ZIP individual SHA-256 against run summary; freezes exact file set | Yes | Owner | Archived candidate bytes match independently recorded run-summary hashes |
+| P1 | Freeze the candidate: one commit, one green run, one artifact | Candidate `2e4fef3`, run `43099301287`, unpublished artifact `13892505549` | [Exact-head run](https://github.com/shimon3/rapido/actions/runs/43099301287), `SHA256SUMS.txt` in artifact | Owner downloads and archives the artifact before **2026-11-25**, checks installer/ZIP individual SHA-256 against the original run summary; freezes exact file set | Yes | Owner | Archived candidate bytes match independently recorded run-summary hashes |
 | P2 | Clean Windows 10 validation of that exact artifact | Earlier artifacts passed on a Windows 10 VM (CI #218, `docs/windows-10-vm-verification-20261018.md`) | Earlier report only | Run `docs/private-beta/checklist-windows.md` on the frozen artifact | Yes | Owner (machine access) | Checklist sections A–F meet the "validated for sending" rule |
 | P3 | Clean Windows 11 validation of that exact artifact | Earlier artifacts passed on Windows 11 (CI #221, `docs/windows-11-pc-verification-20261018.md`) | Earlier report only | Same as P2 on Windows 11 | Yes | Owner | Same as P2 |
-| P4 | Chrome, Edge and Firefox work end to end on both systems | Firefox 157.0.1 automated on Server 2025; shared contracts and registration pass for all three | Current CI Firefox step and `docs/browser-support-plan.md` | Exact beta.2 manual rows D1–D3 on W10/W11 | Yes | Owner | All three are recorded; failures are either fixed or declared unsupported |
+| P4 | Chrome, Edge and Firefox work end to end on both systems | Firefox 157.0.1 automated native handoff and fallback passed in run #43099301287; issue #52 still open | [Exact-head CI](https://github.com/shimon3/rapido/actions/runs/43099301287), `docs/browser-support-plan.md` | Exact beta.2 manual rows D1–D3 on W10/W11 | Yes | Owner | All three are recorded; failures are either fixed or declared unsupported |
 | P5 | Feedback channel ready | Issue forms and `SECURITY.md` on the work branch | `.github/ISSUE_TEMPLATE/` | GitHub reads forms only from `main`: until the owner authorizes a merge, use private messages. Enable private vulnerability reporting and create the labels `beta-privee` and `feedback` | No | Owner | A tester can report privately, and a security report never needs a public issue |
 | P6 | Testers informed | Notice and guide written | `docs/private-beta/notice-securite-version-non-signee.md`, `guide-testeur.md` | Owner sends them with the hashes on a second channel | Yes | Owner | Each tester confirmed reading the notice |
 | P7 | Licence gates pass on the candidate and `payload.json` is reviewed | Gates enforced by CI; FFmpeg and Deno not added by the workflow | `docs/private-beta/revue-licences-bloquantes.md` | Review `third-party/payload.json` of the frozen artifact | Yes | Owner | No unexpected component |

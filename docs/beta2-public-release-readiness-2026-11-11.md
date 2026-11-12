@@ -1,4 +1,4 @@
-# Rapido 1.3.0-beta.2 — public beta readiness dossier (11 November 2026)
+# Rapido 1.3.0-beta.2 — public beta readiness dossier (12 November 2026)
 
 **State: NO-GO for public distribution.** This is an evidence index and work
 handoff, **not** an authorization to purchase certificates, sign binaries,
@@ -9,16 +9,20 @@ merge, publish, create a version tag, or approve licence compliance.
 | Item | Verified status |
 | --- | --- |
 | Integration draft | [PR #51](https://github.com/shimon3/rapido/pull/51), based on `automation/rapido-beta2-20261027`, **not `main`** |
-| Tested source commit | `bbe3925a35b380b0a754d1b7eb0733dd4ce94947` |
-| Windows Server 2025 CI | [Run #43033951242](https://github.com/shimon3/rapido/actions/runs/43033951242): **success** |
-| Automated regression tests | 444 passed, 6 skipped, 2 warnings; 277 subtests passed |
-| Disposable Authenticode tests | 15 passed and 39 subtests passed; **not a production signature** |
-| PyPI advisory gate | 41/41 verified; human licence review remains required |
-| Actual Firefox smoke | 157.0.1 native handoff and browser fallback passed in this run |
-| Unpublished artifact | `UNPUBLISHED-Rapido-1.3.0-beta.2-windows`, artifact ID `13863311886`, 80,860,486 bytes, expires **2026-11-25** |
-| GitHub artifact-upload digest | `fd71e46335b8bd57bf1c3a078564c8a1a1a41fcbcf4f7b950878ca2bee96c9b8` (not a substitute for the individual installer/ZIP digests) |
+| Tested source commit | `2e4fef34fe6eef49f8b12e259f8a7abe032870d5` |
+| Windows CI | [Run #43099301287](https://github.com/shimon3/rapido/actions/runs/43099301287): **success** on exact PR head (`windows-latest`) |
+| Automated regression tests | Exact-head regression-test workflow step passed; numeric test totals are not exposed by the run metadata retrieved for this checkpoint |
+| Disposable Authenticode tests | Exact-head disposable signing rehearsal passed; **not a production signature** |
+| PyPI advisory gate | Exact-head dependency/advisory workflow step passed; human licence review remains required |
+| Actual Firefox smoke | Real Firefox 157.0.1 native handoff and browser fallback passed in exact-head run #43099301287; issue #52 remains open |
+| Unpublished artifact | `UNPUBLISHED-Rapido-1.3.0-beta.2-windows`, artifact ID `13892505549`, 80,856,930 bytes, expires **2026-11-25 21:06 UTC** |
+| GitHub artifact-upload digest | `sha256:d739903eb503cca5a410b57a906baf41eb5152337e5aa81358b1d26bc2268359` (not a substitute for individual installer/ZIP digests) |
 | Release job | Skipped by policy; publication gate remains `publishable=false` |
 | Current beta branch signing | Unsigned. No approved publisher certificate or verified production signature |
+
+
+
+**Exact-head evidence note (12 November):** Run #43099301287 completed successfully for the current PR head. The build job and its regression, signing-rehearsal, dependency, packaging, Firefox, SHA-256, and artifact-upload steps succeeded; the `release` job was skipped. The Actions job metadata available for this review does not expose numeric test totals, so earlier run totals are not attributed to this run.
 
 Only the **exact signed candidate** can be approved for public publication. The
 unsigned artifact listed above is suitable for controlled review under
