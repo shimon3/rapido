@@ -84,7 +84,7 @@ jobs:
       - name: Regression tests (security + engine)
         env:
           RAPIDO_DATA: ${{ runner.temp }}\rapido-tests
-        run: python -m pytest -q tests
+        run: python -m pytest -q -rs tests
 
       - name: Read version
         id: ver
