@@ -9,20 +9,26 @@ merge, publish, create a version tag, or approve licence compliance.
 | Item | Verified status |
 | --- | --- |
 | Integration draft | [PR #51](https://github.com/shimon3/rapido/pull/51), based on `automation/rapido-beta2-20261027`, **not `main`** |
-| Tested source commit | `2e4fef34fe6eef49f8b12e259f8a7abe032870d5` |
-| Windows CI | [Run #43099301287](https://github.com/shimon3/rapido/actions/runs/43099301287): **success** on exact PR head (`windows-latest`) |
-| Automated regression tests | Exact-head regression-test workflow step passed; numeric test totals are not exposed by the run metadata retrieved for this checkpoint |
-| Disposable Authenticode tests | Exact-head disposable signing rehearsal passed; **not a production signature** |
-| PyPI advisory gate | Exact-head dependency/advisory workflow step passed; human licence review remains required |
-| Actual Firefox smoke | Real Firefox 157.0.1 native handoff and browser fallback passed in exact-head run #43099301287; issue #52 remains open |
-| Unpublished artifact | `UNPUBLISHED-Rapido-1.3.0-beta.2-windows`, artifact ID `13892505549`, 80,856,930 bytes, expires **2026-11-25 21:06 UTC** |
-| GitHub artifact-upload digest | `sha256:d739903eb503cca5a410b57a906baf41eb5152337e5aa81358b1d26bc2268359` (not a substitute for individual installer/ZIP digests) |
+| Tested PR head | `5794146456a4a49eb0378f3df72cfe3e994f6853` |
+| CI merge candidate | `4b8b927c8c01fe94067c6b3756697a6ca28bfd0f` (synthetic PR merge tree) |
+| Windows CI | [Run #43156904123](https://github.com/shimon3/rapido/actions/runs/43156904123): **success** on PR head `5794146` (`windows-latest`) |
+| Automated regression tests | 456 passed, 6 skipped, 2 warnings; 280 subtests passed |
+| Disposable Authenticode tests | 15 passed, 39 subtests passed; **not a production signature** |
+| PyPI advisory gate | 41/41 responses verified; human licence review remains required |
+| Actual Firefox smoke | Firefox 157.0.1 native handoff and browser fallback passed in run #43156904123; issue #52 remains open |
+| Unpublished artifact | `UNPUBLISHED-Rapido-1.3.0-beta.2-windows`, artifact ID `13916850742`, 80,857,137 bytes, expires **2026-11-26 04:52 UTC** |
+| GitHub artifact-upload digest | `sha256:8b5024217b89e5b9f547166f82e62f0063efb212d224ec23bc9b93d467e25055` (archive digest, not individual-file verification) |
+| Installer SHA-256 from original Actions summary | `6407a94a1510e959bb9e6854bf955a31126ec1ec7b014db918212147148f6e8a` |
+| Portable ZIP SHA-256 from original Actions summary | `2e401b9c5904f1ca9fb77fa164d0897777b3850fdf332de08efcf7c8cf9ec8b3` |
 | Release job | Skipped by policy; publication gate remains `publishable=false` |
 | Current beta branch signing | Unsigned. No approved publisher certificate or verified production signature |
 
 
 
 **Exact-head evidence note (12 November):** Run #43099301287 completed successfully for the current PR head. The build job and its regression, signing-rehearsal, dependency, packaging, Firefox, SHA-256, and artifact-upload steps succeeded; the `release` job was skipped. The Actions job metadata available for this review does not expose numeric test totals, so earlier run totals are not attributed to this run.
+
+
+These individual hashes are from run #43156904123's original Actions job summary. The archive itself has not been downloaded and independently checked against them; do not mark the artifact verified until that comparison succeeds.
 
 Only the **exact signed candidate** can be approved for public publication. The
 unsigned artifact listed above is suitable for controlled review under
